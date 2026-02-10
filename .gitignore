@@ -1,0 +1,76 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+*.dylib
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+#  - https://pyinstaller.readthedocs.io/en/latest/usage.html#cmdoption-onefile
+*.onefile-build/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Audio files
+*.mp3
+*.wav
+*.flac
+*.m4a
+
+# TTS models and data
+data/voices/
+data/models/
+models/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Logs
+*.log
+
+# Configuration files
+config.json
+settings.json
