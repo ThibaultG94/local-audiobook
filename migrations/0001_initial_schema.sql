@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS conversion_jobs (
     FOREIGN KEY(document_id) REFERENCES documents(id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_conversion_jobs_document_id
+    ON conversion_jobs(document_id);
+
 CREATE TABLE IF NOT EXISTS chunks (
     id TEXT PRIMARY KEY,
     job_id TEXT NOT NULL,
@@ -37,6 +40,9 @@ CREATE TABLE IF NOT EXISTS chunks (
     created_at TEXT NOT NULL,
     FOREIGN KEY(job_id) REFERENCES conversion_jobs(id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_chunks_job_id
+    ON chunks(job_id);
 
 CREATE TABLE IF NOT EXISTS library_items (
     id TEXT PRIMARY KEY,
