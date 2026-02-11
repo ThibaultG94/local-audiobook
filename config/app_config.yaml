@@ -1,0 +1,15 @@
+app:
+  name: local-audiobook
+  environment: local
+
+paths:
+  runtime_dir: runtime
+  database_path: runtime/local_audiobook.db
+  migrations_dir: migrations
+  logs_dir: runtime/logs
+  library_audio_dir: runtime/library/audio
+  library_temp_dir: runtime/library/temp
+
+bootstrap:
+  apply_migrations_on_startup: true
+

@@ -71,6 +71,15 @@ models/
 # Logs
 *.log
 
+# Local runtime data
+runtime/*.db
+runtime/logs/*.jsonl
+runtime/library/audio/*
+runtime/library/temp/*
+!runtime/library/audio/.gitkeep
+!runtime/library/temp/.gitkeep
+!runtime/logs/.gitkeep
+
 # Configuration files
 config.json
 settings.json

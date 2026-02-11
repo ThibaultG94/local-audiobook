@@ -1,6 +1,6 @@
 # Story 1.1: Initialize Local Application Foundation and Persistent Job Store
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -37,46 +37,46 @@ so that conversion jobs and offline readiness state are reliably stored on my ma
 
 ## Tasks / Subtasks
 
-- [ ] Create baseline Python app scaffold and packaging files (AC: 1, 2)
-  - [ ] Add `pyproject.toml`, `.python-version`, `.env.example`, `.gitignore`, `README.md`
-  - [ ] Create folder boundaries from architecture: `src/`, `tests/`, `migrations/`, `config/`, `runtime/`
-  - [ ] Create `config/app_config.yaml` with bootstrap-safe local defaults (paths, database file location, runtime directories)
-  - [ ] Create `config/logging_config.yaml` with JSONL logger baseline configuration for local runtime
-  - [ ] Add runtime subfolders: `runtime/logs`, `runtime/library/audio`, `runtime/library/temp`
+- [x] Create baseline Python app scaffold and packaging files (AC: 1, 2)
+  - [x] Add `pyproject.toml`, `.python-version`, `.env.example`, `.gitignore`, `README.md`
+  - [x] Create folder boundaries from architecture: `src/`, `tests/`, `migrations/`, `config/`, `runtime/`
+  - [x] Create `config/app_config.yaml` with bootstrap-safe local defaults (paths, database file location, runtime directories)
+  - [x] Create `config/logging_config.yaml` with JSONL logger baseline configuration for local runtime
+  - [x] Add runtime subfolders: `runtime/logs`, `runtime/library/audio`, `runtime/library/temp`
 
-- [ ] Implement bootstrap entrypoint and dependency wiring (AC: 1, 2)
-  - [ ] Add `src/app/main.py` startup orchestration (settings, DB init, migration runner, logger bootstrap)
-  - [ ] Add `src/app/dependency_container.py` for service/repository/provider construction
-  - [ ] Keep `dependency_container.py` framework-agnostic (pure Python): no direct `PyQt5` imports in Story 1.1
-  - [ ] Ensure future UI/service construction can consume container-provided dependencies without changing container internals
+- [x] Implement bootstrap entrypoint and dependency wiring (AC: 1, 2)
+  - [x] Add `src/app/main.py` startup orchestration (settings, DB init, migration runner, logger bootstrap)
+  - [x] Add `src/app/dependency_container.py` for service/repository/provider construction
+  - [x] Keep `dependency_container.py` framework-agnostic (pure Python): no direct `PyQt5` imports in Story 1.1
+  - [x] Ensure future UI/service construction can consume container-provided dependencies without changing container internals
 
-- [ ] Implement SQLite connectivity and repository boundary foundations (AC: 1, 2, 4)
-  - [ ] Add `src/adapters/persistence/sqlite/connection.py` with local file DB initialization
-  - [ ] Add repository stubs under `src/adapters/persistence/sqlite/repositories/`
-  - [ ] Enforce no direct SQLite access from UI modules
+- [x] Implement SQLite connectivity and repository boundary foundations (AC: 1, 2, 4)
+  - [x] Add `src/adapters/persistence/sqlite/connection.py` with local file DB initialization
+  - [x] Add repository stubs under `src/adapters/persistence/sqlite/repositories/`
+  - [x] Enforce no direct SQLite access from UI modules
 
-- [ ] Implement migration mechanism with version tracking (AC: 3)
-  - [ ] Add `migrations/0001_initial_schema.sql` with MVP tables: documents, conversion_jobs, chunks, library_items, diagnostics_events, schema_migrations
-  - [ ] Keep `diagnostics_events` intentionally minimal in Story 1.1 scope (`id`, `correlation_id`, `timestamp`, `payload`) to satisfy baseline persistence without pre-implementing Epic 5 schema hardening
-  - [ ] Add migration runner invoked during startup
-  - [ ] Persist applied migration version/checksum in `schema_migrations`
+- [x] Implement migration mechanism with version tracking (AC: 3)
+  - [x] Add `migrations/0001_initial_schema.sql` with MVP tables: documents, conversion_jobs, chunks, library_items, diagnostics_events, schema_migrations
+  - [x] Keep `diagnostics_events` intentionally minimal in Story 1.1 scope (`id`, `correlation_id`, `timestamp`, `payload`) to satisfy baseline persistence without pre-implementing Epic 5 schema hardening
+  - [x] Add migration runner invoked during startup
+  - [x] Persist applied migration version/checksum in `schema_migrations`
 
-- [ ] Implement normalized contracts for results/errors and job-state validation (AC: 4)
-  - [ ] Add `src/contracts/result.py` for `{ok, data, error}`
-  - [ ] Add `src/contracts/errors.py` for `{code, message, details, retryable}`
-  - [ ] Add dedicated job transition validator in service layer for `queued/running/paused/failed/completed` (e.g. `src/domain/services/job_state_validator.py`)
-  - [ ] If `src/domain/services/tts_orchestration_service.py` is introduced as stub in this story, validator is consumed there; transition rules must remain outside repositories
+- [x] Implement normalized contracts for results/errors and job-state validation (AC: 4)
+  - [x] Add `src/contracts/result.py` for `{ok, data, error}`
+  - [x] Add `src/contracts/errors.py` for `{code, message, details, retryable}`
+  - [x] Add dedicated job transition validator in service layer for `queued/running/paused/failed/completed` (e.g. `src/domain/services/job_state_validator.py`)
+  - [x] If `src/domain/services/tts_orchestration_service.py` is introduced as stub in this story, validator is consumed there; transition rules must remain outside repositories
 
-- [ ] Implement initial JSONL observability skeleton (AC: 5)
-  - [ ] Add `src/infrastructure/logging/event_schema.py` required field contract
-  - [ ] Add `src/infrastructure/logging/jsonl_logger.py` append-only JSONL writer
-  - [ ] Emit startup/migration events: `bootstrap.started`, `bootstrap.completed`, `migration.started`, `migration.applied`, `migration.completed`, `migration.failed`
+- [x] Implement initial JSONL observability skeleton (AC: 5)
+  - [x] Add `src/infrastructure/logging/event_schema.py` required field contract
+  - [x] Add `src/infrastructure/logging/jsonl_logger.py` append-only JSONL writer
+  - [x] Emit startup/migration events: `bootstrap.started`, `bootstrap.completed`, `migration.started`, `migration.applied`, `migration.completed`, `migration.failed`
 
-- [ ] Add tests for bootstrap, migrations, and contracts (AC: 1..5)
-  - [ ] Unit tests for result/error contracts and state-transition validator
-  - [ ] Integration tests for fresh bootstrap creating DB and schema
-  - [ ] Integration tests for migration idempotency (re-run does not re-apply)
-  - [ ] Integration tests for JSONL events and required fields/timestamp format
+- [x] Add tests for bootstrap, migrations, and contracts (AC: 1..5)
+  - [x] Unit tests for result/error contracts and state-transition validator
+  - [x] Integration tests for fresh bootstrap creating DB and schema
+  - [x] Integration tests for migration idempotency (re-run does not re-apply)
+  - [x] Integration tests for JSONL events and required fields/timestamp format
 
 ## Dev Notes
 
@@ -167,13 +167,71 @@ gpt-5.3-codex
 
 ### Debug Log References
 
-- N/A (story creation phase)
+- `PYTHONPATH=src python3 -m unittest discover -s tests -v`
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
-- Story is ready for implementation with architecture-compliant guardrails and explicit anti-pattern prevention.
+- Implemented full Story 1.1 scaffold and local-only bootstrap pipeline: packaging/config/runtime folders, SQLite connection, migration runner, container wiring, contracts, and JSONL logging skeleton.
+- Added migration baseline `0001_initial_schema.sql` with idempotent version/checksum tracking in `schema_migrations`.
+- Added domain-level job transition validator + orchestration stub consuming validator to enforce allowed states and normalized error results.
+- Added unit/integration tests for contracts, validator, non-Qt container import, bootstrap schema creation, migration idempotency, and JSONL required field/timestamp conformance.
+- Executed test suite successfully with `unittest` (10 tests, all passing).
 
 ### File List
 
 - _bmad-output/implementation-artifacts/1-1-initialize-local-application-foundation-and-persistent-job-store.md
+- .env.example
+- .python-version
+- .gitignore
+- config/app_config.yaml
+- config/logging_config.yaml
+- migrations/.gitkeep
+- migrations/0001_initial_schema.sql
+- pyproject.toml
+- runtime/library/audio/.gitkeep
+- runtime/library/temp/.gitkeep
+- runtime/logs/.gitkeep
+- src/adapters/__init__.py
+- src/adapters/persistence/__init__.py
+- src/adapters/persistence/sqlite/__init__.py
+- src/adapters/persistence/sqlite/connection.py
+- src/adapters/persistence/sqlite/migration_runner.py
+- src/adapters/persistence/sqlite/repositories/__init__.py
+- src/adapters/persistence/sqlite/repositories/base_repository.py
+- src/adapters/persistence/sqlite/repositories/chunks_repository.py
+- src/adapters/persistence/sqlite/repositories/conversion_jobs_repository.py
+- src/adapters/persistence/sqlite/repositories/diagnostics_events_repository.py
+- src/adapters/persistence/sqlite/repositories/documents_repository.py
+- src/adapters/persistence/sqlite/repositories/library_items_repository.py
+- src/adapters/providers/__init__.py
+- src/adapters/providers/tts_provider.py
+- src/app/__init__.py
+- src/app/dependency_container.py
+- src/app/main.py
+- src/app/settings.py
+- src/contracts/__init__.py
+- src/contracts/errors.py
+- src/contracts/result.py
+- src/domain/__init__.py
+- src/domain/services/__init__.py
+- src/domain/services/job_state_validator.py
+- src/domain/services/tts_orchestration_service.py
+- src/infrastructure/__init__.py
+- src/infrastructure/logging/__init__.py
+- src/infrastructure/logging/event_schema.py
+- src/infrastructure/logging/jsonl_logger.py
+- src/ui/__init__.py
+- tests/__init__.py
+- tests/integration/.gitkeep
+- tests/integration/__init__.py
+- tests/integration/test_bootstrap_and_migrations.py
+- tests/integration/test_jsonl_logging.py
+- tests/unit/.gitkeep
+- tests/unit/__init__.py
+- tests/unit/test_contracts.py
+- tests/unit/test_dependency_container_no_qt.py
+- tests/unit/test_job_state_validator.py
+
+## Change Log
+
+- 2026-02-11: Implemented Story 1.1 foundation end-to-end (scaffold, SQLite + migrations, contracts, JSONL logging, and tests). Set story status to `review`.

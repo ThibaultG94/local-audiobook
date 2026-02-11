@@ -1,0 +1,9 @@
+logging:
+  logger_type: jsonl
+  level: INFO
+  file_path: runtime/logs/events.jsonl
+
+event_defaults:
+  engine: bootstrap
+  severity: INFO
+
