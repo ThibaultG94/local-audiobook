@@ -1,0 +1,79 @@
+# generated: 2026-02-11T17:28:28Z
+# project: local-audiobook
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-02-11T17:28:28Z
+project: local-audiobook
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: backlog
+  1-1-initialize-local-application-foundation-and-persistent-job-store: backlog
+  1-2-validate-model-assets-and-engine-health-at-startup: backlog
+  1-3-surface-offline-readiness-status-and-actionable-remediation-in-ui: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-import-local-multi-format-documents-with-input-validation: backlog
+  2-2-extract-clean-text-from-epub-with-actionable-failure-handling: backlog
+  2-3-extract-text-from-pdf-with-degraded-case-handling: backlog
+  2-4-extract-and-normalize-txt-and-markdown-inputs: backlog
+  2-5-provide-unified-extraction-error-feedback-and-diagnostics: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-implement-unified-tts-provider-contract-and-engine-adapters: backlog
+  3-2-segment-long-text-with-phrase-first-chunking-rules: backlog
+  3-3-orchestrate-deterministic-conversion-with-engine-fallback: backlog
+  3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk: backlog
+  3-5-configure-conversion-parameters-and-output-format-in-ui: backlog
+  3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-assemble-synthesized-chunks-into-final-audio-output: backlog
+  4-2-persist-final-audio-artifacts-and-library-metadata: backlog
+  4-3-browse-and-reopen-audiobooks-from-local-library-view: backlog
+  4-4-integrate-local-audio-playback-service-and-adapter: backlog
+  4-5-provide-playback-controls-with-pause-resume-seek-and-progress: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-define-correlated-jsonl-event-schema-and-logging-contract: backlog
+  5-2-instrument-end-to-end-pipeline-with-correlation-context: backlog
+  5-3-present-actionable-failure-diagnostics-in-conversion-ui: backlog
+  5-4-provide-local-support-workflow-for-error-review-and-guided-remediation: backlog
+  epic-5-retrospective: optional
