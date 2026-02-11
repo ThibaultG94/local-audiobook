@@ -58,3 +58,6 @@ CREATE TABLE IF NOT EXISTS diagnostics_events (
     timestamp TEXT NOT NULL,
     payload TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_diagnostics_events_correlation_id
+    ON diagnostics_events(correlation_id);
