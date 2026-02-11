@@ -5,21 +5,38 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+try:
+    import yaml
+except ImportError:  # pragma: no cover - optional dependency at runtime
+    yaml = None
 
-def _coerce_scalar(value: str) -> str | bool:
+
+def _coerce_scalar(value: str) -> str | bool | int | float | None:
     cleaned = value.strip()
-    if cleaned.lower() == "true":
+    unquoted = cleaned.strip('"').strip("'")
+
+    lowered = unquoted.lower()
+    if lowered in {"null", "none", "~"}:
+        return None
+    if lowered == "true":
         return True
-    if cleaned.lower() == "false":
+    if lowered == "false":
         return False
-    return cleaned.strip('"').strip("'")
+
+    if unquoted.isdigit() or (unquoted.startswith("-") and unquoted[1:].isdigit()):
+        return int(unquoted)
+
+    try:
+        if "." in unquoted:
+            return float(unquoted)
+    except ValueError:
+        pass
+
+    return unquoted
 
 
-def load_simple_yaml(path: str | Path) -> dict[str, Any]:
-    """Load a simple, indentation-based YAML mapping.
-
-    Supports the subset used in Story 1.1 configuration files.
-    """
+def _fallback_load_simple_yaml(path: str | Path) -> dict[str, Any]:
+    """Load a simple, indentation-based YAML mapping (fallback parser)."""
 
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     root: dict[str, Any] = {}
@@ -48,3 +65,20 @@ def load_simple_yaml(path: str | Path) -> dict[str, Any]:
 
     return root
 
+
+def load_simple_yaml(path: str | Path) -> dict[str, Any]:
+    """Load YAML configuration.
+
+    Uses PyYAML when available; otherwise falls back to a small local parser.
+    """
+
+    if yaml is not None:
+        content = Path(path).read_text(encoding="utf-8")
+        data = yaml.safe_load(content)
+        if data is None:
+            return {}
+        if not isinstance(data, dict):
+            raise ValueError("Root YAML document must be a mapping")
+        return data
+
+    return _fallback_load_simple_yaml(path)
