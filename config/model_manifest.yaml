@@ -1,0 +1,14 @@
+models:
+  - name: chatterbox_gpu_primary
+    engine: chatterbox_gpu
+    version: "1.0.0"
+    expected_hash: "8f434346648f6b96df89dda901c5176b10a6d83961f5ee1cb1521ad2c08a57f1"
+    expected_size: 23
+    local_path: runtime/models/chatterbox/chatterbox.bin
+
+  - name: kokoro_cpu_fallback
+    engine: kokoro_cpu
+    version: "1.0.0"
+    expected_hash: "88fd7f67016d34fd2c7ecb6523c09f95b350ad55ea4f1f9f6f58cb5ad97eafaf"
+    expected_size: 19
+    local_path: runtime/models/kokoro/kokoro.bin

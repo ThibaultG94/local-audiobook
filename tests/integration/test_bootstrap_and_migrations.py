@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 import tempfile
 import unittest
@@ -56,6 +57,32 @@ def _get_tables(connection: sqlite3.Connection) -> set[str]:
     return {row[0] for row in cursor.fetchall()}
 
 
+def _write_manifest_with_invalid_asset(base_dir: Path) -> Path:
+    models_dir = base_dir / "runtime" / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    existing = models_dir / "existing.bin"
+    existing.write_bytes(b"asset-present-but-invalid")
+
+    invalid_hash = hashlib.sha256(b"different-content").hexdigest()
+    manifest = base_dir / "model_manifest.yaml"
+    manifest.write_text(
+        "\n".join(
+            [
+                "models:",
+                "  - name: required-model",
+                "    engine: chatterbox_gpu",
+                "    version: '1.0.0'",
+                f"    expected_hash: '{invalid_hash}'",
+                f"    expected_size: {len(b'different-content')}",
+                f"    local_path: {existing}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return manifest
+
+
 class TestBootstrapAndMigrationsIntegration(unittest.TestCase):
     def test_fresh_bootstrap_creates_database_and_schema(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -99,3 +126,22 @@ class TestBootstrapAndMigrationsIntegration(unittest.TestCase):
             self.assertEqual(rows[0][0], "0001_initial_schema")
 
             second.connection.close()
+
+    def test_bootstrap_sets_not_ready_when_required_assets_are_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            app_config, logging_config = _write_config_files(tmp_path)
+            manifest = _write_manifest_with_invalid_asset(tmp_path)
+
+            container = bootstrap(
+                str(app_config),
+                str(logging_config),
+                str(manifest),
+            )
+
+            self.assertIsNotNone(container.startup_readiness)
+            self.assertTrue(container.startup_readiness["ok"])
+            self.assertEqual(container.startup_readiness["data"]["status"], "not_ready")
+            self.assertGreaterEqual(len(container.startup_readiness["data"]["remediation"]), 1)
+
+            container.connection.close()
