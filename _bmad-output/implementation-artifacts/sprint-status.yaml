@@ -40,8 +40,8 @@ tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 
 development_status:
-  epic-1: backlog
-  1-1-initialize-local-application-foundation-and-persistent-job-store: backlog
+  epic-1: in-progress
+  1-1-initialize-local-application-foundation-and-persistent-job-store: ready-for-dev
   1-2-validate-model-assets-and-engine-health-at-startup: backlog
   1-3-surface-offline-readiness-status-and-actionable-remediation-in-ui: backlog
   epic-1-retrospective: optional
