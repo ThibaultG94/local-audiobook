@@ -72,6 +72,10 @@ class TestJsonlLoggingIntegration(unittest.TestCase):
                 "migration.started",
                 "migration.applied",
                 "migration.completed",
+                "model_registry.started",
+                "model_registry.completed",
+                "engine_health.started",
+                "engine_health.completed",
                 "bootstrap.completed",
             ]:
                 self.assertIn(required, event_names)
