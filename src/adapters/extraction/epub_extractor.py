@@ -2,21 +2,13 @@
 
 from __future__ import annotations
 
-import html
-import re
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, Union, runtime_checkable
 
 from ebooklib import epub
 
 from contracts.result import Result, failure, success
-
-# Maximum EPUB file size in bytes (500MB)
-_MAX_EPUB_SIZE = 500 * 1024 * 1024
-
-# Compiled regex patterns for text normalization
-_TAG_RE = re.compile(r"<[^>]+>")
-_WHITESPACE_RE = re.compile(r"[ \t\r\f\v]+")
+from .text_normalization import CHUNK_INDEX_NOT_APPLICABLE, MAX_FILE_SIZE_BYTES, normalize_fragment
 
 
 @runtime_checkable
@@ -35,23 +27,23 @@ class EpubExtractor:
     def __init__(self, *, logger: EventLoggerPort | None = None) -> None:
         self._logger = logger or _NoopLogger()
 
-    def extract(self, source_path: str, *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]:
+    def extract(self, source_path: Union[str, Path], *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]:
         normalized_source_path = str(Path(source_path).resolve())
         
         # Validate file size before processing
         try:
             file_size = Path(normalized_source_path).stat().st_size
-            if file_size > _MAX_EPUB_SIZE:
+            if file_size > MAX_FILE_SIZE_BYTES:
                 return self._fail(
                     correlation_id=correlation_id,
                     job_id=job_id,
                     code="extraction.file_too_large",
-                    message=f"EPUB file exceeds maximum size limit ({_MAX_EPUB_SIZE // (1024*1024)}MB)",
+                    message=f"EPUB file exceeds maximum size limit ({MAX_FILE_SIZE_BYTES // (1024*1024)}MB)",
                     details={
                         "source_path": normalized_source_path,
                         "source_format": "epub",
                         "file_size": file_size,
-                        "max_size": _MAX_EPUB_SIZE,
+                        "max_size": MAX_FILE_SIZE_BYTES,
                     },
                     retryable=False,
                 )
@@ -70,7 +62,7 @@ class EpubExtractor:
             severity="INFO",
             correlation_id=correlation_id,
             job_id=job_id,
-            chunk_index=-1,
+            chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
             engine="epub",
             extra={"source_path": normalized_source_path},
         )
@@ -105,12 +97,12 @@ class EpubExtractor:
                         severity="WARNING",
                         correlation_id=correlation_id,
                         job_id=job_id,
-                        chunk_index=-1,
+                        chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
                         engine="epub",
                         extra={"source_path": normalized_source_path, "item_id": item_id},
                     )
 
-                normalized_section = self._normalize_fragment(decoded_text)
+                normalized_section = normalize_fragment(decoded_text, strip_html=True)
                 if normalized_section:
                     text_sections.append(normalized_section)
 
@@ -131,7 +123,7 @@ class EpubExtractor:
                 severity="INFO",
                 correlation_id=correlation_id,
                 job_id=job_id,
-                chunk_index=-1,
+                chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
                 engine="epub",
                 extra={
                     "source_path": normalized_source_path,
@@ -193,14 +185,8 @@ class EpubExtractor:
             severity="ERROR",
             correlation_id=correlation_id,
             job_id=job_id,
-            chunk_index=-1,
+            chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
             engine="epub",
             extra={"error_code": code, **details},
         )
         return failure(code=code, message=message, details=details, retryable=retryable)
-
-    def _normalize_fragment(self, fragment: str) -> str:
-        text = html.unescape(_TAG_RE.sub(" ", fragment))
-        lines = [_WHITESPACE_RE.sub(" ", line).strip() for line in text.split("\n")]
-        non_empty_lines = [line for line in lines if line]
-        return "\n".join(non_empty_lines)

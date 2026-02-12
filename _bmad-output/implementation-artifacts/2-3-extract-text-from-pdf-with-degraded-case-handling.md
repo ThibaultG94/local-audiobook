@@ -1,6 +1,6 @@
 # Story 2.3: Extract Text from PDF with Degraded-Case Handling
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -230,7 +230,8 @@ gpt-5.3-codex
 - Extended presenter extraction messaging to remain actionable in English for both EPUB and PDF failure modes.
 - Ensured extraction error details include `source_format` for accurate presenter feedback and observability consistency.
 - Added unit/integration coverage for PDF extraction behavior, orchestration routing, event schema compliance, and presenter messaging.
-- Executed full regression suite successfully (`55` tests passing).
+- Executed full regression suite successfully (`59` tests passing after code review fixes).
+- Applied code review fixes: added file size validation, improved exception handling, extracted shared normalization utilities, enhanced diagnostics, added comprehensive test coverage.
 
 ### File List
 
@@ -239,6 +240,7 @@ gpt-5.3-codex
 - src/adapters/extraction/__init__.py
 - src/adapters/extraction/epub_extractor.py
 - src/adapters/extraction/pdf_extractor.py
+- src/adapters/extraction/text_normalization.py
 - src/domain/services/import_service.py
 - src/ui/presenters/conversion_presenter.py
 - tests/integration/test_import_flow_integration.py
@@ -248,3 +250,4 @@ gpt-5.3-codex
 ### Change Log
 
 - 2026-02-12: Implemented Story 2.3 end-to-end (PDF extractor, service wiring, observability, presenter feedback, and automated tests).
+- 2026-02-12: Applied adversarial code review fixes - added file size validation, improved exception handling, extracted shared text normalization utilities, enhanced page diagnostics with word counts, added comprehensive test coverage for edge cases (file too large, missing file, malformed PDF, Unicode content).

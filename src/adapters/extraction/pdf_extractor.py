@@ -1,16 +1,22 @@
-"""PDF extraction adapter with deterministic page-order output."""
+"""PDF extraction adapter with deterministic page-order output.
+
+Limitations:
+- PyPDF2 does not perform OCR on scanned/image-only PDFs
+- Encrypted PDFs require decryption before extraction
+- Complex layouts may result in non-linear text order
+- Very large PDFs (>500MB) are rejected to prevent memory issues
+"""
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, Union, runtime_checkable
 
 from PyPDF2 import PdfReader
+from PyPDF2.errors import PdfReadError
 
 from contracts.result import Result, failure, success
-
-_WHITESPACE_RE = re.compile(r"[ \t\r\f\v]+")
+from .text_normalization import CHUNK_INDEX_NOT_APPLICABLE, MAX_FILE_SIZE_BYTES, normalize_fragment
 
 
 @runtime_checkable
@@ -29,15 +35,43 @@ class PdfExtractor:
     def __init__(self, *, logger: EventLoggerPort | None = None) -> None:
         self._logger = logger or _NoopLogger()
 
-    def extract(self, source_path: str, *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]:
+    def extract(self, source_path: Union[str, Path], *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]:
         normalized_source_path = str(Path(source_path).resolve())
+        
+        # Validate file size before processing (same limit as EPUB)
+        try:
+            file_size = Path(normalized_source_path).stat().st_size
+            if file_size > MAX_FILE_SIZE_BYTES:
+                return self._fail(
+                    correlation_id=correlation_id,
+                    job_id=job_id,
+                    code="extraction.file_too_large",
+                    message=f"PDF file exceeds maximum size limit ({MAX_FILE_SIZE_BYTES // (1024*1024)}MB)",
+                    details={
+                        "source_path": normalized_source_path,
+                        "source_format": "pdf",
+                        "file_size": file_size,
+                        "max_size": MAX_FILE_SIZE_BYTES,
+                    },
+                    retryable=False,
+                )
+        except OSError as exc:
+            return self._fail(
+                correlation_id=correlation_id,
+                job_id=job_id,
+                code="extraction.unreadable_source",
+                message="Unable to access PDF file",
+                details={"source_path": normalized_source_path, "source_format": "pdf", "error": str(exc)},
+                retryable=True,
+            )
+        
         self._logger.emit(
             event="extraction.started",
             stage="extraction",
             severity="INFO",
             correlation_id=correlation_id,
             job_id=job_id,
-            chunk_index=-1,
+            chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
             engine="pdf",
             extra={"source_path": normalized_source_path},
         )
@@ -50,8 +84,9 @@ class PdfExtractor:
 
             for page_index, page in enumerate(reader.pages):
                 page_text_raw = page.extract_text()
-                normalized_page = self._normalize_fragment(page_text_raw or "")
+                normalized_page = normalize_fragment(page_text_raw or "", strip_html=False)
                 has_text = bool(normalized_page)
+                word_count = len(normalized_page.split()) if has_text else 0
 
                 if has_text:
                     normalized_pages.append(normalized_page)
@@ -63,6 +98,7 @@ class PdfExtractor:
                         "page_index": page_index,
                         "has_text": has_text,
                         "chars": len(normalized_page),
+                        "words": word_count,
                     }
                 )
 
@@ -91,7 +127,7 @@ class PdfExtractor:
                 severity="INFO",
                 correlation_id=correlation_id,
                 job_id=job_id,
-                chunk_index=-1,
+                chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
                 engine="pdf",
                 extra={
                     "source_path": normalized_source_path,
@@ -121,7 +157,7 @@ class PdfExtractor:
                 details={"source_path": normalized_source_path, "source_format": "pdf", "error": str(exc)},
                 retryable=True,
             )
-        except OSError as exc:
+        except (OSError, PermissionError) as exc:
             return self._fail(
                 correlation_id=correlation_id,
                 job_id=job_id,
@@ -130,12 +166,21 @@ class PdfExtractor:
                 details={"source_path": normalized_source_path, "source_format": "pdf", "error": str(exc)},
                 retryable=True,
             )
-        except Exception as exc:
+        except PdfReadError as exc:
             return self._fail(
                 correlation_id=correlation_id,
                 job_id=job_id,
                 code="extraction.malformed_pdf",
                 message="PDF extraction failed due to malformed or unsupported content",
+                details={"source_path": normalized_source_path, "source_format": "pdf", "error": str(exc)},
+                retryable=False,
+            )
+        except (ValueError, KeyError, IndexError) as exc:
+            return self._fail(
+                correlation_id=correlation_id,
+                job_id=job_id,
+                code="extraction.malformed_pdf",
+                message="PDF structure is invalid or corrupted",
                 details={"source_path": normalized_source_path, "source_format": "pdf", "error": str(exc)},
                 retryable=False,
             )
@@ -156,13 +201,8 @@ class PdfExtractor:
             severity="ERROR",
             correlation_id=correlation_id,
             job_id=job_id,
-            chunk_index=-1,
+            chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
             engine="pdf",
             extra={"error_code": code, **details},
         )
         return failure(code=code, message=message, details=details, retryable=retryable)
-
-    def _normalize_fragment(self, fragment: str) -> str:
-        lines = [_WHITESPACE_RE.sub(" ", line).strip() for line in fragment.split("\n")]
-        non_empty_lines = [line for line in lines if line]
-        return "\n".join(non_empty_lines)
