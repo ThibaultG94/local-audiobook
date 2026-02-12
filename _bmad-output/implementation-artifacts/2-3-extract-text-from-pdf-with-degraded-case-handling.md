@@ -1,6 +1,6 @@
 # Story 2.3: Extract Text from PDF with Degraded-Case Handling
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,22 +34,22 @@ so that I can decide whether to proceed or correct the source document.
 
 ## Tasks / Subtasks
 
-- [ ] Implement PDF extractor adapter in `src/adapters/extraction/pdf_extractor.py` with deterministic page-order output (AC: 1)
-  - [ ] Parse PDF pages with `PyPDF2` and concatenate extracted text in stable page sequence.
-  - [ ] Normalize whitespace/newlines and preserve readable paragraph boundaries for chunking readiness.
-  - [ ] Handle pages with no extractable text without crashing, while recording per-page diagnostics.
-- [ ] Wire extraction orchestration path for PDF through service layer (AC: 1, 2, 4)
-  - [ ] Route `.pdf` documents to `pdf_extractor.py` from `ImportService.extract_document()`.
-  - [ ] Map degraded/failed extraction outcomes to normalized `{ok, data, error}` with `{code, message, details, retryable}`.
-  - [ ] Ensure presenter pathway surfaces actionable English success/failure feedback and blocks conversion launch on failed extraction.
-- [ ] Add structured observability for PDF extraction lifecycle (AC: 3)
-  - [ ] Emit `domain.action` events for extraction start/success/failure with `stage=extraction` and `engine=pdf`.
-  - [ ] Include required schema fields: `correlation_id`, `job_id`, `chunk_index`, `event`, `severity`, `timestamp`.
-  - [ ] Add degraded-case telemetry (e.g., non-text page count / extraction quality warnings) in `extra` payload.
-- [ ] Add test coverage for extraction quality, degraded cases, failures, and UI-facing behavior (AC: 1..4)
-  - [ ] Unit tests for deterministic page order, normalization, and empty-page handling.
-  - [ ] Unit tests for malformed/corrupted PDFs and scanned/non-text degraded cases mapped to normalized errors.
-  - [ ] Integration tests for event emission schema and presenter feedback consistency.
+- [x] Implement PDF extractor adapter in `src/adapters/extraction/pdf_extractor.py` with deterministic page-order output (AC: 1)
+  - [x] Parse PDF pages with `PyPDF2` and concatenate extracted text in stable page sequence.
+  - [x] Normalize whitespace/newlines and preserve readable paragraph boundaries for chunking readiness.
+  - [x] Handle pages with no extractable text without crashing, while recording per-page diagnostics.
+- [x] Wire extraction orchestration path for PDF through service layer (AC: 1, 2, 4)
+  - [x] Route `.pdf` documents to `pdf_extractor.py` from `ImportService.extract_document()`.
+  - [x] Map degraded/failed extraction outcomes to normalized `{ok, data, error}` with `{code, message, details, retryable}`.
+  - [x] Ensure presenter pathway surfaces actionable English success/failure feedback and blocks conversion launch on failed extraction.
+- [x] Add structured observability for PDF extraction lifecycle (AC: 3)
+  - [x] Emit `domain.action` events for extraction start/success/failure with `stage=extraction` and `engine=pdf`.
+  - [x] Include required schema fields: `correlation_id`, `job_id`, `chunk_index`, `event`, `severity`, `timestamp`.
+  - [x] Add degraded-case telemetry (e.g., non-text page count / extraction quality warnings) in `extra` payload.
+- [x] Add test coverage for extraction quality, degraded cases, failures, and UI-facing behavior (AC: 1..4)
+  - [x] Unit tests for deterministic page order, normalization, and empty-page handling.
+  - [x] Unit tests for malformed/corrupted PDFs and scanned/non-text degraded cases mapped to normalized errors.
+  - [x] Integration tests for event emission schema and presenter feedback consistency.
 
 ## Dev Notes
 
@@ -217,13 +217,34 @@ gpt-5.3-codex
 - `git log --oneline -n 5`
 - `git log --name-only --pretty=format:'--- %h %s' -n 5`
 - `python - <<'PY' ...` (PyPI package metadata check for PyPDF2/pypdf/EbookLib)
+- `PYTHONPATH=src python -m unittest tests.unit.test_pdf_extractor tests.unit.test_extraction_orchestration tests.integration.test_import_flow_integration -v`
+- `PYTHONPATH=src python -m unittest discover -s tests -v`
 
 ### Completion Notes List
 
 - Story scaffolded and marked `ready-for-dev`.
 - Acceptance criteria and implementation tasks aligned to Epic 2 Story 2.3.
 - Developer guardrails include deterministic extraction, degraded-case diagnostics, and strict normalized contract requirements.
+- Implemented `PdfExtractor` with deterministic page-order extraction, newline/whitespace normalization, per-page diagnostics, and degraded-case metadata.
+- Added PDF routing in import orchestration with normalized extractor-unavailable handling for `.pdf` sources.
+- Extended presenter extraction messaging to remain actionable in English for both EPUB and PDF failure modes.
+- Ensured extraction error details include `source_format` for accurate presenter feedback and observability consistency.
+- Added unit/integration coverage for PDF extraction behavior, orchestration routing, event schema compliance, and presenter messaging.
+- Executed full regression suite successfully (`55` tests passing).
 
 ### File List
 
 - _bmad-output/implementation-artifacts/2-3-extract-text-from-pdf-with-degraded-case-handling.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/adapters/extraction/__init__.py
+- src/adapters/extraction/epub_extractor.py
+- src/adapters/extraction/pdf_extractor.py
+- src/domain/services/import_service.py
+- src/ui/presenters/conversion_presenter.py
+- tests/integration/test_import_flow_integration.py
+- tests/unit/test_extraction_orchestration.py
+- tests/unit/test_pdf_extractor.py
+
+### Change Log
+
+- 2026-02-12: Implemented Story 2.3 end-to-end (PDF extractor, service wiring, observability, presenter feedback, and automated tests).

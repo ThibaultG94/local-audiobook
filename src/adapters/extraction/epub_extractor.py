@@ -47,7 +47,12 @@ class EpubExtractor:
                     job_id=job_id,
                     code="extraction.file_too_large",
                     message=f"EPUB file exceeds maximum size limit ({_MAX_EPUB_SIZE // (1024*1024)}MB)",
-                    details={"source_path": normalized_source_path, "file_size": file_size, "max_size": _MAX_EPUB_SIZE},
+                    details={
+                        "source_path": normalized_source_path,
+                        "source_format": "epub",
+                        "file_size": file_size,
+                        "max_size": _MAX_EPUB_SIZE,
+                    },
                     retryable=False,
                 )
         except OSError as exc:
@@ -56,7 +61,7 @@ class EpubExtractor:
                 job_id=job_id,
                 code="extraction.unreadable_archive",
                 message="Unable to access EPUB file",
-                details={"source_path": normalized_source_path, "error": str(exc)},
+                details={"source_path": normalized_source_path, "source_format": "epub", "error": str(exc)},
                 retryable=True,
             )
         self._logger.emit(
@@ -116,7 +121,7 @@ class EpubExtractor:
                     job_id=job_id,
                     code="extraction.no_text_content",
                     message="No readable text content found in EPUB",
-                    details={"source_path": normalized_source_path},
+                    details={"source_path": normalized_source_path, "source_format": "epub"},
                     retryable=False,
                 )
 
@@ -150,7 +155,7 @@ class EpubExtractor:
                 job_id=job_id,
                 code="extraction.unreadable_archive",
                 message="Unable to read EPUB archive",
-                details={"source_path": normalized_source_path, "error": str(exc)},
+                details={"source_path": normalized_source_path, "source_format": "epub", "error": str(exc)},
                 retryable=True,
             )
         except ValueError as exc:
@@ -159,7 +164,7 @@ class EpubExtractor:
                 job_id=job_id,
                 code="extraction.malformed_package",
                 message="Malformed EPUB package metadata",
-                details={"source_path": normalized_source_path, "error": str(exc)},
+                details={"source_path": normalized_source_path, "source_format": "epub", "error": str(exc)},
                 retryable=False,
             )
         except Exception as exc:
@@ -168,7 +173,7 @@ class EpubExtractor:
                 job_id=job_id,
                 code="extraction.runtime_error",
                 message="EPUB extraction failed unexpectedly",
-                details={"source_path": normalized_source_path, "error": str(exc)},
+                details={"source_path": normalized_source_path, "source_format": "epub", "error": str(exc)},
                 retryable=True,
             )
 
@@ -199,4 +204,3 @@ class EpubExtractor:
         lines = [_WHITESPACE_RE.sub(" ", line).strip() for line in text.split("\n")]
         non_empty_lines = [line for line in lines if line]
         return "\n".join(non_empty_lines)
-

@@ -45,13 +45,18 @@ class ConversionPresenter:
     def map_extraction(self, extraction_result: Result[dict[str, Any]]) -> Result[dict[str, Any]]:
         if extraction_result.ok and extraction_result.data is not None:
             source_path = str(extraction_result.data.get("source_path", ""))
-            sections = int(extraction_result.data.get("sections", 0))
+            sections = int(extraction_result.data.get("sections", extraction_result.data.get("pages", 0)))
+            source_format = str(extraction_result.data.get("source_format", "document")).upper()
             return success(
                 {
                     "status": "succeeded",
                     "severity": "INFO",
-                    "message": "EPUB text extracted successfully.",
-                    "details": {"source_path": source_path, "sections": sections},
+                    "message": f"{source_format} text extracted successfully.",
+                    "details": {
+                        "source_path": source_path,
+                        "sections": sections,
+                        "non_text_pages": int(extraction_result.data.get("non_text_pages", 0)),
+                    },
                 }
             )
 
@@ -59,14 +64,16 @@ class ConversionPresenter:
         code = error.code if error else "extraction.unknown"
         details = error.to_dict() if error else {}
 
+        source_format = str(details.get("details", {}).get("source_format", "document")).upper()
+
         if code == "extraction.no_text_content":
-            message = "Unable to extract readable text from EPUB. Please verify the file contents."
-        elif code == "extraction.malformed_package":
-            message = "EPUB structure appears invalid. Please provide a well-formed EPUB file."
-        elif code == "extraction.unreadable_archive":
-            message = "EPUB file could not be read. Please check file permissions or integrity."
+            message = f"Unable to extract readable text from {source_format}. Please verify the file contents."
+        elif code in {"extraction.malformed_package", "extraction.malformed_pdf"}:
+            message = f"{source_format} structure appears invalid. Please provide a well-formed file."
+        elif code in {"extraction.unreadable_archive", "extraction.unreadable_source"}:
+            message = f"{source_format} file could not be read. Please check file permissions or integrity."
         else:
-            message = "EPUB extraction failed. Please try again or select a different file."
+            message = f"{source_format} extraction failed. Please try again or select a different file."
 
         return success(
             {

@@ -26,6 +26,11 @@ class EpubExtractorPort(Protocol):
     def extract(self, source_path: str, *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]: ...
 
 
+@runtime_checkable
+class PdfExtractorPort(Protocol):
+    def extract(self, source_path: str, *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]: ...
+
+
 class ImportService:
     """Validate import metadata and persist accepted documents."""
 
@@ -35,10 +40,12 @@ class ImportService:
         documents_repository: DocumentsRepositoryPort,
         logger: EventLoggerPort,
         epub_extractor: EpubExtractorPort | None = None,
+        pdf_extractor: PdfExtractorPort | None = None,
     ) -> None:
         self._documents_repository = documents_repository
         self._logger = logger
         self._epub_extractor = epub_extractor
+        self._pdf_extractor = pdf_extractor
 
     def import_document(self, file_path: str, correlation_id: str | None = None) -> Result[dict[str, str]]:
         corr = correlation_id or str(uuid4())
@@ -155,6 +162,16 @@ class ImportService:
                     retryable=False,
                 )
             return self._epub_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+
+        if source_format == "pdf":
+            if self._pdf_extractor is None:
+                return failure(
+                    code="extraction.extractor_unavailable",
+                    message="PDF extractor is not configured",
+                    details={"source_format": source_format},
+                    retryable=False,
+                )
+            return self._pdf_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
 
         return failure(
             code="extraction.unsupported_source_format",
