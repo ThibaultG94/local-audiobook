@@ -7,7 +7,16 @@ import re
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
+from ebooklib import epub
+
 from contracts.result import Result, failure, success
+
+# Maximum EPUB file size in bytes (500MB)
+_MAX_EPUB_SIZE = 500 * 1024 * 1024
+
+# Compiled regex patterns for text normalization
+_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"[ \t\r\f\v]+")
 
 
 @runtime_checkable
@@ -23,14 +32,33 @@ class _NoopLogger:
 class EpubExtractor:
     """Extract chunking-ready text from EPUB files."""
 
-    _TAG_RE = re.compile(r"<[^>]+>")
-    _WHITESPACE_RE = re.compile(r"[ \t\r\f\v]+")
-
     def __init__(self, *, logger: EventLoggerPort | None = None) -> None:
         self._logger = logger or _NoopLogger()
 
     def extract(self, source_path: str, *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]:
         normalized_source_path = str(Path(source_path).resolve())
+        
+        # Validate file size before processing
+        try:
+            file_size = Path(normalized_source_path).stat().st_size
+            if file_size > _MAX_EPUB_SIZE:
+                return self._fail(
+                    correlation_id=correlation_id,
+                    job_id=job_id,
+                    code="extraction.file_too_large",
+                    message=f"EPUB file exceeds maximum size limit ({_MAX_EPUB_SIZE // (1024*1024)}MB)",
+                    details={"source_path": normalized_source_path, "file_size": file_size, "max_size": _MAX_EPUB_SIZE},
+                    retryable=False,
+                )
+        except OSError as exc:
+            return self._fail(
+                correlation_id=correlation_id,
+                job_id=job_id,
+                code="extraction.unreadable_archive",
+                message="Unable to access EPUB file",
+                details={"source_path": normalized_source_path, "error": str(exc)},
+                retryable=True,
+            )
         self._logger.emit(
             event="extraction.started",
             stage="extraction",
@@ -43,8 +71,9 @@ class EpubExtractor:
         )
 
         try:
-            book = self._read_epub(normalized_source_path)
+            book = epub.read_epub(normalized_source_path)
             text_sections: list[str] = []
+            encoding_warnings = 0
 
             for spine_item in getattr(book, "spine", []):
                 item_id = spine_item[0] if isinstance(spine_item, (tuple, list)) and spine_item else ""
@@ -58,7 +87,25 @@ class EpubExtractor:
                 if not isinstance(content, (bytes, bytearray)):
                     continue
 
-                normalized_section = self._normalize_fragment(content.decode("utf-8", errors="ignore"))
+                # Try UTF-8 first, then detect encoding issues
+                try:
+                    decoded_text = content.decode("utf-8")
+                except UnicodeDecodeError:
+                    # Fallback to replace mode and log warning
+                    decoded_text = content.decode("utf-8", errors="replace")
+                    encoding_warnings += 1
+                    self._logger.emit(
+                        event="extraction.encoding_warning",
+                        stage="extraction",
+                        severity="WARNING",
+                        correlation_id=correlation_id,
+                        job_id=job_id,
+                        chunk_index=-1,
+                        engine="epub",
+                        extra={"source_path": normalized_source_path, "item_id": item_id},
+                    )
+
+                normalized_section = self._normalize_fragment(decoded_text)
                 if normalized_section:
                     text_sections.append(normalized_section)
 
@@ -81,7 +128,12 @@ class EpubExtractor:
                 job_id=job_id,
                 chunk_index=-1,
                 engine="epub",
-                extra={"source_path": normalized_source_path, "sections": len(text_sections)},
+                extra={
+                    "source_path": normalized_source_path,
+                    "sections": len(text_sections),
+                    "text_length": len(normalized_text),
+                    "encoding_warnings": encoding_warnings,
+                },
             )
 
             return success(
@@ -120,11 +172,6 @@ class EpubExtractor:
                 retryable=True,
             )
 
-    def _read_epub(self, source_path: str) -> Any:
-        from ebooklib import epub
-
-        return epub.read_epub(source_path)
-
     def _fail(
         self,
         *,
@@ -148,8 +195,8 @@ class EpubExtractor:
         return failure(code=code, message=message, details=details, retryable=retryable)
 
     def _normalize_fragment(self, fragment: str) -> str:
-        text = html.unescape(self._TAG_RE.sub(" ", fragment))
-        lines = [self._WHITESPACE_RE.sub(" ", line).strip() for line in text.split("\n")]
+        text = html.unescape(_TAG_RE.sub(" ", fragment))
+        lines = [_WHITESPACE_RE.sub(" ", line).strip() for line in text.split("\n")]
         non_empty_lines = [line for line in lines if line]
         return "\n".join(non_empty_lines)
 

@@ -34,9 +34,24 @@ class TestEpubExtractor(unittest.TestCase):
             },
         )
 
-        extractor._read_epub = lambda _: fake_book  # type: ignore[method-assign]
-
-        result = extractor.extract("/tmp/book.epub", correlation_id="corr-epub-1", job_id="job-1")
+        # Mock epub.read_epub to return our fake book
+        import adapters.extraction.epub_extractor as epub_module
+        import tempfile
+        from pathlib import Path
+        
+        # Create a temporary file to pass size validation
+        with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+            tmp.write(b"fake epub content")
+            tmp_path = tmp.name
+        
+        try:
+            original_read = epub_module.epub.read_epub
+            epub_module.epub.read_epub = lambda _: fake_book  # type: ignore[method-assign]
+            
+            result = extractor.extract(tmp_path, correlation_id="corr-epub-1", job_id="job-1")
+        finally:
+            epub_module.epub.read_epub = original_read  # type: ignore[method-assign]
+            Path(tmp_path).unlink(missing_ok=True)
 
         self.assertTrue(result.ok)
         self.assertIsNotNone(result.data)
@@ -53,9 +68,24 @@ class TestEpubExtractor(unittest.TestCase):
             },
         )
 
-        extractor._read_epub = lambda _: fake_book  # type: ignore[method-assign]
-
-        result = extractor.extract("/tmp/empty.epub", correlation_id="corr-epub-2", job_id="job-2")
+        # Mock epub.read_epub to return our fake book
+        import adapters.extraction.epub_extractor as epub_module
+        import tempfile
+        from pathlib import Path
+        
+        # Create a temporary file to pass size validation
+        with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+            tmp.write(b"fake empty epub")
+            tmp_path = tmp.name
+        
+        try:
+            original_read = epub_module.epub.read_epub
+            epub_module.epub.read_epub = lambda _: fake_book  # type: ignore[method-assign]
+            
+            result = extractor.extract(tmp_path, correlation_id="corr-epub-2", job_id="job-2")
+        finally:
+            epub_module.epub.read_epub = original_read  # type: ignore[method-assign]
+            Path(tmp_path).unlink(missing_ok=True)
 
         self.assertFalse(result.ok)
         self.assertIsNotNone(result.error)

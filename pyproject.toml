@@ -10,6 +10,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "PyYAML>=6.0",
+  "EbookLib>=0.18",
+  "PyPDF2>=3.0.0",
 ]
 
 [tool.setuptools]

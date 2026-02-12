@@ -48,7 +48,7 @@ development_status:
 
   epic-2: in-progress
   2-1-import-local-multi-format-documents-with-input-validation: done
-  2-2-extract-clean-text-from-epub-with-actionable-failure-handling: review
+  2-2-extract-clean-text-from-epub-with-actionable-failure-handling: done
   2-3-extract-text-from-pdf-with-degraded-case-handling: backlog
   2-4-extract-and-normalize-txt-and-markdown-inputs: backlog
   2-5-provide-unified-extraction-error-feedback-and-diagnostics: backlog

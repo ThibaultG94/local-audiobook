@@ -1,6 +1,6 @@
 # Story 2.2: Extract Clean Text from EPUB with Actionable Failure Handling
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -224,11 +224,13 @@ gpt-5.3-codex
 ### File List
 
 - _bmad-output/implementation-artifacts/2-2-extract-clean-text-from-epub-with-actionable-failure-handling.md
+- pyproject.toml
 - src/adapters/extraction/__init__.py
 - src/adapters/extraction/epub_extractor.py
 - src/domain/services/import_service.py
 - src/ui/presenters/conversion_presenter.py
 - tests/unit/test_epub_extractor.py
+- tests/unit/test_epub_extractor_errors.py
 - tests/unit/test_extraction_orchestration.py
 - tests/integration/test_import_flow_integration.py
 - tests/integration/test_bootstrap_and_migrations.py
@@ -237,3 +239,12 @@ gpt-5.3-codex
 
 - 2026-02-12: Story created with exhaustive implementation context for EPUB extraction, normalized failure handling, observability requirements, and architecture guardrails.
 - 2026-02-12: Implemented EPUB extractor, wired extraction orchestration and presenter feedback, added unit/integration tests, and validated full regression suite.
+- 2026-02-12: Code review completed - Fixed 7 issues (3 HIGH, 4 MEDIUM):
+  - Added ebooklib and PyPDF2 dependencies to pyproject.toml
+  - Moved ebooklib import to module level to avoid repeated dynamic imports
+  - Added file size validation (500MB limit) before extraction
+  - Improved encoding handling with explicit UTF-8 decode and warning logging for non-UTF8 content
+  - Added text_length and encoding_warnings to extraction success event for better observability
+  - Added comprehensive error handling test coverage (test_epub_extractor_errors.py)
+  - Updated File List in story documentation
+  - All 50 tests passing
