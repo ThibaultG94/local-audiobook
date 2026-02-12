@@ -45,6 +45,21 @@ class TestImportFlowUnit(unittest.TestCase):
         self.assertEqual(result.error.code, "import.unsupported_extension")
         self.assertEqual(result.error.details["extension"], ".docx")
 
+    def test_view_accepts_uppercase_extensions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            file_path = Path(tmp) / "book.EPUB"
+            file_path.write_text("content", encoding="utf-8")
+
+            repository = _InMemoryDocumentsRepository()
+            logger = _CapturingLogger()
+            service = ImportService(documents_repository=repository, logger=logger)
+            view = ImportView(import_service=service)
+
+            result = view.submit_file(str(file_path))
+
+            self.assertTrue(result.ok)
+            self.assertEqual(repository.created[0]["source_format"], "epub")
+
     def test_service_returns_error_when_file_missing(self) -> None:
         service = ImportService(documents_repository=_InMemoryDocumentsRepository(), logger=_CapturingLogger())
 
@@ -92,8 +107,31 @@ class TestImportFlowUnit(unittest.TestCase):
             self.assertIsNone(result.error)
             self.assertIsNotNone(result.data)
             self.assertEqual(len(repository.created), 1)
-            self.assertEqual(repository.created[0]["source_path"], str(file_path))
+            self.assertEqual(repository.created[0]["source_path"], str(file_path.resolve()))
             self.assertEqual(repository.created[0]["title"], "book")
             self.assertEqual(repository.created[0]["source_format"], "md")
             self.assertTrue(any(item["event"] == "import.accepted" for item in logger.events))
+
+    def test_service_auto_generates_correlation_id_when_none_provided(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            file_path = Path(tmp) / "test.txt"
+            file_path.write_text("content", encoding="utf-8")
+
+            logger = _CapturingLogger()
+            service = ImportService(documents_repository=_InMemoryDocumentsRepository(), logger=logger)
+            result = service.import_document(str(file_path), correlation_id=None)
+
+            self.assertTrue(result.ok)
+            self.assertEqual(len(logger.events), 1)
+            self.assertNotEqual(logger.events[0]["correlation_id"], "")
+            self.assertEqual(len(logger.events[0]["correlation_id"]), 36)  # UUID format
+
+    def test_service_rejects_special_files(self) -> None:
+        service = ImportService(documents_repository=_InMemoryDocumentsRepository(), logger=_CapturingLogger())
+        result = service.import_document("/dev/null")
+
+        self.assertFalse(result.ok)
+        self.assertIsNotNone(result.error)
+        self.assertEqual(result.error.code, "import.file_unreadable")
+        self.assertIn("special", result.error.details.get("file_type", ""))
 

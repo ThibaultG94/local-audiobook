@@ -5,10 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from contracts.import_constants import SUPPORTED_EXTENSIONS
 from contracts.result import Result, failure
-
-
-SUPPORTED_EXTENSIONS = {".epub", ".pdf", ".txt", ".md"}
 
 
 @runtime_checkable

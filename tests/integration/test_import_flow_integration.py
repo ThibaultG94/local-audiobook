@@ -43,14 +43,15 @@ class TestImportFlowIntegration(unittest.TestCase):
             self.assertTrue(is_valid_utc_iso_8601(data["updated_at"]))
 
             rows = connection.execute(
-                "SELECT source_path, title, created_at, updated_at FROM documents WHERE id = ?",
+                "SELECT source_path, title, source_format, created_at, updated_at FROM documents WHERE id = ?",
                 (data["id"],),
             ).fetchall()
             self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0][0], str(source_file))
+            self.assertEqual(rows[0][0], str(source_file.resolve()))
             self.assertEqual(rows[0][1], "chapter")
-            self.assertTrue(is_valid_utc_iso_8601(rows[0][2]))
+            self.assertEqual(rows[0][2], "md")
             self.assertTrue(is_valid_utc_iso_8601(rows[0][3]))
+            self.assertTrue(is_valid_utc_iso_8601(rows[0][4]))
 
             connection.close()
 

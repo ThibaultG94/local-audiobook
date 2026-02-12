@@ -21,21 +21,22 @@ class DocumentsRepository(BaseRepository):
         document_id = record.get("id", str(uuid4()))
         source_path = record["source_path"]
         title = record.get("title", "")
+        source_format = record.get("source_format", "")
 
         with self._connection:
             self._connection.execute(
                 """
-                INSERT INTO documents(id, source_path, title, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (document_id, source_path, title, now, now),
+                (document_id, source_path, title, source_format, now, now),
             )
 
         return {
             "id": document_id,
             "source_path": source_path,
             "title": title,
+            "source_format": source_format,
             "created_at": now,
             "updated_at": now,
-            "source_format": record.get("source_format", ""),
         }

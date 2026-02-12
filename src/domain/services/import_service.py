@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import os
+import stat
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 from uuid import uuid4
 
 from contracts.result import Result, failure, success
-
-
-SUPPORTED_EXTENSIONS = {".epub", ".pdf", ".txt", ".md"}
 
 
 @runtime_checkable
@@ -32,18 +30,10 @@ class ImportService:
 
     def import_document(self, file_path: str, correlation_id: str | None = None) -> Result[dict[str, str]]:
         corr = correlation_id or str(uuid4())
-        normalized = str(Path(file_path))
+        normalized = str(Path(file_path).resolve())
         extension = Path(normalized).suffix.lower()
 
-        if extension not in SUPPORTED_EXTENSIONS:
-            return self._reject(
-                corr,
-                code="import.unsupported_extension",
-                message="Unsupported file extension",
-                details={"extension": extension, "supported_extensions": sorted(SUPPORTED_EXTENSIONS)},
-                retryable=False,
-            )
-
+        # Validation: file must exist and be a regular file
         if not os.path.exists(normalized):
             return self._reject(
                 corr,
@@ -53,16 +43,38 @@ class ImportService:
                 retryable=True,
             )
 
-        if not os.path.isfile(normalized) or not os.access(normalized, os.R_OK):
+        # Check if it's a regular file (not directory, symlink, device, etc.)
+        try:
+            file_stat = os.stat(normalized)
+            if not stat.S_ISREG(file_stat.st_mode):
+                return self._reject(
+                    corr,
+                    code="import.file_unreadable",
+                    message="Selected path is not a regular file",
+                    details={"source_path": normalized, "file_type": "special"},
+                    retryable=False,
+                )
+        except (OSError, PermissionError) as e:
             return self._reject(
                 corr,
                 code="import.file_unreadable",
-                message="Selected file is unreadable",
+                message="Cannot access file metadata",
+                details={"source_path": normalized, "error": str(e)},
+                retryable=True,
+            )
+
+        # Check readability
+        if not os.access(normalized, os.R_OK):
+            return self._reject(
+                corr,
+                code="import.file_unreadable",
+                message="Selected file is not readable",
                 details={"source_path": normalized},
                 retryable=True,
             )
 
-        if os.path.getsize(normalized) == 0:
+        # Check file is non-empty
+        if file_stat.st_size == 0:
             return self._reject(
                 corr,
                 code="import.file_empty",
@@ -84,6 +96,9 @@ class ImportService:
             stage="import",
             severity="INFO",
             correlation_id=corr,
+            job_id="",
+            chunk_index=-1,
+            engine="import",
             extra={"source_path": normalized, "source_format": extension.lstrip(".")},
         )
         return success(record)
@@ -102,6 +117,9 @@ class ImportService:
             stage="import",
             severity="ERROR",
             correlation_id=correlation_id,
+            job_id="",
+            chunk_index=-1,
+            engine="import",
             extra={"error_code": code, **details},
         )
         return failure(code=code, message=message, details=details, retryable=retryable)

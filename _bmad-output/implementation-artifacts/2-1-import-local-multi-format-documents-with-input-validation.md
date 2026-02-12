@@ -1,6 +1,6 @@
 # Story 2.1: Import Local Multi-Format Documents with Input Validation
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -168,12 +168,21 @@ gpt-5.3-codex
 
 - _bmad-output/implementation-artifacts/2-1-import-local-multi-format-documents-with-input-validation.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/contracts/import_constants.py
 - src/ui/views/import_view.py
 - src/domain/services/import_service.py
 - src/adapters/persistence/sqlite/repositories/documents_repository.py
+- migrations/0002_add_source_format_to_documents.sql
 - tests/unit/test_import_flow.py
 - tests/integration/test_import_flow_integration.py
 
 ## Change Log
 
 - 2026-02-12: Implemented Story 2.1 import intake flow, metadata validation service, repository persistence, import observability events, and test coverage for AC1–AC4.
+- 2026-02-12: Code review fixes applied:
+  - Added `source_format` column to documents table (migration 0002) and persisted in repository for AC3 compliance
+  - Centralized `SUPPORTED_EXTENSIONS` in `src/contracts/import_constants.py` to eliminate duplication between view and service
+  - Enhanced file validation to detect special files (devices, pipes) and handle race conditions with stat-based checks
+  - Added explicit `job_id`, `chunk_index`, and `engine` fields to JSONL events for AC4 schema compliance
+  - Added test coverage for uppercase extensions (.EPUB, .PDF), auto-generated correlation_id, and special file rejection
+  - Normalized file paths using `.resolve()` to handle symlinks consistently
