@@ -139,9 +139,9 @@ class TestBootstrapAndMigrationsIntegration(unittest.TestCase):
                 str(manifest),
             )
 
-            self.assertIsNotNone(container.startup_readiness)
-            self.assertTrue(container.startup_readiness["ok"])
-            self.assertEqual(container.startup_readiness["data"]["status"], "not_ready")
-            self.assertGreaterEqual(len(container.startup_readiness["data"]["remediation"]), 1)
+            self.assertIsNotNone(container.startup_readiness_result)
+            self.assertTrue(container.startup_readiness_result.ok)
+            self.assertEqual(container.startup_readiness_result.data["status"], "not_ready")
+            self.assertGreaterEqual(len(container.startup_readiness_result.data["remediation"]), 1)
 
             container.connection.close()

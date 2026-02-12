@@ -105,7 +105,7 @@ def bootstrap(
         models_result=model_registry_result,
         engines=engine_health,
     )
-    container.startup_readiness = readiness_result.to_dict()
+    container.startup_readiness_result = readiness_result
 
     container.logger.emit(event="bootstrap.completed", stage="bootstrap")
     return container

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from app.main import bootstrap
 from app.dependency_container import build_conversion_presenter, build_conversion_worker
-from contracts.result import success
 from infrastructure.logging.event_schema import REQUIRED_EVENT_FIELDS, is_valid_utc_iso_8601
 from ui.views.conversion_view import ConversionView
 
@@ -66,7 +65,7 @@ class TestReadinessEventsAndRefreshIntegration(unittest.TestCase):
             view = ConversionView(presenter=presenter, worker=worker, logger=container.logger)
 
             try:
-                initial_readiness = success(container.startup_readiness.get("data", {}))
+                initial_readiness = container.startup_readiness_result
                 view.render_initial(initial_readiness)
                 future = worker.refresh_readiness()
                 future.result(timeout=3)

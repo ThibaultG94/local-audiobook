@@ -2,30 +2,34 @@ from __future__ import annotations
 
 import unittest
 
-from contracts.result import success
+from contracts.result import failure, success
 from ui.presenters.conversion_presenter import ConversionPresenter
 from ui.views.conversion_view import ConversionView
 
 
 class _FakeWorker:
-    def __init__(self) -> None:
+    def __init__(self, *, recheck_result=None) -> None:
         self._callback = None
+        self._recheck_result = recheck_result
 
     def on_readiness_refreshed(self, callback):
         self._callback = callback
 
     def refresh_readiness(self) -> None:
-        result = success(
-            {
-                "status": "ready",
-                "engines": [
-                    {"engine": "chatterbox_gpu", "ok": True},
-                    {"engine": "kokoro_cpu", "ok": True},
-                ],
-                "remediation": [],
-            }
-        )
-        self._callback(result)
+        if self._recheck_result is not None:
+            self._callback(self._recheck_result)
+        else:
+            result = success(
+                {
+                    "status": "ready",
+                    "engines": [
+                        {"engine": "chatterbox_gpu", "ok": True},
+                        {"engine": "kokoro_cpu", "ok": True},
+                    ],
+                    "remediation": [],
+                }
+            )
+            self._callback(result)
 
 
 class _FakeLogger:
@@ -83,5 +87,43 @@ class TestConversionView(unittest.TestCase):
         view.recheck()
         self.assertEqual(view.current_state["status"], "ready")
         self.assertTrue(view.current_state["start_enabled"])
-        self.assertIn("readiness:readiness.displayed", logger.events)
+        # readiness.displayed emitted on initial render AND on recheck
+        displayed_events = [e for e in logger.events if e == "readiness:readiness.displayed"]
+        self.assertEqual(len(displayed_events), 2)
+
+    def test_recheck_failure_propagates_error_to_view_state(self) -> None:
+        """H4: Verify that a failed recheck populates the error field in view state."""
+        logger = _FakeLogger()
+        recheck_failure = failure(
+            code="readiness_recheck_failed",
+            message="Readiness recheck failed",
+            details={"exception": "boom"},
+            retryable=True,
+        )
+        worker = _FakeWorker(recheck_result=recheck_failure)
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=logger,
+        )
+
+        initial = success(
+            {
+                "status": "not_ready",
+                "engines": [
+                    {"engine": "chatterbox_gpu", "ok": False},
+                    {"engine": "kokoro_cpu", "ok": True},
+                ],
+                "remediation": ["Install chatterbox model assets"],
+            }
+        )
+        view.render_initial(initial)
+
+        view.recheck()
+        # State should remain not_ready (not silently swallowed)
+        self.assertEqual(view.current_state["status"], "not_ready")
+        self.assertFalse(view.current_state["start_enabled"])
+        # Error should be populated
+        self.assertIsNotNone(view.current_state["error"])
+        self.assertEqual(view.current_state["error"]["code"], "readiness_presenter_mapping_failed")
 

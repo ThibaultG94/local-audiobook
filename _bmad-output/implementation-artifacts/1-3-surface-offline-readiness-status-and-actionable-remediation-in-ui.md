@@ -1,6 +1,6 @@
 # Story 1.3: Surface Offline Readiness Status and Actionable Remediation in UI
 
-Status: review
+Status: done
 
 ## Story
 
@@ -176,7 +176,39 @@ gpt-5.3-codex
 - tests/unit/test_conversion_worker.py
 - tests/integration/test_readiness_events_and_refresh.py
 - tests/integration/test_readiness_refresh_signal_path.py
+- tests/integration/test_bootstrap_and_migrations.py
+
+## Senior Developer Review (AI)
+
+### Review Summary
+
+- **Reviewer:** claude-opus-4-6 (adversarial code review)
+- **Date:** 2026-02-12
+- **Outcome:** Approve (after fixes)
+- **Issues Found:** 4 HIGH, 3 MEDIUM, 2 LOW
+- **Issues Fixed:** 4 HIGH, 3 MEDIUM (7 total)
+- **Issues Remaining:** 2 LOW (accepted as-is)
+
+### Findings and Resolutions
+
+| # | Severity | Description | Resolution |
+|---|----------|-------------|------------|
+| H1 | HIGH | Thread-safety: worker callbacks executed from pool thread, not UI thread — race condition in production Qt usage (AC 3 violation) | Added `dispatch_to_main` callable parameter to `ConversionWorker` for UI-thread marshalling; callbacks now routed through dispatcher when set |
+| H2 | HIGH | `_on_recheck_result()` did not emit `readiness.displayed` event after successful recheck (AC 4 violation) | Added `self._logger.emit(event="readiness.displayed", stage="readiness")` in `_on_recheck_result()` success path |
+| H3 | HIGH | `_on_recheck_result()` silently swallowed recheck failures — no error propagation to view state (AC 3 violation) | Added error handling in `_on_recheck_result()` that populates `current_state["error"]` on failure |
+| H4 | HIGH | No unit test for recheck failure path in view | Added `test_recheck_failure_propagates_error_to_view_state` in `test_conversion_view.py` |
+| M1 | MEDIUM | No guard against concurrent `refresh_readiness()` calls — potential race with rapid user clicks | Added `_is_refreshing` flag with `threading.Lock` guard; `refresh_readiness()` returns `None` when already in progress |
+| M2 | MEDIUM | `container.startup_readiness` stored serialized dict via `to_dict()` — fragile double wrapping/unwrapping in tests | Changed to `startup_readiness_result: Result` storing the typed `Result` directly; updated all references in `main.py`, `dependency_container.py`, and tests |
+| M3 | MEDIUM | `ConversionView.__init__` used `Any` for all dependency types — no static type checking | Added `Protocol` classes (`ReadinessPresenter`, `ReadinessWorker`, `EventLogger`) for typed dependency contracts |
+| L1 | LOW | `src/app/main_window.py` mentioned in story File Structure Requirements but not created | Accepted — not required by ACs, documentation divergence only |
+| L2 | LOW | Docstring in `conversion_view.py` used incorrect MVC terminology "model controller" | Fixed as part of H2/H3 rewrite — now reads "view state holder" |
+
+### Post-Review Validation
+
+- All 30 tests passing: `PYTHONPATH=src python -m unittest discover -s tests -p 'test_*.py'` (30 tests, 0 failures)
+- All ACs verified as implemented after fixes
 
 ## Change Log
 
 - 2026-02-12: Implemented Story 1.3 readiness UI/presenter/worker flow, integrated recheck entrypoint in container, added observability events and full test coverage; status moved to `review`.
+- 2026-02-12: Senior Developer Review (AI) — fixed 7 issues (4 HIGH, 3 MEDIUM): thread-safety dispatch, missing readiness.displayed event on recheck, silent error swallowing, missing failure test, concurrent refresh guard, typed Result storage, Protocol-based dependency contracts. 30/30 tests passing. Status moved to `done`.

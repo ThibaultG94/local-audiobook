@@ -57,7 +57,7 @@ class AppContainer:
     providers: Providers
     services: Services
     logger: JsonlLogger
-    startup_readiness: dict[str, Any] | None = None
+    startup_readiness_result: Result[dict[str, Any]] | None = None
 
 
 def normalize_engine_health(result: Any) -> dict[str, Any]:
@@ -91,7 +91,7 @@ def recheck_startup_readiness(container: AppContainer, model_manifest_path: str)
         models_result=model_registry_result,
         engines=engine_health,
     )
-    container.startup_readiness = readiness_result.to_dict()
+    container.startup_readiness_result = readiness_result
     return readiness_result
 
 
@@ -136,5 +136,5 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         providers=providers,
         services=services,
         logger=logger,
-        startup_readiness=None,
+        startup_readiness_result=None,
     )
