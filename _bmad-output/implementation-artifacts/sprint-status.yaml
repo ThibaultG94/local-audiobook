@@ -46,8 +46,8 @@ development_status:
   1-3-surface-offline-readiness-status-and-actionable-remediation-in-ui: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-import-local-multi-format-documents-with-input-validation: backlog
+  epic-2: in-progress
+  2-1-import-local-multi-format-documents-with-input-validation: review
   2-2-extract-clean-text-from-epub-with-actionable-failure-handling: backlog
   2-3-extract-text-from-pdf-with-degraded-case-handling: backlog
   2-4-extract-and-normalize-txt-and-markdown-inputs: backlog
