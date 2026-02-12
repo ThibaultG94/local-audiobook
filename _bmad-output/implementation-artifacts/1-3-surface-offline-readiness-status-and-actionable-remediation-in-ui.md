@@ -1,6 +1,6 @@
 # Story 1.3: Surface Offline Readiness Status and Actionable Remediation in UI
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -32,41 +32,41 @@ so that I can fix missing prerequisites and start conversion confidently.
 
 ## Tasks / Subtasks
 
-- [ ] Implement conversion readiness presentation boundary (AC: 1, 2)
-  - [ ] Create `src/ui/presenters/conversion_presenter.py` with a deterministic mapping from startup readiness payload to UI view model.
-  - [ ] Expose exactly two readiness states (`ready`, `not_ready`) in presenter output; do not leak internal model validation categories to view state.
-  - [ ] Include per-engine availability summary for Chatterbox and Kokoro in the view model.
-  - [ ] Normalize all presenter failures using `{ok, data, error}` and `errors.py` contract.
+- [x] Implement conversion readiness presentation boundary (AC: 1, 2)
+  - [x] Create `src/ui/presenters/conversion_presenter.py` with a deterministic mapping from startup readiness payload to UI view model.
+  - [x] Expose exactly two readiness states (`ready`, `not_ready`) in presenter output; do not leak internal model validation categories to view state.
+  - [x] Include per-engine availability summary for Chatterbox and Kokoro in the view model.
+  - [x] Normalize all presenter failures using `{ok, data, error}` and `errors.py` contract.
 
-- [ ] Implement conversion readiness UI view (AC: 1, 2)
-  - [ ] Create `src/ui/views/conversion_view.py` with a readiness panel, remediation list, and conversion start control.
-  - [ ] Ensure conversion start action is disabled when presenter state is `not_ready`.
-  - [ ] Render remediation items as actionable local steps (no cloud/network guidance).
-  - [ ] Keep MVP user-facing language in English.
+- [x] Implement conversion readiness UI view (AC: 1, 2)
+  - [x] Create `src/ui/views/conversion_view.py` with a readiness panel, remediation list, and conversion start control.
+  - [x] Ensure conversion start action is disabled when presenter state is `not_ready`.
+  - [x] Render remediation items as actionable local steps (no cloud/network guidance).
+  - [x] Keep MVP user-facing language in English.
 
-- [ ] Add non-blocking readiness recheck flow (AC: 3)
-  - [ ] Create `src/ui/workers/conversion_worker.py` signal contract for readiness refresh and failure propagation.
-  - [ ] Wire presenter ↔ worker ↔ view flow so readiness refresh does not block the main Qt event loop.
-  - [ ] Reuse startup readiness computation service instead of duplicating classification logic.
-  - [ ] Ensure error propagation reaches UI as normalized error object from `result.py` / `errors.py`.
+- [x] Add non-blocking readiness recheck flow (AC: 3)
+  - [x] Create `src/ui/workers/conversion_worker.py` signal contract for readiness refresh and failure propagation.
+  - [x] Wire presenter ↔ worker ↔ view flow so readiness refresh does not block the main Qt event loop.
+  - [x] Reuse startup readiness computation service instead of duplicating classification logic.
+  - [x] Ensure error propagation reaches UI as normalized error object from `result.py` / `errors.py`.
 
-- [ ] Integrate readiness checks with app composition (AC: 1..3)
-  - [ ] Extend `src/app/dependency_container.py` to provide readiness-facing presenter dependencies without breaking existing non-Qt bootstrap tests.
-  - [ ] Reuse existing `container.startup_readiness` produced by `src/app/main.py` bootstrap as initial UI state.
-  - [ ] Add explicit recheck entrypoint that reruns model registry + engine health checks through service boundaries.
+- [x] Integrate readiness checks with app composition (AC: 1..3)
+  - [x] Extend `src/app/dependency_container.py` to provide readiness-facing presenter dependencies without breaking existing non-Qt bootstrap tests.
+  - [x] Reuse existing `container.startup_readiness` produced by `src/app/main.py` bootstrap as initial UI state.
+  - [x] Add explicit recheck entrypoint that reruns model registry + engine health checks through service boundaries.
 
-- [ ] Emit observability events for readiness display and refresh (AC: 4)
-  - [ ] Emit `readiness.displayed` when readiness state is first rendered in conversion view.
-  - [ ] Emit `readiness.checked` on each explicit readiness recheck action.
-  - [ ] Ensure emitted payload uses required schema fields and UTC ISO-8601 timestamp format.
-  - [ ] Keep event naming strictly `domain.action` and `snake_case` payload fields.
+- [x] Emit observability events for readiness display and refresh (AC: 4)
+  - [x] Emit `readiness.displayed` when readiness state is first rendered in conversion view.
+  - [x] Emit `readiness.checked` on each explicit readiness recheck action.
+  - [x] Ensure emitted payload uses required schema fields and UTC ISO-8601 timestamp format.
+  - [x] Keep event naming strictly `domain.action` and `snake_case` payload fields.
 
-- [ ] Add tests for presenter/view/worker readiness behavior (AC: 1..4)
-  - [ ] Unit tests for readiness presenter mapping (`ready` vs `not_ready`, remediation list, engine availability).
-  - [ ] Unit tests for conversion control enable/disable logic based on readiness state.
-  - [ ] Unit tests for normalized failure mapping in readiness recheck flow.
-  - [ ] Integration test for non-blocking readiness refresh signal path.
-  - [ ] Integration test for JSONL events `readiness.displayed` and `readiness.checked` schema compliance.
+- [x] Add tests for presenter/view/worker readiness behavior (AC: 1..4)
+  - [x] Unit tests for readiness presenter mapping (`ready` vs `not_ready`, remediation list, engine availability).
+  - [x] Unit tests for conversion control enable/disable logic based on readiness state.
+  - [x] Unit tests for normalized failure mapping in readiness recheck flow.
+  - [x] Integration test for non-blocking readiness refresh signal path.
+  - [x] Integration test for JSONL events `readiness.displayed` and `readiness.checked` schema compliance.
 
 ## Dev Notes
 
@@ -153,8 +153,30 @@ gpt-5.3-codex
 - Story context generated with explicit reuse guardrails from stories 1.1 and 1.2.
 - Readiness UI guidance is scoped to deterministic state projection, actionable remediation, and non-blocking refresh flow.
 - Logging expectations include `readiness.displayed` and `readiness.checked` with strict schema compliance.
+- Implemented `ConversionPresenter`, `ConversionView`, and `ConversionWorker` with deterministic `ready`/`not_ready` projection and normalized `{ok,data,error}` handling.
+- Added composition helpers in `dependency_container.py` to expose presenter/worker and explicit `recheck_startup_readiness` via existing domain services.
+- Refactored startup engine-health normalization in `main.py` to reuse container-level collection path.
+- Added unit and integration coverage for mapping, enable/disable control logic, non-blocking refresh callback path, and readiness JSONL event schema compliance.
+- Validation run succeeded with `PYTHONPATH=src python -m unittest discover -s tests -p 'test_*.py'` (29 tests, all passing).
 
 ### File List
 
 - _bmad-output/implementation-artifacts/1-3-surface-offline-readiness-status-and-actionable-remediation-in-ui.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/app/dependency_container.py
+- src/app/main.py
+- src/ui/presenters/__init__.py
+- src/ui/presenters/conversion_presenter.py
+- src/ui/views/__init__.py
+- src/ui/views/conversion_view.py
+- src/ui/workers/__init__.py
+- src/ui/workers/conversion_worker.py
+- tests/unit/test_conversion_presenter.py
+- tests/unit/test_conversion_view.py
+- tests/unit/test_conversion_worker.py
+- tests/integration/test_readiness_events_and_refresh.py
+- tests/integration/test_readiness_refresh_signal_path.py
 
+## Change Log
+
+- 2026-02-12: Implemented Story 1.3 readiness UI/presenter/worker flow, integrated recheck entrypoint in container, added observability events and full test coverage; status moved to `review`.

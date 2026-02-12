@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from adapters.persistence.sqlite.connection import create_connection
 from adapters.persistence.sqlite.migration_runner import apply_migrations
-from app.dependency_container import AppContainer, build_container
+from app.dependency_container import AppContainer, build_container, collect_engine_health
 from app.settings import load_simple_yaml
 
 
@@ -39,25 +38,6 @@ def _ensure_runtime_dirs(paths: dict[str, object]) -> None:
     ]
     for runtime_dir in runtime_dirs:
         Path(str(runtime_dir)).mkdir(parents=True, exist_ok=True)
-
-
-def _normalize_engine_health(result: Any) -> dict[str, Any]:
-    """Normalize a provider health_check Result into a flat dict.
-
-    Returns a dict with keys: engine (str), ok (bool), error (dict|None).
-    """
-    if result.ok:
-        data = result.data or {}
-        return {
-            "engine": data.get("engine", "unknown"),
-            "ok": bool(data.get("available", False)),
-            "error": None,
-        }
-    return {
-        "engine": "unknown",
-        "ok": False,
-        "error": result.error.to_dict() if result.error else {},
-    }
 
 
 def bootstrap(
@@ -109,10 +89,7 @@ def bootstrap(
         )
 
     container.logger.emit(event="engine_health.started", stage="engine_health")
-
-    chatterbox_health = _normalize_engine_health(container.providers.chatterbox.health_check())
-    kokoro_health = _normalize_engine_health(container.providers.kokoro.health_check())
-    engine_health = [chatterbox_health, kokoro_health]
+    engine_health = collect_engine_health(container)
 
     if all(item["ok"] for item in engine_health):
         container.logger.emit(event="engine_health.completed", stage="engine_health")

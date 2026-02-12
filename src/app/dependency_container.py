@@ -6,6 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
+from contracts.result import Result
 from adapters.tts.chatterbox_provider import ChatterboxProvider
 from adapters.tts.kokoro_provider import KokoroProvider
 from adapters.persistence.sqlite.repositories.conversion_jobs_repository import (
@@ -57,6 +58,58 @@ class AppContainer:
     services: Services
     logger: JsonlLogger
     startup_readiness: dict[str, Any] | None = None
+
+
+def normalize_engine_health(result: Any) -> dict[str, Any]:
+    """Normalize a provider health_check Result into a flat dict."""
+    if result.ok:
+        data = result.data or {}
+        return {
+            "engine": data.get("engine", "unknown"),
+            "ok": bool(data.get("available", False)),
+            "error": None,
+        }
+    return {
+        "engine": "unknown",
+        "ok": False,
+        "error": result.error.to_dict() if result.error else {},
+    }
+
+
+def collect_engine_health(container: AppContainer) -> list[dict[str, Any]]:
+    """Collect normalized health for all startup engines."""
+    chatterbox_health = normalize_engine_health(container.providers.chatterbox.health_check())
+    kokoro_health = normalize_engine_health(container.providers.kokoro.health_check())
+    return [chatterbox_health, kokoro_health]
+
+
+def recheck_startup_readiness(container: AppContainer, model_manifest_path: str) -> Result[dict[str, Any]]:
+    """Re-run model registry + engine health through service boundaries."""
+    model_registry_result = container.services.model_registry.validate_models(model_manifest_path)
+    engine_health = collect_engine_health(container)
+    readiness_result = container.services.startup_readiness.compute(
+        models_result=model_registry_result,
+        engines=engine_health,
+    )
+    container.startup_readiness = readiness_result.to_dict()
+    return readiness_result
+
+
+def build_conversion_presenter() -> Any:
+    """Build conversion presenter without introducing any UI runtime dependency."""
+    from ui.presenters.conversion_presenter import ConversionPresenter
+
+    return ConversionPresenter()
+
+
+def build_conversion_worker(container: AppContainer, model_manifest_path: str) -> Any:
+    """Build conversion worker with recheck entrypoint through service boundaries."""
+    from ui.workers.conversion_worker import ConversionWorker
+
+    return ConversionWorker(
+        recheck_callable=lambda: recheck_startup_readiness(container, model_manifest_path),
+        logger=container.logger,
+    )
 
 
 def build_container(connection: sqlite3.Connection, logging_config: dict[str, Any]) -> AppContainer:
