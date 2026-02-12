@@ -11,8 +11,26 @@ from app.dependency_container import AppContainer, build_container
 from app.settings import load_simple_yaml
 
 
-def _ensure_runtime_dirs(app_config: dict[str, object]) -> None:
-    paths = app_config["paths"]
+_REQUIRED_PATH_KEYS = frozenset(
+    {"runtime_dir", "logs_dir", "library_audio_dir", "library_temp_dir", "database_path", "migrations_dir"}
+)
+
+
+def _validate_app_config(app_config: dict[str, object]) -> None:
+    """Validate that required config keys are present."""
+    if "paths" not in app_config or not isinstance(app_config["paths"], dict):
+        raise ValueError(
+            "app_config missing required 'paths' mapping — "
+            "check config/app_config.yaml structure"
+        )
+    missing = _REQUIRED_PATH_KEYS - app_config["paths"].keys()
+    if missing:
+        raise ValueError(
+            f"app_config.paths missing required keys: {sorted(missing)}"
+        )
+
+
+def _ensure_runtime_dirs(paths: dict[str, object]) -> None:
     runtime_dirs = [
         paths["runtime_dir"],
         paths["logs_dir"],
@@ -20,7 +38,26 @@ def _ensure_runtime_dirs(app_config: dict[str, object]) -> None:
         paths["library_temp_dir"],
     ]
     for runtime_dir in runtime_dirs:
-        Path(runtime_dir).mkdir(parents=True, exist_ok=True)
+        Path(str(runtime_dir)).mkdir(parents=True, exist_ok=True)
+
+
+def _normalize_engine_health(result: Any) -> dict[str, Any]:
+    """Normalize a provider health_check Result into a flat dict.
+
+    Returns a dict with keys: engine (str), ok (bool), error (dict|None).
+    """
+    if result.ok:
+        data = result.data or {}
+        return {
+            "engine": data.get("engine", "unknown"),
+            "ok": bool(data.get("available", False)),
+            "error": None,
+        }
+    return {
+        "engine": "unknown",
+        "ok": False,
+        "error": result.error.to_dict() if result.error else {},
+    }
 
 
 def bootstrap(
@@ -31,14 +68,17 @@ def bootstrap(
     app_config = load_simple_yaml(app_config_path)
     logging_config = load_simple_yaml(logging_config_path)
 
-    _ensure_runtime_dirs(app_config)
-    connection = create_connection(app_config["paths"]["database_path"])
+    _validate_app_config(app_config)
+    paths = app_config["paths"]
+
+    _ensure_runtime_dirs(paths)
+    connection = create_connection(paths["database_path"])
     container = build_container(connection, logging_config)
 
     container.logger.emit(event="bootstrap.started", stage="bootstrap")
     container.logger.emit(event="migration.started", stage="migration")
     try:
-        applied = apply_migrations(connection, app_config["paths"]["migrations_dir"])
+        applied = apply_migrations(connection, paths["migrations_dir"])
         for version in applied:
             container.logger.emit(
                 event="migration.applied",
@@ -69,20 +109,6 @@ def bootstrap(
         )
 
     container.logger.emit(event="engine_health.started", stage="engine_health")
-
-    def _normalize_engine_health(result: Any) -> dict[str, Any]:
-        if result.ok:
-            data = result.data or {}
-            return {
-                "engine": data.get("engine", "unknown"),
-                "ok": bool(data.get("available", False)),
-                "error": None,
-            }
-        return {
-            "engine": "unknown",
-            "ok": False,
-            "error": result.error.to_dict() if result.error else {},
-        }
 
     chatterbox_health = _normalize_engine_health(container.providers.chatterbox.health_check())
     kokoro_health = _normalize_engine_health(container.providers.kokoro.health_check())

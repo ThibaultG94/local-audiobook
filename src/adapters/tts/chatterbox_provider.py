@@ -11,8 +11,12 @@ class ChatterboxProvider(TtsProvider):
 
     engine_name = "chatterbox_gpu"
 
-    def __init__(self, healthy: bool = True) -> None:
+    def __init__(self, *, healthy: bool = True, model_available: bool | None = None) -> None:
         self._healthy = healthy
+        # When model_available is explicitly set, it overrides the healthy flag
+        # for health_check.  This allows the bootstrap to wire real model state
+        # into the provider so health_check reflects asset reality.
+        self._model_available = model_available
 
     def synthesize_chunk(self, text: str, voice: str | None = None) -> Result[bytes]:
         return failure(
@@ -26,6 +30,15 @@ class ChatterboxProvider(TtsProvider):
         return success([])
 
     def health_check(self) -> Result[dict[str, object]]:
+        # If model availability was explicitly provided, use it to gate health
+        if self._model_available is not None and not self._model_available:
+            return failure(
+                code="tts_engine_unavailable",
+                message="Chatterbox engine model assets are missing or invalid",
+                details={"engine": self.engine_name, "reason": "model_not_available"},
+                retryable=False,
+            )
+
         if self._healthy:
             return success({"engine": self.engine_name, "available": True})
 
@@ -35,4 +48,3 @@ class ChatterboxProvider(TtsProvider):
             details={"engine": self.engine_name, "reason": "unhealthy"},
             retryable=False,
         )
-

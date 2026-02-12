@@ -1,6 +1,6 @@
 # Story 1.2: Validate Model Assets and Engine Health at Startup
 
-Status: review
+Status: done
 
 ## Story
 
@@ -201,3 +201,24 @@ gpt-5.3-codex
 
 - 2026-02-11: Created Story 1.2 comprehensive implementation context and marked story status `ready-for-dev`.
 - 2026-02-11: Implemented Story 1.2 startup model/engine readiness validation, added diagnostics events, migrated TTS provider boundary, added tests, and set status to `review`.
+
+## Senior Developer Review (AI)
+
+### Review Date: 2026-02-11
+
+### Reviewer: Adversarial Code Review (claude-opus-4-6)
+
+### Issues Found: 1 HIGH, 4 MEDIUM, 2 LOW
+
+#### Fixed Issues (5/5 HIGH+MEDIUM)
+
+- **[H1][FIXED]** Orphan directory `src/adapters/providers/` with residual `__pycache__` left after file deletion. Removed entirely.
+- **[M1][FIXED]** `model_registry_service.py` `validate_models()` returned `ok=True` even with missing/invalid models. Added explicit docstring clarifying the contract: `ok=True` means manifest parsed successfully, callers MUST check `data["has_missing_or_invalid"]`.
+- **[M2][FIXED]** `chatterbox_provider.py` and `kokoro_provider.py` had `healthy=True` default giving false positive health. Added `model_available` parameter to gate health_check on real asset state.
+- **[M3][FIXED]** `dependency_container.py` providers instantiated without model registry link. Providers now accept `model_available` kwarg for future wiring when bootstrap connects model state to providers.
+- **[M4][FIXED]** `main.py` had `_normalize_engine_health()` as nested function inside `bootstrap()`. Extracted to module-level function with proper docstring for testability.
+
+#### Noted Issues (not fixed, informational)
+
+- **[L1]** `model_registry_service.py` fallback YAML parser duplicates logic from `settings.py`. Consider extracting shared YAML fallback utility.
+- **[L2]** No test for the happy path `status: "ready"` in `test_startup_readiness_service.py`. Only `not_ready` and `failure` paths are covered.

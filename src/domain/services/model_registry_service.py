@@ -18,6 +18,16 @@ class ModelRegistryService:
     """Validate required local model assets from a YAML manifest."""
 
     def validate_models(self, manifest_path: str | Path) -> Result[dict[str, Any]]:
+        """Classify each model in the manifest as installed, missing, or invalid.
+
+        Returns ``Result(ok=True, data=...)`` when the manifest was successfully
+        parsed and every model was classified — even if some models are missing
+        or invalid.  Callers MUST inspect ``data["has_missing_or_invalid"]`` to
+        determine whether the system is ready for conversion.
+
+        Returns ``Result(ok=False, ...)`` only when the manifest itself cannot
+        be loaded or parsed (i.e. infrastructure-level failure).
+        """
         manifest = Path(manifest_path)
         if not manifest.exists():
             return failure(

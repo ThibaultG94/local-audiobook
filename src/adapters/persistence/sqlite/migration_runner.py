@@ -85,8 +85,12 @@ def apply_migrations(connection: sqlite3.Connection, migrations_dir: str | Path)
                 )
             continue
 
+        # executescript() implicitly commits any active transaction, so we
+        # cannot rely on the context-manager for atomicity.  Instead we run
+        # the DDL first, then record the version inside an explicit
+        # transaction so the two steps stay consistent.
+        connection.executescript(migration.sql)
         with connection:
-            connection.executescript(migration.sql)
             connection.execute(
                 "INSERT INTO schema_migrations(version, checksum, applied_at) VALUES (?, ?, ?)",
                 (migration.version, migration.checksum, _utc_now_iso()),
@@ -94,4 +98,3 @@ def apply_migrations(connection: sqlite3.Connection, migrations_dir: str | Path)
         applied_versions.append(migration.version)
 
     return applied_versions
-
