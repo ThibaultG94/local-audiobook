@@ -8,7 +8,9 @@ from pathlib import Path
 from adapters.persistence.sqlite.connection import create_connection
 from adapters.persistence.sqlite.migration_runner import apply_migrations
 from adapters.persistence.sqlite.repositories.documents_repository import DocumentsRepository
+from adapters.extraction.epub_extractor import EpubExtractor
 from domain.services.import_service import ImportService
+from ui.presenters.conversion_presenter import ConversionPresenter
 from infrastructure.logging.event_schema import REQUIRED_EVENT_FIELDS, is_valid_utc_iso_8601
 from infrastructure.logging.jsonl_logger import JsonlLogger
 
@@ -55,6 +57,45 @@ class TestImportFlowIntegration(unittest.TestCase):
 
             connection.close()
 
+    def test_epub_extraction_logs_required_fields_and_presenter_message_is_actionable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "runtime" / "local_audiobook.db"
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+
+            repository = DocumentsRepository(connection)
+            logger = JsonlLogger(events_path)
+            extractor = EpubExtractor(logger=logger)
+            service = ImportService(documents_repository=repository, logger=logger, epub_extractor=extractor)
+
+            document = {
+                "id": "doc-epub-1",
+                "source_path": str(tmp_path / "missing.epub"),
+                "source_format": "epub",
+            }
+            extraction = service.extract_document(document=document, correlation_id="corr-epub-int", job_id="job-epub-1")
+
+            self.assertFalse(extraction.ok)
+
+            events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            extraction_events = [event for event in events if event["stage"] == "extraction" and event.get("engine") == "epub"]
+            self.assertGreaterEqual(len(extraction_events), 2)
+            for event in extraction_events:
+                self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
+                self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
+
+            presenter = ConversionPresenter()
+            presented = presenter.map_extraction(extraction)
+            self.assertTrue(presented.ok)
+            self.assertEqual(presented.data["status"], "failed")
+            self.assertIn("EPUB", presented.data["message"])
+            self.assertEqual(presented.data["severity"], "ERROR")
+
+            connection.close()
+
     def test_import_events_emit_required_schema_for_accepted_and_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -87,4 +128,3 @@ class TestImportFlowIntegration(unittest.TestCase):
                 self.assertEqual(event["stage"], "import")
 
             connection.close()
-

@@ -1,6 +1,6 @@
 # Story 2.2: Extract Clean Text from EPUB with Actionable Failure Handling
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,21 +34,21 @@ so that I can proceed to conversion without manual copy cleanup.
 
 ## Tasks / Subtasks
 
-- [ ] Implement EPUB extractor adapter in `src/adapters/extraction/epub_extractor.py` with deterministic reading-order output (AC: 1)
-  - [ ] Parse EPUB spine/resources via `ebooklib` and concatenate readable text sections in document order
-  - [ ] Apply baseline cleanup (empty nodes, duplicate whitespace, trivial markup remnants)
-  - [ ] Return normalized extraction payload ready for chunking service ingestion
-- [ ] Wire extraction orchestration path for EPUB through service layer (AC: 1, 2, 4)
-  - [ ] Route `.epub` documents from import/extraction flow to `epub_extractor.py`
-  - [ ] Map extractor failures to normalized `{ok, data, error}` contract using shared error schema
-  - [ ] Ensure presenter pathway emits actionable English feedback for success/failure states
-- [ ] Add structured observability for EPUB extraction lifecycle (AC: 3)
-  - [ ] Emit `domain.action` events for extraction start/success/failure with `stage=extraction` and `engine=epub`
-  - [ ] Include required schema fields (`correlation_id`, `job_id`, `event`, `severity`, `timestamp`) in every log line
-- [ ] Add test coverage for extraction quality, failures, and UI-facing behavior (AC: 1..4)
-  - [ ] Unit tests for reading order and cleanup behavior on representative EPUB fixtures
-  - [ ] Unit tests for malformed/unreadable EPUB mapping to normalized errors
-  - [ ] Integration tests for event emission schema and presenter-facing actionable messaging
+- [x] Implement EPUB extractor adapter in `src/adapters/extraction/epub_extractor.py` with deterministic reading-order output (AC: 1)
+  - [x] Parse EPUB spine/resources via `ebooklib` and concatenate readable text sections in document order
+  - [x] Apply baseline cleanup (empty nodes, duplicate whitespace, trivial markup remnants)
+  - [x] Return normalized extraction payload ready for chunking service ingestion
+- [x] Wire extraction orchestration path for EPUB through service layer (AC: 1, 2, 4)
+  - [x] Route `.epub` documents from import/extraction flow to `epub_extractor.py`
+  - [x] Map extractor failures to normalized `{ok, data, error}` contract using shared error schema
+  - [x] Ensure presenter pathway emits actionable English feedback for success/failure states
+- [x] Add structured observability for EPUB extraction lifecycle (AC: 3)
+  - [x] Emit `domain.action` events for extraction start/success/failure with `stage=extraction` and `engine=epub`
+  - [x] Include required schema fields (`correlation_id`, `job_id`, `event`, `severity`, `timestamp`) in every log line
+- [x] Add test coverage for extraction quality, failures, and UI-facing behavior (AC: 1..4)
+  - [x] Unit tests for reading order and cleanup behavior on representative EPUB fixtures
+  - [x] Unit tests for malformed/unreadable EPUB mapping to normalized errors
+  - [x] Integration tests for event emission schema and presenter-facing actionable messaging
 
 ## Dev Notes
 
@@ -206,6 +206,8 @@ gpt-5.3-codex
 
 - `git log --oneline -n 5`
 - `git log --name-only --pretty=format:'--- %h %s' -n 5`
+- `PYTHONPATH=src python -m unittest -q tests/unit/test_epub_extractor.py tests/unit/test_extraction_orchestration.py tests/integration/test_import_flow_integration.py`
+- `PYTHONPATH=src python -m unittest discover -s tests -q`
 
 ### Completion Notes List
 
@@ -213,11 +215,25 @@ gpt-5.3-codex
 - Story status set to `ready-for-dev`.
 - Story scoped to EPUB extraction quality, normalized failure handling, and actionable UI diagnostics.
 - Reuse Story 2.1 contracts and observability baseline; avoid scope expansion into PDF/TXT/MD extractors.
+- Implemented EPUB extraction adapter with deterministic spine-order parsing, baseline cleanup, normalized payload, and normalized error taxonomy.
+- Extended import service with EPUB extraction orchestration (`extract_document`) and standardized unsupported/extractor-unavailable error mapping.
+- Added extraction presenter mapping for actionable English success/failure messages.
+- Added unit and integration coverage for extractor behavior, orchestration, normalized failures, and extraction event schema requirements.
+- Full test suite passed after updates (`46` tests).
 
 ### File List
 
 - _bmad-output/implementation-artifacts/2-2-extract-clean-text-from-epub-with-actionable-failure-handling.md
+- src/adapters/extraction/__init__.py
+- src/adapters/extraction/epub_extractor.py
+- src/domain/services/import_service.py
+- src/ui/presenters/conversion_presenter.py
+- tests/unit/test_epub_extractor.py
+- tests/unit/test_extraction_orchestration.py
+- tests/integration/test_import_flow_integration.py
+- tests/integration/test_bootstrap_and_migrations.py
 
 ## Change Log
 
 - 2026-02-12: Story created with exhaustive implementation context for EPUB extraction, normalized failure handling, observability requirements, and architecture guardrails.
+- 2026-02-12: Implemented EPUB extractor, wired extraction orchestration and presenter feedback, added unit/integration tests, and validated full regression suite.

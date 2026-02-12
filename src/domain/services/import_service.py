@@ -21,12 +21,24 @@ class EventLoggerPort(Protocol):
     def emit(self, *, event: str, stage: str, severity: str = "INFO", correlation_id: str = "", **kwargs: Any) -> None: ...
 
 
+@runtime_checkable
+class EpubExtractorPort(Protocol):
+    def extract(self, source_path: str, *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]: ...
+
+
 class ImportService:
     """Validate import metadata and persist accepted documents."""
 
-    def __init__(self, *, documents_repository: DocumentsRepositoryPort, logger: EventLoggerPort) -> None:
+    def __init__(
+        self,
+        *,
+        documents_repository: DocumentsRepositoryPort,
+        logger: EventLoggerPort,
+        epub_extractor: EpubExtractorPort | None = None,
+    ) -> None:
         self._documents_repository = documents_repository
         self._logger = logger
+        self._epub_extractor = epub_extractor
 
     def import_document(self, file_path: str, correlation_id: str | None = None) -> Result[dict[str, str]]:
         corr = correlation_id or str(uuid4())
@@ -124,3 +136,29 @@ class ImportService:
         )
         return failure(code=code, message=message, details=details, retryable=retryable)
 
+    def extract_document(
+        self,
+        *,
+        document: dict[str, str],
+        correlation_id: str,
+        job_id: str,
+    ) -> Result[dict[str, Any]]:
+        source_path = document.get("source_path", "")
+        source_format = document.get("source_format", "").lower()
+
+        if source_format == "epub":
+            if self._epub_extractor is None:
+                return failure(
+                    code="extraction.extractor_unavailable",
+                    message="EPUB extractor is not configured",
+                    details={"source_format": source_format},
+                    retryable=False,
+                )
+            return self._epub_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+
+        return failure(
+            code="extraction.unsupported_source_format",
+            message="Unsupported source format for extraction",
+            details={"source_format": source_format, "source_path": source_path},
+            retryable=False,
+        )

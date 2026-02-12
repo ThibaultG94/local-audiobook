@@ -42,10 +42,44 @@ class ConversionPresenter:
             }
         )
 
+    def map_extraction(self, extraction_result: Result[dict[str, Any]]) -> Result[dict[str, Any]]:
+        if extraction_result.ok and extraction_result.data is not None:
+            source_path = str(extraction_result.data.get("source_path", ""))
+            sections = int(extraction_result.data.get("sections", 0))
+            return success(
+                {
+                    "status": "succeeded",
+                    "severity": "INFO",
+                    "message": "EPUB text extracted successfully.",
+                    "details": {"source_path": source_path, "sections": sections},
+                }
+            )
+
+        error = extraction_result.error
+        code = error.code if error else "extraction.unknown"
+        details = error.to_dict() if error else {}
+
+        if code == "extraction.no_text_content":
+            message = "Unable to extract readable text from EPUB. Please verify the file contents."
+        elif code == "extraction.malformed_package":
+            message = "EPUB structure appears invalid. Please provide a well-formed EPUB file."
+        elif code == "extraction.unreadable_archive":
+            message = "EPUB file could not be read. Please check file permissions or integrity."
+        else:
+            message = "EPUB extraction failed. Please try again or select a different file."
+
+        return success(
+            {
+                "status": "failed",
+                "severity": "ERROR",
+                "message": message,
+                "details": details,
+            }
+        )
+
     @staticmethod
     def _engine_available(engines: list[dict[str, Any]], expected_name: str) -> bool:
         for engine in engines:
             if str(engine.get("engine", "")) == expected_name:
                 return bool(engine.get("ok", False))
         return False
-
