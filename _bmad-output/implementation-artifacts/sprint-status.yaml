@@ -60,7 +60,7 @@ development_status:
   3-3-orchestrate-deterministic-conversion-with-engine-fallback: done
   3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk: done
   3-5-configure-conversion-parameters-and-output-format-in-ui: done
-  3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals: backlog
+  3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals: ready-for-dev
   epic-3-retrospective: optional
 
   epic-4: backlog

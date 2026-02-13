@@ -1,0 +1,177 @@
+# Story 3.6: Execute Conversion in Dedicated Worker with Non-Blocking UI Signals
+
+Status: ready-for-dev
+
+<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+
+## Story
+
+As a user running long conversion tasks,
+I want conversion to run in a dedicated worker thread with live progress feedback,
+so that the interface stays responsive while processing continues.
+
+## Acceptance Criteria
+
+1. **Given** conversion starts from the UI  
+   **When** execution is launched through `conversion_worker.py`  
+   **Then** processing runs in a dedicated QThread separate from the UI thread  
+   **And** no blocking operation is performed on the main event loop.
+
+2. **Given** orchestration emits chunk progress and state updates  
+   **When** worker signals are propagated to `conversion_presenter.py` and `conversion_view.py`  
+   **Then** progress percentage and status are updated incrementally  
+   **And** users can observe running paused failed completed states in near real time.
+
+3. **Given** runtime errors occur in worker execution  
+   **When** exceptions or normalized failures are received from `tts_orchestration_service.py`  
+   **Then** errors are relayed through Qt signals with normalized payload structure  
+   **And** UI messaging remains actionable and English-only for MVP.
+
+4. **Given** observability requirements for async execution  
+   **When** worker starts emits progress fails or completes  
+   **Then** JSONL events are written by `jsonl_logger.py` with `stage=worker_execution` and `domain.action` events  
+   **And** each event includes `correlation_id`, `job_id`, `chunk_index` when applicable, `event`, `severity`, and ISO-8601 UTC `timestamp`.
+
+## Tasks / Subtasks
+
+- [ ] Implement dedicated conversion execution thread aligned with Qt patterns (AC: 1)
+  - [ ] Ensure conversion launch path uses `QThread`/worker object separation and does not run heavy work on the UI thread.
+  - [ ] Preserve thread-safe callback dispatch to the UI layer for state updates.
+- [ ] Add incremental progress/state propagation from worker to presenter/view (AC: 2)
+  - [ ] Emit deterministic progress events that include chunk-level context when available.
+  - [ ] Map worker state transitions to UI-facing statuses (`running`, `paused`, `failed`, `completed`) without blocking.
+- [ ] Normalize worker error propagation and user-facing messaging (AC: 3)
+  - [ ] Convert runtime exceptions into normalized `{code, message, details, retryable}` payloads.
+  - [ ] Ensure presenter/view error text remains actionable and English-only.
+- [ ] Instrument worker execution observability with correlated JSONL events (AC: 4)
+  - [ ] Emit `worker_execution.started`, `worker_execution.progressed`, `worker_execution.failed`, `worker_execution.completed`.
+  - [ ] Include required correlation fields and UTC timestamps in every event.
+- [ ] Add unit/integration tests for non-blocking behavior, signal propagation, and error normalization (AC: 1..4)
+  - [ ] Validate execution does not block the main thread.
+  - [ ] Validate progress updates and state transitions are deterministic.
+  - [ ] Validate normalized failures and event schema compliance.
+
+## Dev Notes
+
+### Developer Context Section
+
+- This story is the execution-path continuation of Story 3.5 and must preserve validated configuration handoff semantics from the worker launch boundary.
+- Current code already provides a framework-neutral background worker in `src/ui/workers/conversion_worker.py`; this story hardens it into explicit Qt-aligned execution behavior while preserving testability.
+- Keep orchestration ownership intact: fallback policy and chunk ordering stay in `src/domain/services/tts_orchestration_service.py`, not in UI components.
+- Preserve normalized result/error contracts from `src/contracts/result.py` and `src/contracts/errors.py` for all worker-to-UI failure paths.
+
+### Technical Requirements
+
+- Worker execution must remain non-blocking for UI, with long-running conversion work isolated from main event processing.
+- Worker must propagate progress increments and lifecycle state changes (`queued` → `running` → `paused`/`failed`/`completed`) through deterministic signal/callback channels.
+- Runtime exceptions from worker execution must be normalized before reaching presenter/view.
+- Conversion launch configuration produced by Story 3.5 (`engine`, `voice_id`, `language`, `speech_rate`, `output_format`) remains immutable once worker execution begins.
+- Event logging for worker execution must follow architecture schema fields:
+  `correlation_id`, `job_id`, `chunk_index`, `engine`, `stage`, `event`, `severity`, `timestamp`.
+
+### Architecture Compliance
+
+- Respect layer boundaries:
+  - UI state/rendering in presenter/view
+  - asynchronous execution in worker
+  - conversion orchestration logic in domain service
+  - persistence/logging in adapters/infrastructure
+- Do not move fallback decision logic from `tts_orchestration_service` into worker.
+- Keep naming and payload patterns aligned with architecture conventions (`snake_case`, `domain.action`, ISO-8601 UTC timestamps).
+- Ensure worker enhancements do not regress previously validated resume and job-lifecycle behavior from Story 3.4.
+
+### Library / Framework Requirements
+
+- Use existing project stack only; no new dependency is required.
+- Keep logger usage centralized through existing JSONL infrastructure.
+- Maintain compatibility with repository and launcher interfaces already used by `ConversionWorker`.
+
+### File Structure Requirements
+
+- Primary implementation targets:
+  - `src/ui/workers/conversion_worker.py`
+  - `src/ui/presenters/conversion_presenter.py`
+  - `src/ui/views/conversion_view.py`
+  - `src/domain/services/tts_orchestration_service.py` (only if event/state propagation contract updates are required)
+- Test targets:
+  - `tests/unit/test_conversion_worker.py`
+  - `tests/unit/test_conversion_presenter.py`
+  - `tests/unit/test_conversion_view.py`
+  - relevant integration tests in `tests/integration/` for worker execution path and observability.
+
+### Testing Requirements
+
+- Unit tests should verify:
+  - worker execution occurs off main thread,
+  - progress/state updates are emitted deterministically,
+  - normalized errors are returned on worker exceptions,
+  - missing/invalid payload handling still fails fast.
+- Integration tests should verify:
+  - launch path persists job configuration then starts async execution,
+  - UI-facing state can be refreshed from worker signals without blocking,
+  - worker execution events follow JSONL schema and `domain.action` naming.
+
+### Previous Story Intelligence
+
+- Story 3.5 introduced strict configuration validation, immutable handoff payloads, and configuration-stage observability.
+- Preserve these guarantees when wiring asynchronous execution.
+- Do not bypass presenter validation by creating alternate worker entry points.
+
+### Git Intelligence Summary
+
+- Recent commits indicate active stabilization in this sequence:
+  - Story 3.5 implementation and review hardening,
+  - Story 3.4 resume/lifecycle stabilization.
+- Implementation strategy should remain minimally invasive and regression-safe by extending existing worker and tests rather than replacing them.
+
+### Latest Tech Information
+
+- For this story scope, no mandatory dependency-version upgrade is required.
+- Focus is execution correctness and UI responsiveness under current stack.
+- If Qt threading semantics are adjusted, keep behavior testable in non-Qt unit tests via abstraction-friendly callbacks.
+
+### Project Context Reference
+
+- No `project-context.md` file was found via configured discovery pattern.
+- Context for this story is derived from planning artifacts, architecture decisions, sprint status, previous story output, recent commits, and current codebase.
+
+### References
+
+- Story source: [epics.md](_bmad-output/planning-artifacts/epics.md)
+- Product constraints: [prd.md](_bmad-output/planning-artifacts/prd.md)
+- Architecture constraints: [architecture.md](_bmad-output/planning-artifacts/architecture.md)
+- Sprint tracking: [sprint-status.yaml](_bmad-output/implementation-artifacts/sprint-status.yaml)
+- Previous story: [3-5-configure-conversion-parameters-and-output-format-in-ui.md](_bmad-output/implementation-artifacts/3-5-configure-conversion-parameters-and-output-format-in-ui.md)
+- Worker baseline: [conversion_worker.py](src/ui/workers/conversion_worker.py)
+- Presenter baseline: [conversion_presenter.py](src/ui/presenters/conversion_presenter.py)
+- View baseline: [conversion_view.py](src/ui/views/conversion_view.py)
+
+## Dev Agent Record
+
+### Agent Model Used
+
+gpt-5.3-codex
+
+### Debug Log References
+
+- `git log -n 5 --pretty=format:'%h|%s' --name-only`
+
+### Completion Notes List
+
+- Story selected from first backlog entry in sprint status: `3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals`.
+- Comprehensive context assembled from epics, architecture, PRD, previous implementation artifacts, and current source/testing baseline.
+- Story status is set to `ready-for-dev` with implementation guardrails focused on non-blocking worker execution, signal propagation, normalized error handling, and observability.
+
+### File List
+
+- _bmad-output/implementation-artifacts/3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+
+## Change Log
+
+- 2026-02-13: Story 3.6 context created with full implementation guidance and status `ready-for-dev`.
+
+## Story Completion Status
+
+- Status set to: `ready-for-dev`
+- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
