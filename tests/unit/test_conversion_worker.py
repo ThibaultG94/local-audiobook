@@ -24,10 +24,19 @@ class _FakeLogger:
 class _FakeLauncher:
     def __init__(self) -> None:
         self.received_config = None
+        self.progress_events: list[dict[str, object]] = []
 
-    def launch_conversion(self, *, job_id: str, correlation_id: str, conversion_config):
+    def launch_conversion(self, *, job_id: str, correlation_id: str, conversion_config, progress_callback=None):
         self.received_config = conversion_config
+        if progress_callback is not None:
+            progress_callback({"chunk_index": 0, "succeeded_chunks": 1, "total_chunks": 2, "progress_percent": 50})
+            progress_callback({"chunk_index": 1, "succeeded_chunks": 2, "total_chunks": 2, "progress_percent": 100})
         return success({"job_id": job_id, "correlation_id": correlation_id})
+
+
+class _FailingLauncher:
+    def launch_conversion(self, *, job_id: str, correlation_id: str, conversion_config, progress_callback=None):
+        raise RuntimeError("launcher exploded")
 
 
 class TestConversionWorker(unittest.TestCase):
@@ -159,5 +168,82 @@ class TestConversionWorker(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "configuration.invalid_payload")
             self.assertIn("output_format", result.error.details["missing_keys"])
+        finally:
+            worker.shutdown()
+
+    def test_execute_conversion_async_emits_running_progress_and_completed_states(self) -> None:
+        logger = _FakeLogger()
+        launcher = _FakeLauncher()
+        worker = ConversionWorker(
+            recheck_callable=lambda: success({"status": "ready", "engines": [], "remediation": []}),
+            logger=logger,
+            conversion_launcher=launcher,
+        )
+        states: list[dict[str, object]] = []
+        progresses: list[dict[str, object]] = []
+        errors: list[dict[str, object]] = []
+
+        worker.on_conversion_state_changed(lambda payload: states.append(payload))
+        worker.on_conversion_progressed(lambda payload: progresses.append(payload))
+        worker.on_conversion_failed(lambda payload: errors.append(payload))
+        try:
+            future = worker.execute_conversion_async(
+                document_id="doc-1",
+                job_id="job-async-1",
+                correlation_id="corr-async-1",
+                conversion_config={
+                    "engine": "chatterbox_gpu",
+                    "voice_id": "default",
+                    "language": "FR",
+                    "speech_rate": 1.0,
+                    "output_format": "wav",
+                },
+            )
+            result = future.result(timeout=2)
+            self.assertTrue(result.ok)
+
+            self.assertEqual(states[0]["status"], "running")
+            self.assertEqual(states[-1]["status"], "completed")
+            self.assertEqual(states[-1]["progress_percent"], 100)
+
+            self.assertEqual([item["progress_percent"] for item in progresses], [50, 100])
+            self.assertEqual(errors, [])
+
+            self.assertIn("worker_execution:worker_execution.started", logger.events)
+            self.assertIn("worker_execution:worker_execution.progressed", logger.events)
+            self.assertIn("worker_execution:worker_execution.completed", logger.events)
+            self.assertEqual(worker.active_conversion_count, 0)
+        finally:
+            worker.shutdown()
+
+    def test_execute_conversion_async_normalizes_unhandled_launcher_exception(self) -> None:
+        logger = _FakeLogger()
+        worker = ConversionWorker(
+            recheck_callable=lambda: success({"status": "ready", "engines": [], "remediation": []}),
+            logger=logger,
+            conversion_launcher=_FailingLauncher(),
+        )
+        errors: list[dict[str, object]] = []
+        worker.on_conversion_failed(lambda payload: errors.append(payload))
+        try:
+            future = worker.execute_conversion_async(
+                document_id="doc-2",
+                job_id="job-async-2",
+                correlation_id="corr-async-2",
+                conversion_config={
+                    "engine": "kokoro_cpu",
+                    "voice_id": "default",
+                    "language": "EN",
+                    "speech_rate": 1.0,
+                    "output_format": "mp3",
+                },
+            )
+            result = future.result(timeout=2)
+            self.assertFalse(result.ok)
+            assert result.error is not None
+            self.assertEqual(result.error.code, "worker_execution.unhandled_exception")
+            self.assertTrue(errors)
+            self.assertEqual(errors[0]["error"]["code"], "worker_execution.unhandled_exception")
+            self.assertIn("worker_execution:worker_execution.failed", logger.events)
         finally:
             worker.shutdown()

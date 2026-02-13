@@ -10,6 +10,9 @@ from ui.views.conversion_view import ConversionView
 class _FakeWorker:
     def __init__(self, *, recheck_result=None) -> None:
         self._callback = None
+        self._progress_callback = None
+        self._state_callback = None
+        self._error_callback = None
         self._recheck_result = recheck_result
 
     def on_readiness_refreshed(self, callback):
@@ -30,6 +33,27 @@ class _FakeWorker:
                 }
             )
             self._callback(result)
+
+    def on_conversion_progressed(self, callback):
+        self._progress_callback = callback
+
+    def on_conversion_state_changed(self, callback):
+        self._state_callback = callback
+
+    def on_conversion_failed(self, callback):
+        self._error_callback = callback
+
+    def emit_progress(self, payload: dict[str, object]) -> None:
+        assert self._progress_callback is not None
+        self._progress_callback(payload)
+
+    def emit_state(self, payload: dict[str, object]) -> None:
+        assert self._state_callback is not None
+        self._state_callback(payload)
+
+    def emit_error(self, payload: dict[str, object]) -> None:
+        assert self._error_callback is not None
+        self._error_callback(payload)
 
 
 class _FakeLogger:
@@ -155,3 +179,66 @@ class TestConversionView(unittest.TestCase):
         kokoro_voice = next(item for item in options["voices"] if item["engine"] == "kokoro_cpu")
         self.assertTrue(chatterbox_voice["disabled"])
         self.assertFalse(kokoro_voice["disabled"])
+
+    def test_conversion_progress_and_state_are_mapped_into_view_state(self) -> None:
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=_FakeLogger(),
+        )
+
+        worker.emit_state(
+            {
+                "status": "running",
+                "progress_percent": 0,
+                "chunk_index": -1,
+                "job_id": "job-state-1",
+                "correlation_id": "corr-state-1",
+            }
+        )
+        worker.emit_progress(
+            {
+                "status": "running",
+                "progress_percent": 50,
+                "chunk_index": 1,
+                "succeeded_chunks": 2,
+                "total_chunks": 4,
+            }
+        )
+        worker.emit_state(
+            {
+                "status": "completed",
+                "progress_percent": 100,
+                "chunk_index": -1,
+                "job_id": "job-state-1",
+                "correlation_id": "corr-state-1",
+            }
+        )
+
+        conversion = view.current_state["conversion"]
+        self.assertEqual(conversion["status"], "completed")
+        self.assertEqual(conversion["progress_percent"], 100)
+        self.assertEqual(conversion["job_id"], "job-state-1")
+
+    def test_conversion_error_sets_failed_status_and_error_payload(self) -> None:
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=_FakeLogger(),
+        )
+
+        worker.emit_error(
+            {
+                "error": {
+                    "code": "tts_orchestration.chunk_failed_unrecoverable",
+                    "message": "Chunk synthesis failed for all configured providers",
+                    "details": {"chunk_index": 3},
+                    "retryable": False,
+                }
+            }
+        )
+
+        self.assertEqual(view.current_state["conversion"]["status"], "failed")
+        self.assertEqual(view.current_state["error"]["code"], "tts_orchestration.chunk_failed_unrecoverable")

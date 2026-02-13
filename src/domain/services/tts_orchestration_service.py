@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
 from contracts.result import Result, failure, success
 from domain.services.job_state_validator import validate_job_state_transition
@@ -151,6 +151,7 @@ class TtsOrchestrationService:
         voice: str | None = None,
         current_job_state: str = "running",
         force_reprocess: bool = False,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> Result[dict[str, object]]:
         """Synthesize persisted chunks in deterministic chunk_index order.
 
@@ -242,6 +243,7 @@ class TtsOrchestrationService:
         ]
 
         chunk_results: list[dict[str, object]] = []
+        total_chunks = len(chunks_to_process)
 
         for chunk in chunks_to_process:
             chunk_index = int(chunk["chunk_index"])
@@ -304,6 +306,16 @@ class TtsOrchestrationService:
                         "engine": selected_engine,
                     }
                 )
+                if progress_callback is not None:
+                    progress_callback(
+                        {
+                            "chunk_index": chunk_index,
+                            "succeeded_chunks": len(chunk_results),
+                            "total_chunks": total_chunks,
+                            "progress_percent": int((len(chunk_results) / total_chunks) * 100) if total_chunks > 0 else 0,
+                            "status": "running",
+                        }
+                    )
                 continue
 
             failure_details = {

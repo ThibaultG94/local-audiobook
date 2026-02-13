@@ -294,6 +294,75 @@ class ConversionPresenter:
         )
         return failure(code=code, message=message, details=details, retryable=False)
 
+    def map_conversion_progress(self, payload: dict[str, Any]) -> Result[dict[str, Any]]:
+        try:
+            progress_percent = int(payload.get("progress_percent", 0) or 0)
+            chunk_index = int(payload.get("chunk_index", -1) or -1)
+            status = str(payload.get("status", "running") or "running")
+        except (TypeError, ValueError):
+            return failure(
+                code="conversion.progress_invalid_payload",
+                message="Conversion progress payload is invalid",
+                details={"payload": payload},
+                retryable=False,
+            )
+
+        normalized_progress = max(0, min(progress_percent, 100))
+        return success(
+            {
+                "status": status,
+                "progress_percent": normalized_progress,
+                "chunk_index": chunk_index,
+                "succeeded_chunks": int(payload.get("succeeded_chunks", 0) or 0),
+                "total_chunks": int(payload.get("total_chunks", 0) or 0),
+            }
+        )
+
+    def map_conversion_state(self, payload: dict[str, Any]) -> Result[dict[str, Any]]:
+        allowed = {"queued", "running", "paused", "failed", "completed"}
+        status = str(payload.get("status", "running") or "running")
+        if status not in allowed:
+            return failure(
+                code="conversion.state_invalid",
+                message="Conversion state is invalid",
+                details={"status": status, "allowed": sorted(allowed)},
+                retryable=False,
+            )
+
+        return success(
+            {
+                "status": status,
+                "progress_percent": int(payload.get("progress_percent", 0) or 0),
+                "chunk_index": int(payload.get("chunk_index", -1) or -1),
+                "job_id": str(payload.get("job_id", "")),
+                "correlation_id": str(payload.get("correlation_id", "")),
+            }
+        )
+
+    def map_conversion_error(self, payload: dict[str, Any]) -> Result[dict[str, Any]]:
+        error = payload.get("error", {})
+        if not isinstance(error, dict):
+            return failure(
+                code="conversion.error_invalid_payload",
+                message="Conversion error payload is invalid",
+                details={"payload": payload},
+                retryable=False,
+            )
+
+        code = str(error.get("code", "conversion.failed"))
+        message = str(error.get("message", "Conversion failed."))
+        details = error.get("details", {})
+        retryable = bool(error.get("retryable", False))
+        english_message = message if message else "Conversion failed."
+        return success(
+            {
+                "code": code,
+                "message": english_message,
+                "details": details if isinstance(details, dict) else {"details": details},
+                "retryable": retryable,
+            }
+        )
+
     @staticmethod
     def _engine_available(engines: list[dict[str, Any]], expected_name: str) -> bool:
         for engine in engines:

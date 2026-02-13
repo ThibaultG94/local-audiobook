@@ -12,6 +12,9 @@ class ReadinessPresenter(Protocol):
     """Contract for the readiness presenter dependency."""
 
     def map_readiness(self, readiness_result: Result[dict[str, Any]]) -> Result[dict[str, Any]]: ...
+    def map_conversion_progress(self, payload: dict[str, Any]) -> Result[dict[str, Any]]: ...
+    def map_conversion_state(self, payload: dict[str, Any]) -> Result[dict[str, Any]]: ...
+    def map_conversion_error(self, payload: dict[str, Any]) -> Result[dict[str, Any]]: ...
 
 
 @runtime_checkable
@@ -19,6 +22,9 @@ class ReadinessWorker(Protocol):
     """Contract for the readiness worker dependency."""
 
     def on_readiness_refreshed(self, callback: Any) -> None: ...
+    def on_conversion_progressed(self, callback: Any) -> None: ...
+    def on_conversion_state_changed(self, callback: Any) -> None: ...
+    def on_conversion_failed(self, callback: Any) -> None: ...
     def refresh_readiness(self) -> Any: ...
 
 
@@ -77,8 +83,18 @@ class ConversionView:
             },
             "error": None,
             "title": "Offline readiness",
+            "conversion": {
+                "status": "queued",
+                "progress_percent": 0,
+                "chunk_index": -1,
+                "job_id": "",
+                "correlation_id": "",
+            },
         }
         self._worker.on_readiness_refreshed(self._on_recheck_result)
+        self._worker.on_conversion_progressed(self._on_conversion_progress)
+        self._worker.on_conversion_state_changed(self._on_conversion_state)
+        self._worker.on_conversion_failed(self._on_conversion_error)
 
     def render_initial(self, readiness_result: Result[dict[str, Any]]) -> Result[dict[str, Any]]:
         mapped = self._presenter.map_readiness(readiness_result)
@@ -107,6 +123,37 @@ class ConversionView:
             self._logger.emit(event="readiness.displayed", stage="readiness")
         else:
             self.current_state["error"] = mapped.error.to_dict() if mapped.error else {"code": "unknown", "message": "Readiness recheck mapping failed"}
+
+    def _on_conversion_progress(self, payload: dict[str, Any]) -> None:
+        mapped = self._presenter.map_conversion_progress(payload)
+        if not mapped.ok or mapped.data is None:
+            self.current_state["error"] = mapped.error.to_dict() if mapped.error else {"code": "unknown", "message": "Conversion progress mapping failed"}
+            return
+
+        conversion_state = dict(self.current_state.get("conversion", {}))
+        conversion_state.update(mapped.data)
+        self.current_state["conversion"] = conversion_state
+
+    def _on_conversion_state(self, payload: dict[str, Any]) -> None:
+        mapped = self._presenter.map_conversion_state(payload)
+        if not mapped.ok or mapped.data is None:
+            self.current_state["error"] = mapped.error.to_dict() if mapped.error else {"code": "unknown", "message": "Conversion state mapping failed"}
+            return
+
+        conversion_state = dict(self.current_state.get("conversion", {}))
+        conversion_state.update(mapped.data)
+        self.current_state["conversion"] = conversion_state
+
+    def _on_conversion_error(self, payload: dict[str, Any]) -> None:
+        mapped = self._presenter.map_conversion_error(payload)
+        if not mapped.ok or mapped.data is None:
+            self.current_state["error"] = mapped.error.to_dict() if mapped.error else {"code": "unknown", "message": "Conversion error mapping failed"}
+            return
+
+        self.current_state["error"] = mapped.data
+        conversion_state = dict(self.current_state.get("conversion", {}))
+        conversion_state["status"] = "failed"
+        self.current_state["conversion"] = conversion_state
 
     def build_configuration_options(
         self,

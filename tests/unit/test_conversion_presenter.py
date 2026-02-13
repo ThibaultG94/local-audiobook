@@ -245,3 +245,51 @@ class TestConversionPresenter(unittest.TestCase):
         assert result.error is not None
         self.assertEqual(result.error.code, "configuration.voice_not_compatible")
         self.assertEqual(result.error.details["field"], "voice_id")
+
+    def test_map_conversion_progress_normalizes_payload(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_progress(
+            {
+                "status": "running",
+                "progress_percent": 45,
+                "chunk_index": 2,
+                "succeeded_chunks": 3,
+                "total_chunks": 7,
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertEqual(result.data["status"], "running")
+        self.assertEqual(result.data["progress_percent"], 45)
+        self.assertEqual(result.data["chunk_index"], 2)
+
+    def test_map_conversion_state_rejects_invalid_status(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_state(
+            {
+                "status": "stalled",
+                "progress_percent": 10,
+                "chunk_index": 0,
+            }
+        )
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "conversion.state_invalid")
+
+    def test_map_conversion_error_returns_english_actionable_payload(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "tts_orchestration.chunk_failed_unrecoverable",
+                    "message": "Chunk synthesis failed for all configured providers",
+                    "details": {"chunk_index": 1},
+                    "retryable": False,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertEqual(result.data["code"], "tts_orchestration.chunk_failed_unrecoverable")
+        self.assertIn("failed", result.data["message"].lower())
+        self.assertFalse(result.data["retryable"])

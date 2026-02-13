@@ -1,6 +1,6 @@
 # Story 3.6: Execute Conversion in Dedicated Worker with Non-Blocking UI Signals
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,22 +34,22 @@ so that the interface stays responsive while processing continues.
 
 ## Tasks / Subtasks
 
-- [ ] Implement dedicated conversion execution thread aligned with Qt patterns (AC: 1)
-  - [ ] Ensure conversion launch path uses `QThread`/worker object separation and does not run heavy work on the UI thread.
-  - [ ] Preserve thread-safe callback dispatch to the UI layer for state updates.
-- [ ] Add incremental progress/state propagation from worker to presenter/view (AC: 2)
-  - [ ] Emit deterministic progress events that include chunk-level context when available.
-  - [ ] Map worker state transitions to UI-facing statuses (`running`, `paused`, `failed`, `completed`) without blocking.
-- [ ] Normalize worker error propagation and user-facing messaging (AC: 3)
-  - [ ] Convert runtime exceptions into normalized `{code, message, details, retryable}` payloads.
-  - [ ] Ensure presenter/view error text remains actionable and English-only.
-- [ ] Instrument worker execution observability with correlated JSONL events (AC: 4)
-  - [ ] Emit `worker_execution.started`, `worker_execution.progressed`, `worker_execution.failed`, `worker_execution.completed`.
-  - [ ] Include required correlation fields and UTC timestamps in every event.
-- [ ] Add unit/integration tests for non-blocking behavior, signal propagation, and error normalization (AC: 1..4)
-  - [ ] Validate execution does not block the main thread.
-  - [ ] Validate progress updates and state transitions are deterministic.
-  - [ ] Validate normalized failures and event schema compliance.
+- [x] Implement dedicated conversion execution thread aligned with Qt patterns (AC: 1)
+  - [x] Ensure conversion launch path uses `QThread`/worker object separation and does not run heavy work on the UI thread.
+  - [x] Preserve thread-safe callback dispatch to the UI layer for state updates.
+- [x] Add incremental progress/state propagation from worker to presenter/view (AC: 2)
+  - [x] Emit deterministic progress events that include chunk-level context when available.
+  - [x] Map worker state transitions to UI-facing statuses (`running`, `paused`, `failed`, `completed`) without blocking.
+- [x] Normalize worker error propagation and user-facing messaging (AC: 3)
+  - [x] Convert runtime exceptions into normalized `{code, message, details, retryable}` payloads.
+  - [x] Ensure presenter/view error text remains actionable and English-only.
+- [x] Instrument worker execution observability with correlated JSONL events (AC: 4)
+  - [x] Emit `worker_execution.started`, `worker_execution.progressed`, `worker_execution.failed`, `worker_execution.completed`.
+  - [x] Include required correlation fields and UTC timestamps in every event.
+- [x] Add unit/integration tests for non-blocking behavior, signal propagation, and error normalization (AC: 1..4)
+  - [x] Validate execution does not block the main thread.
+  - [x] Validate progress updates and state transitions are deterministic.
+  - [x] Validate normalized failures and event schema compliance.
 
 ## Dev Notes
 
@@ -155,23 +155,39 @@ gpt-5.3-codex
 ### Debug Log References
 
 - `git log -n 5 --pretty=format:'%h|%s' --name-only`
+- `PYTHONPATH=src python -m unittest tests.unit.test_conversion_worker tests.unit.test_conversion_presenter tests.unit.test_conversion_view tests.unit.test_tts_orchestration_service tests.integration.test_conversion_configuration_integration`
+- `PYTHONPATH=src python -m unittest discover -s tests`
 
 ### Completion Notes List
 
 - Story selected from first backlog entry in sprint status: `3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals`.
 - Comprehensive context assembled from epics, architecture, PRD, previous implementation artifacts, and current source/testing baseline.
-- Story status is set to `ready-for-dev` with implementation guardrails focused on non-blocking worker execution, signal propagation, normalized error handling, and observability.
+- Implemented asynchronous conversion execution path in worker with dedicated background execution, thread-safe dispatch hooks for UI callbacks, and lifecycle signal propagation (`running`/`failed`/`completed`).
+- Added deterministic worker progress signaling with chunk-level context and orchestration callback support while preserving orchestration ownership in domain service.
+- Added normalized worker failure propagation for launcher exceptions and orchestration failures with `{code, message, details, retryable}` payloads.
+- Added worker execution observability events (`worker_execution.started`, `worker_execution.progressed`, `worker_execution.failed`, `worker_execution.completed`) with correlated fields and UTC timestamps.
+- Extended presenter/view mapping for conversion progress/state/error and enforced actionable English error payloads at UI mapping boundary.
+- Added and updated unit/integration tests for non-blocking execution semantics, signal propagation, error normalization, and JSONL schema compliance; full test suite passed.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/domain/services/tts_orchestration_service.py
+- src/ui/presenters/conversion_presenter.py
+- src/ui/views/conversion_view.py
+- src/ui/workers/conversion_worker.py
+- tests/integration/test_conversion_configuration_integration.py
+- tests/unit/test_conversion_presenter.py
+- tests/unit/test_conversion_view.py
+- tests/unit/test_conversion_worker.py
 
 ## Change Log
 
 - 2026-02-13: Story 3.6 context created with full implementation guidance and status `ready-for-dev`.
+- 2026-02-13: Implemented dedicated async conversion worker execution, worker_execution observability, conversion state/progress/error UI mappings, and related unit/integration coverage; story moved to `review`.
 
 ## Story Completion Status
 
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: All ACs implemented and validated with full automated test pass (`148/148`).
