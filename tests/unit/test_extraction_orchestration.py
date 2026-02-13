@@ -226,7 +226,7 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(presented.data["status"], "failed")
         self.assertEqual(
             presented.data["message"],
-            "Unable to extract readable text from EPUB. Verify file contents and re-import the local file.",
+            "Unable to extract readable text from EPUB. Verify file contents, then re-import the local file.",
         )
         self.assertEqual(presented.data["severity"], "ERROR")
         self.assertFalse(presented.data["retry_enabled"])
@@ -247,7 +247,7 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(presented.data["status"], "failed")
         self.assertEqual(
             presented.data["message"],
-            "TXT contains unreadable encoding. Please save the file as UTF-8 and try again.",
+            "TXT contains unreadable encoding. Save the file as UTF-8 locally and try again.",
         )
         self.assertEqual(presented.data["severity"], "ERROR")
         self.assertFalse(presented.data["retry_enabled"])
@@ -293,3 +293,84 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(event.get("severity"), "ERROR")
         self.assertEqual(event.get("correlation_id"), "corr-diag-1")
         self.assertEqual(event.get("job_id"), "job-diag-1")
+
+    def test_service_validates_non_empty_correlation_id(self) -> None:
+        logger = _CapturingLogger()
+        service = ImportService(documents_repository=_FakeDocumentsRepository(), logger=logger)
+
+        result = service.extract_document(
+            document={"id": "doc-1", "source_path": "/tmp/book.epub", "source_format": "epub"},
+            correlation_id="",
+            job_id="job-1",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertIsNotNone(result.error)
+        self.assertEqual(result.error.code, "extraction.invalid_correlation_id")
+
+    def test_service_validates_non_empty_job_id(self) -> None:
+        logger = _CapturingLogger()
+        service = ImportService(documents_repository=_FakeDocumentsRepository(), logger=logger)
+
+        result = service.extract_document(
+            document={"id": "doc-1", "source_path": "/tmp/book.epub", "source_format": "epub"},
+            correlation_id="corr-1",
+            job_id="",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertIsNotNone(result.error)
+        self.assertEqual(result.error.code, "extraction.invalid_job_id")
+
+    def test_service_normalizes_extractor_error_with_invalid_details_type(self) -> None:
+        logger = _CapturingLogger()
+
+        class _BrokenExtractor:
+            def extract(self, source_path: str, *, correlation_id: str, job_id: str):
+                from src.contracts.errors import AppError
+                from src.contracts.result import Result
+
+                # Violate contract: details should be dict but return string
+                return Result(
+                    ok=False,
+                    data=None,
+                    error=AppError(code="extraction.broken", message="Broken", details="not-a-dict", retryable=False),
+                )
+
+        service = ImportService(
+            documents_repository=_FakeDocumentsRepository(),
+            logger=logger,
+            epub_extractor=_BrokenExtractor(),
+        )
+
+        result = service.extract_document(
+            document={"id": "doc-1", "source_path": "/tmp/book.epub", "source_format": "epub"},
+            correlation_id="corr-broken",
+            job_id="job-broken",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertIsNotNone(result.error)
+        # Should still normalize and add required fields
+        self.assertEqual(result.error.details.get("source_path"), "/tmp/book.epub")
+        self.assertEqual(result.error.details.get("source_format"), "epub")
+        self.assertEqual(result.error.details.get("correlation_id"), "corr-broken")
+        self.assertEqual(result.error.details.get("job_id"), "job-broken")
+        # Should have logged contract violation
+        violations = [e for e in logger.events if e.get("event") == "extraction.contract_violation"]
+        self.assertEqual(len(violations), 1)
+
+    def test_presenter_works_with_none_logger(self) -> None:
+        presenter = ConversionPresenter(logger=None)
+        extraction_result = failure(
+            code="extraction.no_text_content",
+            message="No readable text content found",
+            details={"source_path": "/tmp/empty.epub", "source_format": "epub"},
+            retryable=False,
+        )
+
+        presented = presenter.map_extraction(extraction_result)
+
+        self.assertTrue(presented.ok)
+        self.assertEqual(presented.data["status"], "failed")
+        # Should not crash with None logger

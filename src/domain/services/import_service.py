@@ -157,6 +157,36 @@ class ImportService:
         correlation_id: str,
         job_id: str,
     ) -> Result[dict[str, Any]]:
+        """Extract text content from a document using the appropriate extractor.
+        
+        Args:
+            document: Document record with source_path and source_format
+            correlation_id: Correlation ID for tracing (must be non-empty)
+            job_id: Job ID for tracing (must be non-empty)
+            
+        Returns:
+            Result with extracted content or normalized error with guaranteed fields:
+            - source_path: str
+            - source_format: str
+            - correlation_id: str
+            - job_id: str
+        """
+        if not correlation_id or not correlation_id.strip():
+            return failure(
+                code="extraction.invalid_correlation_id",
+                message="Correlation ID must be non-empty for extraction traceability",
+                details={"correlation_id": correlation_id},
+                retryable=False,
+            )
+        
+        if not job_id or not job_id.strip():
+            return failure(
+                code="extraction.invalid_job_id",
+                message="Job ID must be non-empty for extraction traceability",
+                details={"job_id": job_id, "correlation_id": correlation_id},
+                retryable=False,
+            )
+        
         source_path = document.get("source_path", "")
         source_format = document.get("source_format", "").lower() or "unknown"
 
@@ -266,6 +296,21 @@ class ImportService:
             return extraction_result
 
         if extraction_result.error is None:
+            # Log this anomaly - extractors should always provide error when ok=False
+            self._logger.emit(
+                event="extraction.contract_violation",
+                stage="extraction",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=-1,
+                engine=source_format,
+                extra={
+                    "source_path": source_path,
+                    "source_format": source_format,
+                    "violation": "extraction_result.ok=False but error=None",
+                },
+            )
             return self._normalized_extraction_failure(
                 code="extraction.runtime_error",
                 message="Extraction failed without a structured error payload",
@@ -276,7 +321,26 @@ class ImportService:
                 retryable=True,
             )
 
-        normalized_details = dict(extraction_result.error.details)
+        # Validate that details is a dict before copying
+        if not isinstance(extraction_result.error.details, dict):
+            self._logger.emit(
+                event="extraction.contract_violation",
+                stage="extraction",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=-1,
+                engine=source_format,
+                extra={
+                    "source_path": source_path,
+                    "source_format": source_format,
+                    "violation": f"error.details is not a dict: {type(extraction_result.error.details).__name__}",
+                },
+            )
+            normalized_details = {}
+        else:
+            normalized_details = dict(extraction_result.error.details)
+        
         normalized_details.setdefault("source_path", source_path)
         normalized_details.setdefault("source_format", source_format)
         normalized_details.setdefault("correlation_id", correlation_id)

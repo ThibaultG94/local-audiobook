@@ -1,6 +1,6 @@
 # Story 2.5: Provide Unified Extraction Error Feedback and Diagnostics
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -201,6 +201,17 @@ gpt-5.3-codex
 - Updated dependency wiring so presenter can receive logger injection via `build_conversion_presenter(logger=...)` without introducing network/cloud behavior.
 - Added/updated regression coverage for normalized error details, retry semantics, and diagnostics event emission in unit/integration suites.
 - Validation complete: `PYTHONPATH=src python -m unittest discover -s tests` → 72 tests passed.
+- **Code review fixes applied (2026-02-13):**
+  - Fixed absolute imports in `src/app/dependency_container.py` (was using relative imports, now uses `src.*` prefix)
+  - Added validation for non-empty `correlation_id` and `job_id` in `ImportService.extract_document()` with explicit error codes
+  - Added contract violation logging when extractors return invalid error payloads (missing error or non-dict details)
+  - Added type validation for `extraction_result.error.details` to prevent runtime crashes
+  - Centralized `NoopLogger` implementation in `src/infrastructure/logging/noop_logger.py` to eliminate duplication
+  - Updated `ConversionPresenter` to use shared `NoopLogger` instead of local duplicate
+  - Enhanced remediation messages to explicitly mention "local" operations (AC4 compliance)
+  - Added comprehensive test coverage for edge cases: empty IDs, invalid details types, None logger handling
+  - Added integration tests for PDF and TXT extraction failure diagnostics event emission
+  - All tests passing: 78 tests in 2.034s
 
 ### File List
 
@@ -208,6 +219,7 @@ gpt-5.3-codex
 - src/domain/services/import_service.py
 - src/ui/presenters/conversion_presenter.py
 - src/app/dependency_container.py
+- src/infrastructure/logging/noop_logger.py
 - tests/unit/test_extraction_orchestration.py
 - tests/integration/test_import_flow_integration.py
 - _bmad-output/implementation-artifacts/sprint-status.yaml

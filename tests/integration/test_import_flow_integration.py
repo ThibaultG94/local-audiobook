@@ -228,3 +228,93 @@ class TestImportFlowIntegration(unittest.TestCase):
             self.assertEqual(presented.data["severity"], "INFO")
 
             connection.close()
+
+    def test_pdf_extraction_failure_emits_diagnostics_presented_event(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "runtime" / "local_audiobook.db"
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+
+            repository = DocumentsRepository(connection)
+            logger = JsonlLogger(events_path)
+            extractor = PdfExtractor(logger=logger)
+            service = ImportService(
+                documents_repository=repository,
+                logger=logger,
+                pdf_extractor=extractor,
+            )
+
+            document = {
+                "id": "doc-pdf-diag",
+                "source_path": str(tmp_path / "missing.pdf"),
+                "source_format": "pdf",
+            }
+            extraction = service.extract_document(document=document, correlation_id="corr-pdf-diag", job_id="job-pdf-diag")
+
+            self.assertFalse(extraction.ok)
+
+            presenter = ConversionPresenter(logger=logger)
+            presented = presenter.map_extraction(extraction)
+            self.assertTrue(presented.ok)
+            self.assertEqual(presented.data["status"], "failed")
+
+            all_events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            diagnostics_events = [event for event in all_events if event.get("event") == "diagnostics.presented"]
+            self.assertEqual(len(diagnostics_events), 1)
+            diagnostics_event = diagnostics_events[0]
+            self.assertEqual(diagnostics_event["stage"], "extraction")
+            self.assertEqual(diagnostics_event["severity"], "ERROR")
+            self.assertEqual(diagnostics_event["correlation_id"], "corr-pdf-diag")
+            self.assertEqual(diagnostics_event["job_id"], "job-pdf-diag")
+            self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(diagnostics_event.keys()))
+            self.assertTrue(is_valid_utc_iso_8601(diagnostics_event["timestamp"]))
+
+            connection.close()
+
+    def test_text_extraction_failure_emits_diagnostics_presented_event(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "runtime" / "local_audiobook.db"
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+
+            repository = DocumentsRepository(connection)
+            logger = JsonlLogger(events_path)
+            extractor = TextExtractor(logger=logger)
+            service = ImportService(
+                documents_repository=repository,
+                logger=logger,
+                text_extractor=extractor,
+            )
+
+            document = {
+                "id": "doc-text-diag",
+                "source_path": str(tmp_path / "missing.txt"),
+                "source_format": "txt",
+            }
+            extraction = service.extract_document(document=document, correlation_id="corr-text-diag", job_id="job-text-diag")
+
+            self.assertFalse(extraction.ok)
+
+            presenter = ConversionPresenter(logger=logger)
+            presented = presenter.map_extraction(extraction)
+            self.assertTrue(presented.ok)
+            self.assertEqual(presented.data["status"], "failed")
+
+            all_events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            diagnostics_events = [event for event in all_events if event.get("event") == "diagnostics.presented"]
+            self.assertEqual(len(diagnostics_events), 1)
+            diagnostics_event = diagnostics_events[0]
+            self.assertEqual(diagnostics_event["stage"], "extraction")
+            self.assertEqual(diagnostics_event["severity"], "ERROR")
+            self.assertEqual(diagnostics_event["correlation_id"], "corr-text-diag")
+            self.assertEqual(diagnostics_event["job_id"], "job-text-diag")
+            self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(diagnostics_event.keys()))
+            self.assertTrue(is_valid_utc_iso_8601(diagnostics_event["timestamp"]))
+
+            connection.close()

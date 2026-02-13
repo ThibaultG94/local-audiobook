@@ -6,26 +6,26 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from contracts.result import Result
-from adapters.tts.chatterbox_provider import ChatterboxProvider
-from adapters.tts.kokoro_provider import KokoroProvider
-from adapters.persistence.sqlite.repositories.conversion_jobs_repository import (
+from src.contracts.result import Result
+from src.adapters.tts.chatterbox_provider import ChatterboxProvider
+from src.adapters.tts.kokoro_provider import KokoroProvider
+from src.adapters.persistence.sqlite.repositories.conversion_jobs_repository import (
     ConversionJobsRepository,
 )
-from adapters.persistence.sqlite.repositories.diagnostics_events_repository import (
+from src.adapters.persistence.sqlite.repositories.diagnostics_events_repository import (
     DiagnosticsEventsRepository,
 )
-from adapters.persistence.sqlite.repositories.documents_repository import (
+from src.adapters.persistence.sqlite.repositories.documents_repository import (
     DocumentsRepository,
 )
-from adapters.persistence.sqlite.repositories.library_items_repository import (
+from src.adapters.persistence.sqlite.repositories.library_items_repository import (
     LibraryItemsRepository,
 )
-from adapters.persistence.sqlite.repositories.chunks_repository import ChunksRepository
-from domain.services.model_registry_service import ModelRegistryService
-from domain.services.startup_readiness_service import StartupReadinessService
-from domain.services.tts_orchestration_service import TtsOrchestrationService
-from infrastructure.logging.jsonl_logger import JsonlLogger
+from src.adapters.persistence.sqlite.repositories.chunks_repository import ChunksRepository
+from src.domain.services.model_registry_service import ModelRegistryService
+from src.domain.services.startup_readiness_service import StartupReadinessService
+from src.domain.services.tts_orchestration_service import TtsOrchestrationService
+from src.infrastructure.logging.jsonl_logger import JsonlLogger
 
 
 @dataclass(slots=True)
@@ -97,14 +97,14 @@ def recheck_startup_readiness(container: AppContainer, model_manifest_path: str)
 
 def build_conversion_presenter(*, logger: JsonlLogger | None = None) -> Any:
     """Build conversion presenter without introducing any UI runtime dependency."""
-    from ui.presenters.conversion_presenter import ConversionPresenter
+    from src.ui.presenters.conversion_presenter import ConversionPresenter
 
     return ConversionPresenter(logger=logger)
 
 
 def build_conversion_worker(container: AppContainer, model_manifest_path: str) -> Any:
     """Build conversion worker with recheck entrypoint through service boundaries."""
-    from ui.workers.conversion_worker import ConversionWorker
+    from src.ui.workers.conversion_worker import ConversionWorker
 
     return ConversionWorker(
         recheck_callable=lambda: recheck_startup_readiness(container, model_manifest_path),
