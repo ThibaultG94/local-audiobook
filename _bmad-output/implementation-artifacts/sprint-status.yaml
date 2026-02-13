@@ -58,7 +58,7 @@ development_status:
   3-1-implement-unified-tts-provider-contract-and-engine-adapters: done
   3-2-segment-long-text-with-phrase-first-chunking-rules: done
   3-3-orchestrate-deterministic-conversion-with-engine-fallback: done
-  3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk: backlog
+  3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk: ready-for-dev
   3-5-configure-conversion-parameters-and-output-format-in-ui: backlog
   3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals: backlog
   epic-3-retrospective: optional
