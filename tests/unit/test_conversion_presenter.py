@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from contracts.result import failure, success
-from ui.presenters.conversion_presenter import ConversionPresenter
+from src.contracts.result import failure, success
+from src.ui.presenters.conversion_presenter import ConversionPresenter
 
 
 class _FakeLogger:

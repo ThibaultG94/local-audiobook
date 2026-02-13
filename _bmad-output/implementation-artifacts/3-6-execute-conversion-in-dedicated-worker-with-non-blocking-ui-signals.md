@@ -1,6 +1,6 @@
 # Story 3.6: Execute Conversion in Dedicated Worker with Non-Blocking UI Signals
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -186,6 +186,7 @@ gpt-5.3-codex
 
 - 2026-02-13: Story 3.6 context created with full implementation guidance and status `ready-for-dev`.
 - 2026-02-13: Implemented dedicated async conversion worker execution, worker_execution observability, conversion state/progress/error UI mappings, and related unit/integration coverage; story moved to `review`.
+- 2026-02-13: Code review completed - Fixed 10 issues: corrected import paths in `tts_orchestration_service.py` and test files, documented `progress_callback` parameter in `ConversionLauncherPort`, improved type validation in `_invoke_launcher`, enhanced `dispatch_to_main` documentation with Qt example. All tests passing (23/23).
 
 ## Story Completion Status
 

@@ -6,11 +6,11 @@ import time
 import unittest
 from pathlib import Path
 
-from contracts.result import success
+from src.contracts.result import success
 from src.adapters.persistence.sqlite.connection import create_connection
 from src.adapters.persistence.sqlite.migration_runner import apply_migrations
 from src.adapters.persistence.sqlite.repositories.conversion_jobs_repository import ConversionJobsRepository
-from ui.workers.conversion_worker import ConversionWorker
+from src.ui.workers.conversion_worker import ConversionWorker
 
 
 class _FakeLogger:

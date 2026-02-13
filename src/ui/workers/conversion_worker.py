@@ -43,6 +43,7 @@ class ConversionLauncherPort:
         job_id: str,
         correlation_id: str,
         conversion_config: dict[str, Any],
+        progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
     ) -> Result[dict[str, Any]]: ...
 
 
@@ -51,10 +52,26 @@ class ConversionWorker:
     """Background worker to refresh readiness without blocking the UI thread.
 
     Supports an optional ``dispatch_to_main`` callable that wraps listener
-    invocations so they execute on the UI thread (e.g. via
-    ``QTimer.singleShot(0, fn)``).  When *None*, callbacks are invoked
-    directly from the worker thread — suitable for tests but **not** for
-    production Qt usage.
+    invocations so they execute on the UI thread. This is **critical** for Qt
+    production usage to avoid thread-safety violations when updating UI widgets.
+    
+    **Qt Implementation Example:**
+        ```python
+        from PyQt5.QtCore import QTimer
+        
+        def qt_dispatcher(fn: Callable[[], None]) -> None:
+            QTimer.singleShot(0, fn)
+        
+        worker = ConversionWorker(
+            recheck_callable=...,
+            logger=...,
+            dispatch_to_main=qt_dispatcher
+        )
+        ```
+    
+    When ``dispatch_to_main`` is *None*, callbacks are invoked directly from
+    the worker thread — suitable for tests but **unsafe** for production Qt
+    usage (will cause crashes or undefined behavior when touching UI objects).
     """
 
     recheck_callable: Callable[[], Result[dict[str, Any]]]
@@ -482,16 +499,14 @@ class ConversionWorker:
             kwargs["progress_callback"] = progress_callback
 
         result = launcher(**kwargs)
-        if isinstance(result, Result) or (
-            hasattr(result, "ok") and hasattr(result, "data") and hasattr(result, "error")
-        ):
-            return result
-        return failure(
-            code="worker_execution.invalid_result",
-            message="Conversion launcher returned an invalid result payload",
-            details={"type": type(result).__name__},
-            retryable=False,
-        )
+        if not isinstance(result, Result):
+            return failure(
+                code="worker_execution.invalid_result",
+                message="Conversion launcher returned an invalid result payload",
+                details={"type": type(result).__name__, "expected": "Result"},
+                retryable=False,
+            )
+        return result
 
     def _emit_synthetic_progress_if_missing(
         self,

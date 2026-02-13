@@ -6,8 +6,8 @@ import hashlib
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
-from contracts.result import Result, failure, success
-from domain.services.job_state_validator import validate_job_state_transition
+from src.contracts.result import Result, failure, success
+from src.domain.services.job_state_validator import validate_job_state_transition
 
 if TYPE_CHECKING:
     from domain.services.chunking_service import ChunkingService
