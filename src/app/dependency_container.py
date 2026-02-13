@@ -126,7 +126,10 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         kokoro=KokoroProvider(logger=logger),
     )
     services = Services(
-        tts_orchestration=TtsOrchestrationService(),
+        tts_orchestration=TtsOrchestrationService(
+            primary_provider=providers.chatterbox,
+            fallback_provider=providers.kokoro,
+        ),
         model_registry=ModelRegistryService(),
         startup_readiness=StartupReadinessService(),
     )
