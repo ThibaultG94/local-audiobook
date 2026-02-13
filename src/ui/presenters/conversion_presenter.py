@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from contracts.result import Result, failure, success
+from src.contracts.result import Result, failure, success
 
 
 class ConversionPresenter:
@@ -70,11 +70,8 @@ class ConversionPresenter:
             message = f"Unable to extract readable text from {source_format}. Please verify the file contents."
         elif code in {"extraction.malformed_package", "extraction.malformed_pdf"}:
             message = f"{source_format} structure appears invalid. Please provide a well-formed file."
-        elif code == "extraction.encoding_invalid" and source_format in {"TXT", "MD"}:
-            message = (
-                f"{source_format} contains unreadable or invalid encoding data. "
-                "Please save the file as UTF-8 and try again."
-            )
+        elif code == "extraction.encoding_invalid":
+            message = f"{source_format} contains unreadable encoding. Please save the file as UTF-8 and try again."
         elif code in {"extraction.unreadable_archive", "extraction.unreadable_source"}:
             message = f"{source_format} file could not be read. Please check file permissions or integrity."
         else:

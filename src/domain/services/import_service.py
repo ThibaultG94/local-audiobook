@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 from uuid import uuid4
 
-from contracts.result import Result, failure, success
+from src.contracts.result import Result, failure, success
 
 
 @runtime_checkable

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from contracts.result import failure, success
-from domain.services.import_service import ImportService
-from ui.presenters.conversion_presenter import ConversionPresenter
+from src.contracts.result import failure, success
+from src.domain.services.import_service import ImportService
+from src.ui.presenters.conversion_presenter import ConversionPresenter
 
 
 class _CapturingLogger:
@@ -234,6 +234,6 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(presented.data["status"], "failed")
         self.assertEqual(
             presented.data["message"],
-            "TXT contains unreadable or invalid encoding data. Please save the file as UTF-8 and try again.",
+            "TXT contains unreadable encoding. Please save the file as UTF-8 and try again.",
         )
         self.assertEqual(presented.data["severity"], "ERROR")

@@ -6,10 +6,10 @@ import re
 from pathlib import Path
 from typing import Any, Protocol, Union, runtime_checkable
 
-from contracts.result import Result, failure, success
+from src.contracts.result import Result, failure, success
+from src.adapters.extraction.text_normalization import CHUNK_INDEX_NOT_APPLICABLE, MAX_FILE_SIZE_BYTES, normalize_fragment
 
-from .text_normalization import CHUNK_INDEX_NOT_APPLICABLE, MAX_FILE_SIZE_BYTES, normalize_fragment
-
+# Markdown cleanup regex patterns (compiled once at module level)
 _CODE_FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
 _INLINE_CODE_RE = re.compile(r"`([^`]*)`")
 _LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
@@ -18,6 +18,9 @@ _BULLET_RE = re.compile(r"^\s*[-*+]\s+", re.MULTILINE)
 _ORDERED_LIST_RE = re.compile(r"^\s*\d+\.\s+", re.MULTILINE)
 _BLOCKQUOTE_RE = re.compile(r"^\s*>\s?", re.MULTILINE)
 _EMPHASIS_RE = re.compile(r"([*_]{1,3})(.*?)\1")
+
+# Encoding fallback threshold: reject if more than 20% replacement characters
+_ENCODING_REPLACEMENT_THRESHOLD = 0.2
 
 
 @runtime_checkable
@@ -37,6 +40,17 @@ class TextExtractor:
         self._logger = logger or _NoopLogger()
 
     def extract(self, source_path: Union[str, Path], *, correlation_id: str, job_id: str) -> Result[dict[str, Any]]:
+        if not source_path:
+            return self._fail(
+                correlation_id=correlation_id,
+                job_id=job_id,
+                source_format="unknown",
+                code="extraction.invalid_source_path",
+                message="Source path cannot be empty",
+                details={"source_path": str(source_path)},
+                retryable=False,
+            )
+        
         normalized_source_path = str(Path(source_path).resolve())
         source_format = Path(normalized_source_path).suffix.lower().lstrip(".")
 
@@ -112,7 +126,8 @@ class TextExtractor:
             replacements = decoded_text.count("\ufffd")
             if replacements:
                 encoding_warnings.append(f"utf8_decode_replaced_bytes:{replacements}")
-            if decoded_text and replacements / max(len(decoded_text), 1) > 0.2:
+            # Reject if replacement ratio exceeds threshold (indicates severely corrupted encoding)
+            if decoded_text and replacements / max(len(decoded_text), 1) > _ENCODING_REPLACEMENT_THRESHOLD:
                 return self._fail(
                     correlation_id=correlation_id,
                     job_id=job_id,
@@ -177,6 +192,18 @@ class TextExtractor:
 
     @staticmethod
     def _markdown_to_reading_text(content: str) -> str:
+        """
+        Convert Markdown structural markers to clean reading text suitable for TTS.
+        
+        Removes code blocks, converts links to text, strips formatting markers
+        while preserving the reading flow and content.
+        
+        Args:
+            content: Raw markdown text
+            
+        Returns:
+            Cleaned text with markdown syntax removed
+        """
         text = _CODE_FENCE_RE.sub(" ", content)
         text = _INLINE_CODE_RE.sub(r"\1", text)
         text = _LINK_RE.sub(r"\1", text)

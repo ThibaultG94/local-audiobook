@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from adapters.extraction.text_extractor import TextExtractor
+from src.adapters.extraction.text_extractor import TextExtractor
 
 
 class _CapturingLogger:
@@ -126,4 +126,30 @@ class TestTextExtractor(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIsNotNone(result.error)
         self.assertEqual(result.error.code, "extraction.file_too_large")
+        self.assertFalse(result.error.retryable)
+
+    def test_extract_rejects_file_with_only_whitespace(self) -> None:
+        extractor = TextExtractor()
+
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
+            tmp.write(b"   \n\n\t\t  \r\n   ")
+            tmp_path = tmp.name
+
+        try:
+            result = extractor.extract(tmp_path, correlation_id="corr-text-6", job_id="job-text-6")
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+        self.assertFalse(result.ok)
+        self.assertIsNotNone(result.error)
+        self.assertEqual(result.error.code, "extraction.no_text_content")
+        self.assertFalse(result.error.retryable)
+
+    def test_extract_rejects_empty_source_path(self) -> None:
+        extractor = TextExtractor()
+        result = extractor.extract("", correlation_id="corr-text-7", job_id="job-text-7")
+
+        self.assertFalse(result.ok)
+        self.assertIsNotNone(result.error)
+        self.assertEqual(result.error.code, "extraction.invalid_source_path")
         self.assertFalse(result.error.retryable)

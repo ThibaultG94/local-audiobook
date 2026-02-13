@@ -5,16 +5,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from adapters.persistence.sqlite.connection import create_connection
-from adapters.persistence.sqlite.migration_runner import apply_migrations
-from adapters.persistence.sqlite.repositories.documents_repository import DocumentsRepository
-from adapters.extraction.epub_extractor import EpubExtractor
-from adapters.extraction.pdf_extractor import PdfExtractor
-from adapters.extraction.text_extractor import TextExtractor
-from domain.services.import_service import ImportService
-from ui.presenters.conversion_presenter import ConversionPresenter
-from infrastructure.logging.event_schema import REQUIRED_EVENT_FIELDS, is_valid_utc_iso_8601
-from infrastructure.logging.jsonl_logger import JsonlLogger
+from src.adapters.persistence.sqlite.connection import create_connection
+from src.adapters.persistence.sqlite.migration_runner import apply_migrations
+from src.adapters.persistence.sqlite.repositories.documents_repository import DocumentsRepository
+from src.adapters.extraction.epub_extractor import EpubExtractor
+from src.adapters.extraction.pdf_extractor import PdfExtractor
+from src.adapters.extraction.text_extractor import TextExtractor
+from src.domain.services.import_service import ImportService
+from src.ui.presenters.conversion_presenter import ConversionPresenter
+from src.infrastructure.logging.event_schema import REQUIRED_EVENT_FIELDS, is_valid_utc_iso_8601
+from src.infrastructure.logging.jsonl_logger import JsonlLogger
 
 
 class TestImportFlowIntegration(unittest.TestCase):

@@ -1,6 +1,6 @@
 # Story 2.4: Extract and Normalize TXT and Markdown Inputs
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -212,6 +212,14 @@ gpt-5.3-codex
 - Extended presenter messaging for actionable English-only text encoding failures.
 - Added unit + orchestration + integration coverage for text extraction flow and observability payload expectations.
 - Ran full regression suite: `68` tests passed.
+- **Code Review (2026-02-13):** Fixed 8 HIGH/MEDIUM issues:
+  - Corrected import paths from relative to absolute (`src.` prefix) across all source and test files
+  - Added empty source path validation in `TextExtractor.extract()`
+  - Documented encoding replacement threshold constant (`_ENCODING_REPLACEMENT_THRESHOLD = 0.2`)
+  - Added docstring for `_markdown_to_reading_text()` method
+  - Simplified and standardized error messages in `ConversionPresenter`
+  - Added edge case tests: empty source path, whitespace-only files
+  - All 20 tests passing after review fixes
 
 ### File List
 
@@ -228,3 +236,4 @@ gpt-5.3-codex
 ## Change Log
 
 - 2026-02-13: Implemented Story 2.4 TXT/Markdown extraction, observability, orchestration routing, presenter messaging, and regression-safe test coverage.
+- 2026-02-13: Code review completed - fixed import paths, added validation, improved documentation, added edge case tests. Story marked done.
