@@ -1,6 +1,6 @@
 # Story 3.2: Segment Long Text with Phrase-First Chunking Rules
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -237,6 +237,7 @@ gpt-5.3-codex
 - src/domain/services/chunking_service.py
 - src/domain/services/tts_orchestration_service.py
 - src/adapters/persistence/sqlite/repositories/chunks_repository.py
+- src/domain/ports/event_logger_port.py
 - src/app/dependency_container.py
 - tests/unit/test_chunking_service.py
 - tests/unit/test_tts_orchestration_service.py
@@ -245,3 +246,12 @@ gpt-5.3-codex
 ### Change Log
 
 - 2026-02-13: Implemented Story 3.2 deterministic phrase-first chunking, chunk metadata persistence, orchestration integration, lifecycle logging, and full regression test validation.
+- 2026-02-13: Code review fixes applied:
+  - Added centralized EventLoggerPort protocol in src/domain/ports/event_logger_port.py to eliminate duplication
+  - Enhanced chunk_index parameter in _emit_chunking_event for proper per-chunk event tracking
+  - Added validation in ChunksRepository.replace_chunks_for_job to enforce sequential chunk_index from 0
+  - Added test coverage for hard-split of oversized words (test_chunk_text_hard_splits_oversized_words)
+  - Added test coverage for mixed normal and oversized words (test_chunk_text_handles_mixed_normal_and_oversized_words)
+  - Added integration test for chunk_index validation (test_replace_chunks_validates_sequential_chunk_index)
+  - Added integration test for atomic transaction behavior (test_replace_chunks_is_atomic_on_transaction)
+  - All 21 tests passing with enhanced coverage for edge cases and data integrity

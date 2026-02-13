@@ -118,3 +118,149 @@ class TestChunkPersistenceAndResumePath(unittest.TestCase):
                 self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
 
             connection.close()
+
+    def test_replace_chunks_validates_sequential_chunk_index(self) -> None:
+        """Repository should reject non-sequential chunk indices."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "runtime" / "local_audiobook.db"
+
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+
+            connection.execute(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "doc-validation",
+                    "/tmp/source.txt",
+                    "source",
+                    "txt",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO conversion_jobs(
+                    id, document_id, state, engine, voice, language,
+                    speech_rate, output_format, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "job-validation",
+                    "doc-validation",
+                    "queued",
+                    "",
+                    "",
+                    "",
+                    1.0,
+                    "wav",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.commit()
+
+            repository = ChunksRepository(connection)
+
+            # Invalid: chunk_index jumps from 0 to 5
+            invalid_chunks = [
+                {"chunk_index": 0, "text_content": "First"},
+                {"chunk_index": 5, "text_content": "Invalid jump"},
+            ]
+
+            with self.assertRaises(ValueError) as context:
+                repository.replace_chunks_for_job(job_id="job-validation", chunks=invalid_chunks)
+
+            self.assertIn("sequential", str(context.exception).lower())
+            self.assertIn("0", str(context.exception))
+
+            connection.close()
+
+    def test_replace_chunks_is_atomic_on_transaction(self) -> None:
+        """Replace operation should be atomic within transaction context."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "runtime" / "local_audiobook.db"
+
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+
+            connection.execute(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "doc-atomic",
+                    "/tmp/source.txt",
+                    "source",
+                    "txt",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO conversion_jobs(
+                    id, document_id, state, engine, voice, language,
+                    speech_rate, output_format, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "job-atomic",
+                    "doc-atomic",
+                    "queued",
+                    "",
+                    "",
+                    "",
+                    1.0,
+                    "wav",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.commit()
+
+            repository = ChunksRepository(connection)
+
+            # First insert
+            first_chunks = [
+                {"chunk_index": 0, "text_content": "Original chunk 0"},
+                {"chunk_index": 1, "text_content": "Original chunk 1"},
+            ]
+            repository.replace_chunks_for_job(job_id="job-atomic", chunks=first_chunks)
+
+            # Verify first insert
+            rows = connection.execute(
+                "SELECT COUNT(*) FROM chunks WHERE job_id = ?", ("job-atomic",)
+            ).fetchone()
+            self.assertEqual(rows[0], 2)
+
+            # Second replace should delete old and insert new atomically
+            second_chunks = [
+                {"chunk_index": 0, "text_content": "Replaced chunk 0"},
+                {"chunk_index": 1, "text_content": "Replaced chunk 1"},
+                {"chunk_index": 2, "text_content": "New chunk 2"},
+            ]
+            repository.replace_chunks_for_job(job_id="job-atomic", chunks=second_chunks)
+
+            # Verify replacement was atomic (old deleted, new inserted)
+            rows = connection.execute(
+                "SELECT COUNT(*) FROM chunks WHERE job_id = ?", ("job-atomic",)
+            ).fetchone()
+            self.assertEqual(rows[0], 3)
+
+            # Verify content was replaced
+            text_rows = connection.execute(
+                "SELECT text_content FROM chunks WHERE job_id = ? ORDER BY chunk_index",
+                ("job-atomic",),
+            ).fetchall()
+            self.assertEqual(text_rows[0][0], "Replaced chunk 0")
+            self.assertEqual(text_rows[1][0], "Replaced chunk 1")
+            self.assertEqual(text_rows[2][0], "New chunk 2")
+
+            connection.close()

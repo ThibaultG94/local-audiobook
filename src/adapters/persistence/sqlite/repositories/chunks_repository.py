@@ -17,9 +17,31 @@ class ChunksRepository(BaseRepository):
         super().__init__(connection)
 
     def replace_chunks_for_job(self, *, job_id: str, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Replace all chunks for a job with a deterministic ordered set."""
+        """Replace all chunks for a job with a deterministic ordered set.
+        
+        Validates that chunk_index values are sequential starting from 0.
+        
+        Args:
+            job_id: Job identifier
+            chunks: List of chunk dictionaries with chunk_index, text_content, etc.
+            
+        Returns:
+            List of persisted chunk records
+            
+        Raises:
+            ValueError: If chunk_index values are not sequential from 0
+        """
         now = datetime.now(timezone.utc).isoformat()
         normalized: list[dict[str, Any]] = []
+
+        # Validate chunk_index ordering
+        expected_indices = set(range(len(chunks)))
+        actual_indices = {int(item["chunk_index"]) for item in chunks}
+        if actual_indices != expected_indices:
+            raise ValueError(
+                f"Chunk indices must be sequential from 0 to {len(chunks)-1}. "
+                f"Expected: {sorted(expected_indices)}, Got: {sorted(actual_indices)}"
+            )
 
         for item in chunks:
             normalized.append(

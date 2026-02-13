@@ -291,8 +291,19 @@ class TtsOrchestrationService:
         severity: str,
         correlation_id: str,
         job_id: str,
+        chunk_index: int = -1,
         extra: dict[str, object] | None = None,
     ) -> None:
+        """Emit chunking lifecycle event with proper chunk_index tracking.
+        
+        Args:
+            event: Event name (chunking.started, chunking.completed, chunking.failed)
+            severity: Event severity level
+            correlation_id: Request correlation ID
+            job_id: Job identifier
+            chunk_index: Chunk index for per-chunk events, -1 for job-level events
+            extra: Additional event payload fields
+        """
         if self._logger is None or not hasattr(self._logger, "emit"):
             return
 
@@ -302,7 +313,7 @@ class TtsOrchestrationService:
             severity=severity,
             correlation_id=correlation_id,
             job_id=job_id,
-            chunk_index=-1,
+            chunk_index=chunk_index,
             engine="orchestrator",
             timestamp=datetime.now(timezone.utc).isoformat(),
             extra=extra or {},
