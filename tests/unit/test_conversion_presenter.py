@@ -6,6 +6,14 @@ from contracts.result import failure, success
 from ui.presenters.conversion_presenter import ConversionPresenter
 
 
+class _FakeLogger:
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
+
+    def emit(self, **payload: object) -> None:
+        self.events.append(dict(payload))
+
+
 class TestConversionPresenter(unittest.TestCase):
     def test_maps_ready_state_and_engine_availability(self) -> None:
         presenter = ConversionPresenter()
@@ -61,3 +69,77 @@ class TestConversionPresenter(unittest.TestCase):
         self.assertEqual(result.error.code, "readiness_presenter_mapping_failed")
         self.assertIn("code", result.error.details)
 
+    def test_build_conversion_config_accepts_valid_payload(self) -> None:
+        logger = _FakeLogger()
+        presenter = ConversionPresenter(logger=logger)
+
+        result = presenter.build_conversion_config(
+            engine="chatterbox_gpu",
+            voice_id="default",
+            language="fr",
+            speech_rate="1.25",
+            output_format="WAV",
+            voice_catalog=[{"id": "default", "engine": "chatterbox_gpu", "language": "en"}],
+            correlation_id="corr-cfg-ok",
+            job_id="job-cfg-ok",
+        )
+
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertEqual(
+            result.data,
+            {
+                "engine": "chatterbox_gpu",
+                "voice_id": "default",
+                "language": "FR",
+                "speech_rate": 1.25,
+                "output_format": "wav",
+            },
+        )
+
+        self.assertEqual(len(logger.events), 1)
+        event = logger.events[0]
+        self.assertEqual(event["event"], "configuration.saved")
+        self.assertEqual(event["stage"], "configuration")
+
+    def test_build_conversion_config_rejects_language_outside_fr_en(self) -> None:
+        logger = _FakeLogger()
+        presenter = ConversionPresenter(logger=logger)
+
+        result = presenter.build_conversion_config(
+            engine="chatterbox_gpu",
+            voice_id="default",
+            language="de",
+            speech_rate=1.0,
+            output_format="mp3",
+            voice_catalog=[{"id": "default", "engine": "chatterbox_gpu", "language": "en"}],
+            correlation_id="corr-cfg-bad-lang",
+            job_id="job-cfg-bad-lang",
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "configuration.language_not_supported")
+        self.assertEqual(result.error.details["field"], "language")
+
+        self.assertEqual(len(logger.events), 1)
+        event = logger.events[0]
+        self.assertEqual(event["event"], "configuration.rejected")
+        self.assertEqual(event["stage"], "configuration")
+
+    def test_build_conversion_config_rejects_out_of_range_speech_rate(self) -> None:
+        presenter = ConversionPresenter()
+
+        result = presenter.build_conversion_config(
+            engine="chatterbox_gpu",
+            voice_id="default",
+            language="EN",
+            speech_rate=5,
+            output_format="mp3",
+            voice_catalog=[{"id": "default", "engine": "chatterbox_gpu", "language": "en"}],
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "configuration.speech_rate_out_of_bounds")
+        self.assertEqual(result.error.details["field"], "speech_rate")

@@ -1,6 +1,6 @@
 # Story 3.5: Configure Conversion Parameters and Output Format in UI
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,22 +34,22 @@ so that generated audio matches my preferences and playback context.
 
 ## Tasks / Subtasks
 
-- [ ] Add conversion parameter state model and validation contract in presenter layer (AC: 1, 2, 3)
-  - [ ] Introduce a normalized `conversion_config` payload in `conversion_presenter.py` containing `engine`, `voice_id`, `language`, `speech_rate`, `output_format`.
-  - [ ] Enforce language whitelist (`FR`, `EN`) and bounded `speech_rate` validation returning normalized errors `{code, message, details, retryable}`.
-- [ ] Extend conversion view control state and option availability mapping (AC: 1, 2)
-  - [ ] Add UI-facing option descriptors in `conversion_view.py` for engines, voices, languages, speech-rate range, and output formats.
-  - [ ] Ensure unavailable engine/voice combinations are disabled with deterministic explanatory text.
-- [ ] Persist validated settings in conversion job configuration before worker launch (AC: 3)
-  - [ ] Persist selected `output_format` and synthesis parameters to the job record used by orchestration.
-  - [ ] Confirm worker launch path receives immutable normalized settings payload.
-- [ ] Emit structured configuration observability events (AC: 4)
-  - [ ] Emit `configuration.saved` and `configuration.rejected` via JSONL logger with required schema fields.
-  - [ ] Include `correlation_id`, `job_id`, `stage=configuration`, `event`, `severity`, and ISO-8601 UTC timestamp.
-- [ ] Add unit/integration tests covering validation, UI mapping, persistence handoff, and logging schema (AC: 1..4)
-  - [ ] Extend presenter and view tests for options, disabled states, and language/speech-rate validation boundaries.
-  - [ ] Add worker/orchestration handoff tests verifying persisted format and config payload consistency.
-  - [ ] Assert emitted configuration events comply with event schema and `domain.action` naming.
+- [x] Add conversion parameter state model and validation contract in presenter layer (AC: 1, 2, 3)
+  - [x] Introduce a normalized `conversion_config` payload in `conversion_presenter.py` containing `engine`, `voice_id`, `language`, `speech_rate`, `output_format`.
+  - [x] Enforce language whitelist (`FR`, `EN`) and bounded `speech_rate` validation returning normalized errors `{code, message, details, retryable}`.
+- [x] Extend conversion view control state and option availability mapping (AC: 1, 2)
+  - [x] Add UI-facing option descriptors in `conversion_view.py` for engines, voices, languages, speech-rate range, and output formats.
+  - [x] Ensure unavailable engine/voice combinations are disabled with deterministic explanatory text.
+- [x] Persist validated settings in conversion job configuration before worker launch (AC: 3)
+  - [x] Persist selected `output_format` and synthesis parameters to the job record used by orchestration.
+  - [x] Confirm worker launch path receives immutable normalized settings payload.
+- [x] Emit structured configuration observability events (AC: 4)
+  - [x] Emit `configuration.saved` and `configuration.rejected` via JSONL logger with required schema fields.
+  - [x] Include `correlation_id`, `job_id`, `stage=configuration`, `event`, `severity`, and ISO-8601 UTC timestamp.
+- [x] Add unit/integration tests covering validation, UI mapping, persistence handoff, and logging schema (AC: 1..4)
+  - [x] Extend presenter and view tests for options, disabled states, and language/speech-rate validation boundaries.
+  - [x] Add worker/orchestration handoff tests verifying persisted format and config payload consistency.
+  - [x] Assert emitted configuration events comply with event schema and `domain.action` naming.
 
 ## Dev Notes
 
@@ -173,6 +173,8 @@ gpt-5.3-codex
 - `cat ./_bmad/bmm/workflows/4-implementation/create-story/instructions.xml`
 - `cat ./_bmad-output/implementation-artifacts/sprint-status.yaml`
 - `git log --oneline -n 5`
+- `PYTHONPATH=src python -m unittest tests.unit.test_conversion_presenter tests.unit.test_conversion_view tests.unit.test_conversion_worker tests.unit.test_conversion_jobs_repository tests.integration.test_conversion_configuration_integration`
+- `PYTHONPATH=src python -m unittest discover -s tests`
 
 ### Completion Notes List
 
@@ -180,16 +182,33 @@ gpt-5.3-codex
 - Comprehensive developer context prepared from epics, architecture, PRD, prior story intelligence, and current source analysis.
 - Story status is set to `ready-for-dev` and includes implementation guardrails for configuration validation, persistence handoff, and observability.
 - Sprint status should be updated so development_status for this story becomes `ready-for-dev`.
+- Implemented normalized configuration payload construction and strict validation in presenter (`engine`, `voice_id`, `language`, `speech_rate`, `output_format`) with deterministic normalized failures.
+- Implemented configuration-stage observability events `configuration.saved` and `configuration.rejected` with required schema fields.
+- Extended conversion view state with deterministic UI option descriptors and disabled-reason mapping for unavailable engine/voice combinations.
+- Added conversion launch path in worker that persists validated settings into `conversion_jobs`, emits configuration launch event, and forwards immutable payload to launcher.
+- Extended conversion jobs repository for full configuration readback and explicit job creation API.
+- Added/updated unit and integration coverage for validation boundaries, option mapping, persistence/handoff immutability, and configuration event schema compliance.
+- Full regression suite executed successfully: `Ran 135 tests ... OK`.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-5-configure-conversion-parameters-and-output-format-in-ui.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/ui/presenters/conversion_presenter.py
+- src/ui/views/conversion_view.py
+- src/ui/workers/conversion_worker.py
+- src/adapters/persistence/sqlite/repositories/conversion_jobs_repository.py
+- tests/unit/test_conversion_presenter.py
+- tests/unit/test_conversion_view.py
+- tests/unit/test_conversion_worker.py
+- tests/integration/test_conversion_configuration_integration.py
 
 ## Change Log
 
 - 2026-02-13: Story 3.5 context created with full implementation guidance and status `ready-for-dev`.
+- 2026-02-13: Implemented Story 3.5 configuration payload validation, view option mapping, worker persistence/handoff, and observability with full unit/integration coverage.
 
 ## Story Completion Status
 
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Implementation complete; all tasks/subtasks checked, configuration ACs validated, and full regression suite passed.

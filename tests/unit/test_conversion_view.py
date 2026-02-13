@@ -127,3 +127,31 @@ class TestConversionView(unittest.TestCase):
         self.assertIsNotNone(view.current_state["error"])
         self.assertEqual(view.current_state["error"]["code"], "readiness_presenter_mapping_failed")
 
+    def test_build_configuration_options_disables_unavailable_engine_and_voice(self) -> None:
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=_FakeWorker(),
+            logger=_FakeLogger(),
+        )
+
+        options = view.build_configuration_options(
+            engine_statuses=[
+                {"engine": "chatterbox_gpu", "ok": False},
+                {"engine": "kokoro_cpu", "ok": True},
+            ],
+            voices=[
+                {"id": "default", "name": "Default Chatterbox Voice", "engine": "chatterbox_gpu", "language": "en"},
+                {"id": "default", "name": "Default Kokoro Voice", "engine": "kokoro_cpu", "language": "en"},
+            ],
+        )
+
+        chatterbox = next(item for item in options["engines"] if item["id"] == "chatterbox_gpu")
+        kokoro = next(item for item in options["engines"] if item["id"] == "kokoro_cpu")
+        self.assertTrue(chatterbox["disabled"])
+        self.assertIn("unavailable", chatterbox["reason"].lower())
+        self.assertFalse(kokoro["disabled"])
+
+        chatterbox_voice = next(item for item in options["voices"] if item["engine"] == "chatterbox_gpu")
+        kokoro_voice = next(item for item in options["voices"] if item["engine"] == "kokoro_cpu")
+        self.assertTrue(chatterbox_voice["disabled"])
+        self.assertFalse(kokoro_voice["disabled"])

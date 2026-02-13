@@ -16,6 +16,12 @@ class EventLoggerPort(Protocol):
 class ConversionPresenter:
     """Map startup readiness payloads into a stable UI-facing view model."""
 
+    _SUPPORTED_ENGINES = {"chatterbox_gpu", "kokoro_cpu"}
+    _SUPPORTED_LANGUAGES = {"FR", "EN"}
+    _SUPPORTED_OUTPUT_FORMATS = {"mp3", "wav"}
+    _MIN_SPEECH_RATE = 0.5
+    _MAX_SPEECH_RATE = 2.0
+
     def __init__(self, *, logger: EventLoggerPort | None = None) -> None:
         self._logger = logger or NoopLogger()
 
@@ -122,6 +128,144 @@ class ConversionPresenter:
                 "retry_enabled": retry_enabled,
             }
         )
+
+    def build_conversion_config(
+        self,
+        *,
+        engine: str,
+        voice_id: str,
+        language: str,
+        speech_rate: float | int | str,
+        output_format: str,
+        voice_catalog: list[dict[str, Any]],
+        correlation_id: str = "",
+        job_id: str = "",
+    ) -> Result[dict[str, Any]]:
+        normalized_engine = str(engine).strip()
+        normalized_voice_id = str(voice_id).strip()
+        normalized_language = str(language).strip().upper()
+        normalized_output_format = str(output_format).strip().lower()
+
+        if normalized_engine not in self._SUPPORTED_ENGINES:
+            return self._reject_configuration(
+                code="configuration.engine_unsupported",
+                message="Selected engine is not supported",
+                details={
+                    "field": "engine",
+                    "engine": normalized_engine,
+                    "supported": sorted(self._SUPPORTED_ENGINES),
+                },
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
+
+        if normalized_language not in self._SUPPORTED_LANGUAGES:
+            return self._reject_configuration(
+                code="configuration.language_not_supported",
+                message="Language must be one of FR or EN",
+                details={
+                    "field": "language",
+                    "language": normalized_language,
+                    "supported": sorted(self._SUPPORTED_LANGUAGES),
+                },
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
+
+        try:
+            normalized_speech_rate = float(speech_rate)
+        except (TypeError, ValueError):
+            return self._reject_configuration(
+                code="configuration.speech_rate_invalid",
+                message="Speech rate must be numeric",
+                details={
+                    "field": "speech_rate",
+                    "speech_rate": speech_rate,
+                },
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
+
+        if not (self._MIN_SPEECH_RATE <= normalized_speech_rate <= self._MAX_SPEECH_RATE):
+            return self._reject_configuration(
+                code="configuration.speech_rate_out_of_bounds",
+                message="Speech rate is outside allowed bounds",
+                details={
+                    "field": "speech_rate",
+                    "speech_rate": normalized_speech_rate,
+                    "min": self._MIN_SPEECH_RATE,
+                    "max": self._MAX_SPEECH_RATE,
+                },
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
+
+        if normalized_output_format not in self._SUPPORTED_OUTPUT_FORMATS:
+            return self._reject_configuration(
+                code="configuration.output_format_unsupported",
+                message="Output format must be mp3 or wav",
+                details={
+                    "field": "output_format",
+                    "output_format": normalized_output_format,
+                    "supported": sorted(self._SUPPORTED_OUTPUT_FORMATS),
+                },
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
+
+        compatible_voice_exists = any(
+            str(item.get("id", "")).strip() == normalized_voice_id
+            and str(item.get("engine", "")).strip() == normalized_engine
+            for item in voice_catalog
+        )
+        if not compatible_voice_exists:
+            return self._reject_configuration(
+                code="configuration.voice_not_compatible",
+                message="Voice is not compatible with selected engine",
+                details={
+                    "field": "voice_id",
+                    "voice_id": normalized_voice_id,
+                    "engine": normalized_engine,
+                },
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
+
+        payload = {
+            "engine": normalized_engine,
+            "voice_id": normalized_voice_id,
+            "language": normalized_language,
+            "speech_rate": normalized_speech_rate,
+            "output_format": normalized_output_format,
+        }
+        self._logger.emit(
+            event="configuration.saved",
+            stage="configuration",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            extra={"config": payload},
+        )
+        return success(payload)
+
+    def _reject_configuration(
+        self,
+        *,
+        code: str,
+        message: str,
+        details: dict[str, Any],
+        correlation_id: str,
+        job_id: str,
+    ) -> Result[dict[str, Any]]:
+        self._logger.emit(
+            event="configuration.rejected",
+            stage="configuration",
+            severity="ERROR",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            extra={"error": {"code": code, "details": details}},
+        )
+        return failure(code=code, message=message, details=details, retryable=False)
 
     @staticmethod
     def _engine_available(engines: list[dict[str, Any]], expected_name: str) -> bool:

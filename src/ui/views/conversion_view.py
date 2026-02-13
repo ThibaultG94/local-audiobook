@@ -47,6 +47,19 @@ class ConversionView:
             "start_enabled": False,
             "engine_availability": {"chatterbox_gpu": False, "kokoro_cpu": False},
             "remediation_items": [],
+            "configuration_options": {
+                "engines": [],
+                "voices": [],
+                "languages": [
+                    {"id": "FR", "label": "French", "disabled": False, "reason": ""},
+                    {"id": "EN", "label": "English", "disabled": False, "reason": ""},
+                ],
+                "speech_rate": {"min": 0.5, "max": 2.0, "step": 0.05},
+                "output_formats": [
+                    {"id": "mp3", "label": "MP3", "disabled": False, "reason": ""},
+                    {"id": "wav", "label": "WAV", "disabled": False, "reason": ""},
+                ],
+            },
             "error": None,
             "title": "Offline readiness",
         }
@@ -80,3 +93,60 @@ class ConversionView:
         else:
             self.current_state["error"] = mapped.error.to_dict() if mapped.error else {"code": "unknown", "message": "Readiness recheck mapping failed"}
 
+    def build_configuration_options(
+        self,
+        *,
+        engine_statuses: list[dict[str, Any]],
+        voices: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        availability = {
+            str(item.get("engine", "")): bool(item.get("ok", False))
+            for item in engine_statuses
+        }
+
+        engine_options = []
+        for engine_id, label in (("chatterbox_gpu", "Chatterbox"), ("kokoro_cpu", "Kokoro")):
+            enabled = bool(availability.get(engine_id, False))
+            engine_options.append(
+                {
+                    "id": engine_id,
+                    "label": label,
+                    "disabled": not enabled,
+                    "reason": "Engine unavailable locally. Resolve startup readiness remediation before selecting this engine."
+                    if not enabled
+                    else "",
+                }
+            )
+
+        voice_options: list[dict[str, Any]] = []
+        for voice in voices:
+            engine_id = str(voice.get("engine", ""))
+            enabled = bool(availability.get(engine_id, False))
+            voice_options.append(
+                {
+                    "id": str(voice.get("id", "")),
+                    "label": str(voice.get("name", voice.get("id", ""))),
+                    "engine": engine_id,
+                    "language": str(voice.get("language", "")).upper(),
+                    "disabled": not enabled,
+                    "reason": "Selected voice is unavailable because its engine is not ready."
+                    if not enabled
+                    else "",
+                }
+            )
+
+        option_state = {
+            "engines": engine_options,
+            "voices": voice_options,
+            "languages": [
+                {"id": "FR", "label": "French", "disabled": False, "reason": ""},
+                {"id": "EN", "label": "English", "disabled": False, "reason": ""},
+            ],
+            "speech_rate": {"min": 0.5, "max": 2.0, "step": 0.05},
+            "output_formats": [
+                {"id": "mp3", "label": "MP3", "disabled": False, "reason": ""},
+                {"id": "wav", "label": "WAV", "disabled": False, "reason": ""},
+            ],
+        }
+        self.current_state["configuration_options"] = option_state
+        return option_state

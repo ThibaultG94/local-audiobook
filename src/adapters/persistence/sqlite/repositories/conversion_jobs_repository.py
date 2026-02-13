@@ -24,7 +24,8 @@ class ConversionJobsRepository(BaseRepository):
         """
         row = self._connection.execute(
             """
-            SELECT id, document_id, state, updated_at
+            SELECT id, document_id, state, engine, voice, language,
+                   speech_rate, output_format, created_at, updated_at
             FROM conversion_jobs
             WHERE id = ?
             """,
@@ -37,6 +38,12 @@ class ConversionJobsRepository(BaseRepository):
             "id": row["id"],
             "document_id": row["document_id"],
             "state": row["state"],
+            "engine": row["engine"],
+            "voice": row["voice"],
+            "language": row["language"],
+            "speech_rate": row["speech_rate"],
+            "output_format": row["output_format"],
+            "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
 
@@ -64,3 +71,53 @@ class ConversionJobsRepository(BaseRepository):
                 (next_state, timestamp, job_id, expected_state),
             )
         return cursor.rowcount == 1
+
+    def create_job(
+        self,
+        *,
+        job_id: str,
+        document_id: str,
+        state: str,
+        engine: str,
+        voice: str,
+        language: str,
+        speech_rate: float,
+        output_format: str,
+        created_at: str,
+        updated_at: str,
+    ) -> dict[str, Any]:
+        """Create a conversion job with deterministic configuration payload."""
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO conversion_jobs(
+                    id, document_id, state, engine, voice, language,
+                    speech_rate, output_format, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    job_id,
+                    document_id,
+                    state,
+                    engine,
+                    voice,
+                    language,
+                    float(speech_rate),
+                    output_format,
+                    created_at,
+                    updated_at,
+                ),
+            )
+        created = self.get_job_by_id(job_id=job_id)
+        return created or {
+            "id": job_id,
+            "document_id": document_id,
+            "state": state,
+            "engine": engine,
+            "voice": voice,
+            "language": language,
+            "speech_rate": float(speech_rate),
+            "output_format": output_format,
+            "created_at": created_at,
+            "updated_at": updated_at,
+        }
