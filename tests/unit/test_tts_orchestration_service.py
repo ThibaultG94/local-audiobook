@@ -429,3 +429,171 @@ class TestTtsOrchestrationService(unittest.TestCase):
         self.assertIn("repository not configured", str(context.exception).lower())
         self.assertIn("job_id=test-job", str(context.exception))
         self.assertIn("chunk_index=0", str(context.exception))
+
+    def test_synthesize_persisted_chunks_skips_already_synthesized_by_default(self) -> None:
+        class _InMemoryChunksRepository:
+            def __init__(self) -> None:
+                self.rows = [
+                    {"job_id": "job-resume", "chunk_index": 0, "text_content": "A", "status": "synthesized_chatterbox_gpu"},
+                    {"job_id": "job-resume", "chunk_index": 1, "text_content": "B", "status": "failed"},
+                    {"job_id": "job-resume", "chunk_index": 2, "text_content": "C", "status": "pending"},
+                ]
+                self.updated: list[tuple[str, int, str]] = []
+
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return [row for row in self.rows if row["job_id"] == job_id]
+
+            def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+                self.updated.append((job_id, chunk_index, status))
+
+        class _InMemoryJobsRepository:
+            def __init__(self) -> None:
+                self.state = "running"
+
+            def get_job_by_id(self, *, job_id: str) -> dict[str, object] | None:
+                return {"id": job_id, "state": self.state, "updated_at": "2026-02-13T00:00:00+00:00"}
+
+            def update_job_state_if_current(
+                self,
+                *,
+                job_id: str,
+                expected_state: str,
+                next_state: str,
+                updated_at: str | None = None,
+            ) -> bool:
+                if self.state != expected_state:
+                    return False
+                self.state = next_state
+                return True
+
+        class _CapturingLogger:
+            def __init__(self) -> None:
+                self.events: list[dict[str, object]] = []
+
+            def emit(self, **payload: object) -> None:
+                self.events.append(payload)
+
+        repo = _InMemoryChunksRepository()
+        jobs = _InMemoryJobsRepository()
+        logger = _CapturingLogger()
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(healthy=True),
+            fallback_provider=KokoroProvider(healthy=True),
+            chunks_repository=repo,
+            conversion_jobs_repository=jobs,
+            logger=logger,
+        )
+
+        result = orchestrator.synthesize_persisted_chunks_for_job(
+            job_id="job-resume",
+            correlation_id="corr-resume",
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.data["resume_start_index"], 1)
+        self.assertEqual(result.data["retry_decision_path"], "first_non_synthesized_status:failed")
+        self.assertEqual([item[1] for item in repo.updated], [1, 2])
+
+        started_indices = [
+            event["chunk_index"]
+            for event in logger.events
+            if event.get("event") == "tts.chunk_started"
+        ]
+        self.assertEqual(started_indices, [1, 2])
+
+    def test_synthesize_persisted_chunks_force_reprocess_processes_all_chunks(self) -> None:
+        class _InMemoryChunksRepository:
+            def __init__(self) -> None:
+                self.rows = [
+                    {"job_id": "job-force", "chunk_index": 0, "text_content": "A", "status": "synthesized_kokoro_cpu"},
+                    {"job_id": "job-force", "chunk_index": 1, "text_content": "B", "status": "synthesized_chatterbox_gpu"},
+                ]
+                self.updated: list[tuple[str, int, str]] = []
+
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return [row for row in self.rows if row["job_id"] == job_id]
+
+            def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+                self.updated.append((job_id, chunk_index, status))
+
+        class _CapturingLogger:
+            def __init__(self) -> None:
+                self.events: list[dict[str, object]] = []
+
+            def emit(self, **payload: object) -> None:
+                self.events.append(payload)
+
+        repo = _InMemoryChunksRepository()
+        logger = _CapturingLogger()
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(healthy=True),
+            fallback_provider=KokoroProvider(healthy=True),
+            chunks_repository=repo,
+            logger=logger,
+        )
+
+        result = orchestrator.synthesize_persisted_chunks_for_job(
+            job_id="job-force",
+            correlation_id="corr-force",
+            force_reprocess=True,
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.data["resume_start_index"], 0)
+        self.assertEqual(result.data["retry_decision_path"], "forced_full_reprocess")
+        self.assertEqual([item[1] for item in repo.updated], [0, 1])
+
+        checkpoint = [event for event in logger.events if event.get("event") == "conversion.resume_checkpoint_selected"]
+        self.assertEqual(len(checkpoint), 1)
+        self.assertTrue(checkpoint[0].get("extra", {}).get("force_reprocess"))
+
+    def test_synthesize_persisted_chunks_rejects_invalid_lifecycle_transition_with_normalized_error(self) -> None:
+        class _InMemoryChunksRepository:
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return [{"job_id": job_id, "chunk_index": 0, "text_content": "A", "status": "pending"}]
+
+            def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+                return None
+
+        class _CompletedJobsRepository:
+            def get_job_by_id(self, *, job_id: str) -> dict[str, object] | None:
+                return {"id": job_id, "state": "completed", "updated_at": "2026-02-13T00:00:00+00:00"}
+
+            def update_job_state_if_current(
+                self,
+                *,
+                job_id: str,
+                expected_state: str,
+                next_state: str,
+                updated_at: str | None = None,
+            ) -> bool:
+                return False
+
+        class _CapturingLogger:
+            def __init__(self) -> None:
+                self.events: list[dict[str, object]] = []
+
+            def emit(self, **payload: object) -> None:
+                self.events.append(payload)
+
+        logger = _CapturingLogger()
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(healthy=True),
+            chunks_repository=_InMemoryChunksRepository(),
+            conversion_jobs_repository=_CompletedJobsRepository(),
+            logger=logger,
+        )
+
+        result = orchestrator.synthesize_persisted_chunks_for_job(
+            job_id="job-completed",
+            correlation_id="corr-completed",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "job.transition_rejected")
+        self.assertEqual(result.error.details["transition_intent"]["current_state"], "completed")
+        self.assertEqual(result.error.details["transition_intent"]["next_state"], "running")
+        self.assertFalse(result.error.details["transition_intent"]["validated"])
+
+        rejected_events = [event for event in logger.events if event.get("event") == "job.transition_rejected"]
+        self.assertEqual(len(rejected_events), 1)

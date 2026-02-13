@@ -52,6 +52,26 @@ class EventLoggerPort(Protocol):
         ...
 
 
+@runtime_checkable
+class ConversionJobsRepositoryPort(Protocol):
+    """Protocol for conversion job state persistence operations."""
+
+    def get_job_by_id(self, *, job_id: str) -> dict[str, object] | None:
+        """Fetch a conversion job by id."""
+        ...
+
+    def update_job_state_if_current(
+        self,
+        *,
+        job_id: str,
+        expected_state: str,
+        next_state: str,
+        updated_at: str | None = None,
+    ) -> bool:
+        """Atomically update job state if current state matches expected state."""
+        ...
+
+
 class TtsOrchestrationService:
     """Orchestration service managing TTS provider selection and fallback behavior.
     
@@ -65,6 +85,7 @@ class TtsOrchestrationService:
         fallback_provider: TtsProvider | None = None,
         chunking_service: ChunkingService | None = None,
         chunks_repository: ChunksRepositoryPort | None = None,
+        conversion_jobs_repository: ConversionJobsRepositoryPort | None = None,
         logger: EventLoggerPort | None = None,
     ) -> None:
         """Initialize orchestration service with optional providers.
@@ -74,12 +95,14 @@ class TtsOrchestrationService:
             fallback_provider: Fallback TTS provider (e.g., Kokoro CPU)
             chunking_service: Service for text chunking operations
             chunks_repository: Repository for chunk persistence
+            conversion_jobs_repository: Repository for conversion job lifecycle persistence
             logger: Event logger for structured logging
         """
         self._primary_provider = primary_provider
         self._fallback_provider = fallback_provider
         self._chunking_service = chunking_service
         self._chunks_repository = chunks_repository
+        self._conversion_jobs_repository = conversion_jobs_repository
         self._logger = logger
 
     @staticmethod
@@ -127,6 +150,7 @@ class TtsOrchestrationService:
         correlation_id: str,
         voice: str | None = None,
         current_job_state: str = "running",
+        force_reprocess: bool = False,
     ) -> Result[dict[str, object]]:
         """Synthesize persisted chunks in deterministic chunk_index order.
 
@@ -150,12 +174,78 @@ class TtsOrchestrationService:
                 retryable=False,
             )
 
-        # Sort chunks by index to ensure deterministic processing order
-        # Convert to int to handle both string and numeric chunk_index values from repository
+        job_state = self._resolve_current_job_state(job_id=job_id, fallback_state=current_job_state)
+
+        running_transition = self._apply_job_transition(
+            job_id=job_id,
+            correlation_id=correlation_id,
+            current_state=job_state,
+            next_state="running",
+            chunk_index=-1,
+            reason="conversion_orchestration_start",
+        )
+        if not running_transition.ok:
+            return failure(
+                code="job.transition_rejected",
+                message="Cannot start chunk orchestration because job transition to running was rejected",
+                details={
+                    "job_id": job_id,
+                    "transition_intent": {
+                        "current_state": job_state,
+                        "next_state": "running",
+                        "validated": False,
+                        "error": running_transition.error.to_dict() if running_transition.error else {},
+                    },
+                    "category": "state",
+                },
+                retryable=False,
+            )
+
+        # Sort chunks by index to ensure deterministic processing order.
+        # Convert to int to handle both string and numeric chunk_index values from repository.
         ordered_chunks = sorted(persisted_chunks, key=lambda chunk: int(chunk["chunk_index"]))
+        resume_start_index, retry_decision_path = self._select_resume_start_index(
+            ordered_chunks=ordered_chunks,
+            force_reprocess=force_reprocess,
+        )
+
+        self._emit_tts_event(
+            event="conversion.resume_checkpoint_selected",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            chunk_index=resume_start_index,
+            engine="orchestrator",
+            extra={
+                "resume_start_index": resume_start_index,
+                "retry_decision_path": retry_decision_path,
+                "force_reprocess": force_reprocess,
+            },
+        )
+        self._emit_tts_event(
+            event="conversion.resume_started",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            chunk_index=resume_start_index,
+            engine="orchestrator",
+            extra={
+                "resume_start_index": resume_start_index,
+                "retry_decision_path": retry_decision_path,
+                "force_reprocess": force_reprocess,
+            },
+        )
+
+        chunks_to_process = [
+            chunk
+            for chunk in ordered_chunks
+            if int(chunk["chunk_index"]) >= resume_start_index
+            and (force_reprocess or not self._is_synthesized_status(str(chunk.get("status") or "")))
+        ]
+
         chunk_results: list[dict[str, object]] = []
 
-        for chunk in ordered_chunks:
+        for chunk in chunks_to_process:
             chunk_index = int(chunk["chunk_index"])
             text_content = str(chunk["text_content"])
             started_engine = self._primary_provider.engine_name if self._primary_provider is not None else "orchestrator"
@@ -221,14 +311,12 @@ class TtsOrchestrationService:
             failure_details = {
                 "job_id": job_id,
                 "chunk_index": chunk_index,
+                "resume_start_index": resume_start_index,
+                "retry_decision_path": retry_decision_path,
                 "attempted_engines": attempt_trace.get("attempted_engines", []),
                 "primary_error": attempt_trace.get("primary_error", {}),
                 "fallback_error": attempt_trace.get("fallback_error", {}),
                 "category": "availability",
-                "transition_intent": self._build_transition_intent(
-                    current_state=current_job_state,
-                    next_state="failed",
-                ),
             }
 
             self._persist_chunk_outcome(
@@ -251,10 +339,53 @@ class TtsOrchestrationService:
                 },
             )
 
+            failed_transition = self._apply_job_transition(
+                job_id=job_id,
+                correlation_id=correlation_id,
+                current_state="running",
+                next_state="failed",
+                chunk_index=chunk_index,
+                reason="chunk_failed_unrecoverable",
+            )
+            failure_details["transition_intent"] = {
+                "current_state": "running",
+                "next_state": "failed",
+                "validated": failed_transition.ok,
+                "error": failed_transition.error.to_dict() if failed_transition.error else None,
+            }
+
             return failure(
                 code="tts_orchestration.chunk_failed_unrecoverable",
                 message="Chunk synthesis failed for all configured providers",
                 details=failure_details,
+                retryable=False,
+            )
+
+        completed_transition = self._apply_job_transition(
+            job_id=job_id,
+            correlation_id=correlation_id,
+            current_state="running",
+            next_state="completed",
+            chunk_index=-1,
+            reason="conversion_orchestration_completed",
+        )
+
+        if not completed_transition.ok:
+            return failure(
+                code="job.transition_rejected",
+                message="Chunk orchestration completed but job transition to completed was rejected",
+                details={
+                    "job_id": job_id,
+                    "resume_start_index": resume_start_index,
+                    "retry_decision_path": retry_decision_path,
+                    "transition_intent": {
+                        "current_state": "running",
+                        "next_state": "completed",
+                        "validated": False,
+                        "error": completed_transition.error.to_dict() if completed_transition.error else {},
+                    },
+                    "category": "state",
+                },
                 retryable=False,
             )
 
@@ -263,12 +394,197 @@ class TtsOrchestrationService:
                 "job_id": job_id,
                 "chunk_results": chunk_results,
                 "succeeded_chunks": len(chunk_results),
-                "transition_intent": self._build_transition_intent(
-                    current_state=current_job_state,
-                    next_state="completed",
-                ),
+                "resume_start_index": resume_start_index,
+                "retry_decision_path": retry_decision_path,
+                "transition_intent": {
+                    "current_state": "running",
+                    "next_state": "completed",
+                    "validated": True,
+                    "error": None,
+                },
             }
         )
+
+    @staticmethod
+    def _is_synthesized_status(status: str) -> bool:
+        return status.startswith("synthesized_")
+
+    def _select_resume_start_index(
+        self,
+        *,
+        ordered_chunks: list[dict[str, object]],
+        force_reprocess: bool,
+    ) -> tuple[int, str]:
+        if not ordered_chunks:
+            return 0, "no_chunks"
+
+        if force_reprocess:
+            first_chunk_index = int(ordered_chunks[0]["chunk_index"])
+            return first_chunk_index, "forced_full_reprocess"
+
+        for chunk in ordered_chunks:
+            status = str(chunk.get("status") or "")
+            if not self._is_synthesized_status(status):
+                return int(chunk["chunk_index"]), f"first_non_synthesized_status:{status or 'unknown'}"
+
+        last_chunk_index = int(ordered_chunks[-1]["chunk_index"])
+        return last_chunk_index + 1, "all_chunks_already_synthesized"
+
+    def _resolve_current_job_state(self, *, job_id: str, fallback_state: str) -> str:
+        if self._conversion_jobs_repository is None:
+            return fallback_state
+
+        job_row = self._conversion_jobs_repository.get_job_by_id(job_id=job_id)
+        if job_row is None:
+            return fallback_state
+
+        return str(job_row.get("state") or fallback_state)
+
+    def _apply_job_transition(
+        self,
+        *,
+        job_id: str,
+        correlation_id: str,
+        current_state: str,
+        next_state: str,
+        chunk_index: int,
+        reason: str,
+    ) -> Result[dict[str, object]]:
+        """Validate and apply a job lifecycle transition with observability events."""
+        self._emit_tts_event(
+            event="job.transition_requested",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            chunk_index=chunk_index,
+            engine="orchestrator",
+            extra={
+                "transition_intent": {
+                    "current_state": current_state,
+                    "next_state": next_state,
+                },
+                "reason": reason,
+            },
+        )
+
+        if current_state == next_state:
+            self._emit_tts_event(
+                event="job.transition_applied",
+                severity="INFO",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=chunk_index,
+                engine="orchestrator",
+                extra={
+                    "transition_intent": {
+                        "current_state": current_state,
+                        "next_state": next_state,
+                        "validated": True,
+                    },
+                    "reason": reason,
+                    "no_op": True,
+                },
+            )
+            return success({"current_state": current_state, "next_state": next_state, "no_op": True})
+
+        transition = validate_job_state_transition(current_state, next_state)
+        if not transition.ok:
+            normalized = transition.error.to_dict() if transition.error else {}
+            self._emit_tts_event(
+                event="job.transition_rejected",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=chunk_index,
+                engine="orchestrator",
+                extra={
+                    "transition_intent": {
+                        "current_state": current_state,
+                        "next_state": next_state,
+                        "validated": False,
+                    },
+                    "reason": reason,
+                    "error": normalized,
+                },
+            )
+            return failure(
+                code=normalized.get("code", "invalid_job_transition"),
+                message=normalized.get("message", "Job state transition is not allowed"),
+                details={
+                    "transition_intent": {
+                        "current_state": current_state,
+                        "next_state": next_state,
+                        "validated": False,
+                    },
+                    "reason": reason,
+                    "error": normalized,
+                },
+                retryable=bool(normalized.get("retryable", False)),
+            )
+
+        if self._conversion_jobs_repository is not None:
+            persisted = self._conversion_jobs_repository.update_job_state_if_current(
+                job_id=job_id,
+                expected_state=current_state,
+                next_state=next_state,
+            )
+            if not persisted:
+                current_record = self._conversion_jobs_repository.get_job_by_id(job_id=job_id)
+                observed_state = str((current_record or {}).get("state") or "")
+                self._emit_tts_event(
+                    event="job.transition_rejected",
+                    severity="ERROR",
+                    correlation_id=correlation_id,
+                    job_id=job_id,
+                    chunk_index=chunk_index,
+                    engine="orchestrator",
+                    extra={
+                        "transition_intent": {
+                            "current_state": current_state,
+                            "next_state": next_state,
+                            "validated": False,
+                        },
+                        "reason": reason,
+                        "error": {
+                            "code": "job_state_transition_conflict",
+                            "message": "Job state changed concurrently before transition could be persisted",
+                            "details": {
+                                "expected_state": current_state,
+                                "observed_state": observed_state,
+                                "job_id": job_id,
+                            },
+                            "retryable": True,
+                        },
+                    },
+                )
+                return failure(
+                    code="job_state_transition_conflict",
+                    message="Job state changed concurrently before transition could be persisted",
+                    details={
+                        "expected_state": current_state,
+                        "observed_state": observed_state,
+                        "job_id": job_id,
+                    },
+                    retryable=True,
+                )
+
+        self._emit_tts_event(
+            event="job.transition_applied",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            chunk_index=chunk_index,
+            engine="orchestrator",
+            extra={
+                "transition_intent": {
+                    "current_state": current_state,
+                    "next_state": next_state,
+                    "validated": True,
+                },
+                "reason": reason,
+            },
+        )
+        return success({"current_state": current_state, "next_state": next_state, "no_op": False})
 
     def _synthesize_with_policy(
         self,
@@ -611,20 +927,3 @@ class TtsOrchestrationService:
             chunk_index=chunk_index,
             status=status,
         )
-
-    def _build_transition_intent(self, *, current_state: str, next_state: str) -> dict[str, object]:
-        """Validate transition intent through service-level state rules."""
-        transition = self.validate_transition(current_state, next_state)
-        if transition.ok:
-            return {
-                "current_state": current_state,
-                "next_state": next_state,
-                "validated": True,
-                "error": None,
-            }
-        return {
-            "current_state": current_state,
-            "next_state": next_state,
-            "validated": False,
-            "error": transition.error.to_dict() if transition.error else {},
-        }

@@ -1,6 +1,6 @@
 # Story 3.4: Persist Job Lifecycle and Resume Conversion from Last Failed Chunk
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,22 +34,22 @@ so that failures do not force restarting from the beginning.
 
 ## Tasks / Subtasks
 
-- [ ] Enforce persisted job lifecycle transitions via service-level validator (AC: 1)
-  - [ ] Implement conversion-job repository methods to read/update job state atomically in [conversion_jobs_repository.py](src/adapters/persistence/sqlite/repositories/conversion_jobs_repository.py).
-  - [ ] Route all transition requests through [validate_job_state_transition()](src/domain/services/job_state_validator.py:18) before persistence updates.
-  - [ ] Return normalized errors (`code`, `message`, `details`, `retryable`) for invalid transitions.
-- [ ] Implement deterministic resume start-point selection from persisted chunk outcomes (AC: 2, 3)
-  - [ ] Extend orchestration in [synthesize_persisted_chunks_for_job()](src/domain/services/tts_orchestration_service.py:123) to skip already successful chunks by default.
-  - [ ] Compute resume index from persisted chunk statuses (`pending`, `failed`, `synthesized_*`) with deterministic ordering.
-  - [ ] Add explicit override flag for full reprocess only when requested.
-- [ ] Persist and emit transition/resume observability events (AC: 3, 4)
-  - [ ] Emit job transition events (for example `job.transition_requested`, `job.transition_applied`, `job.transition_rejected`) with required schema fields.
-  - [ ] Emit resume events (`conversion.resume_started`, `conversion.resume_checkpoint_selected`) with selected chunk index and retry decision path.
-  - [ ] Keep timestamps UTC ISO-8601 and event naming compliant with `domain.action` conventions.
-- [ ] Add regression coverage for resume and lifecycle persistence (AC: 1..4)
-  - [ ] Extend unit tests in [test_tts_orchestration_service.py](tests/unit/test_tts_orchestration_service.py) for resume selection, transition validation integration, and deterministic retry behavior.
-  - [ ] Extend integration tests in [test_chunk_persistence_and_resume_path.py](tests/integration/test_chunk_persistence_and_resume_path.py) for end-to-end resume from failed chunk and no reprocessing of successful chunks.
-  - [ ] Add repository-focused tests for conversion job state updates and transition rejection behavior.
+- [x] Enforce persisted job lifecycle transitions via service-level validator (AC: 1)
+  - [x] Implement conversion-job repository methods to read/update job state atomically in [conversion_jobs_repository.py](src/adapters/persistence/sqlite/repositories/conversion_jobs_repository.py).
+  - [x] Route all transition requests through [validate_job_state_transition()](src/domain/services/job_state_validator.py:18) before persistence updates.
+  - [x] Return normalized errors (`code`, `message`, `details`, `retryable`) for invalid transitions.
+- [x] Implement deterministic resume start-point selection from persisted chunk outcomes (AC: 2, 3)
+  - [x] Extend orchestration in [synthesize_persisted_chunks_for_job()](src/domain/services/tts_orchestration_service.py:123) to skip already successful chunks by default.
+  - [x] Compute resume index from persisted chunk statuses (`pending`, `failed`, `synthesized_*`) with deterministic ordering.
+  - [x] Add explicit override flag for full reprocess only when requested.
+- [x] Persist and emit transition/resume observability events (AC: 3, 4)
+  - [x] Emit job transition events (for example `job.transition_requested`, `job.transition_applied`, `job.transition_rejected`) with required schema fields.
+  - [x] Emit resume events (`conversion.resume_started`, `conversion.resume_checkpoint_selected`) with selected chunk index and retry decision path.
+  - [x] Keep timestamps UTC ISO-8601 and event naming compliant with `domain.action` conventions.
+- [x] Add regression coverage for resume and lifecycle persistence (AC: 1..4)
+  - [x] Extend unit tests in [test_tts_orchestration_service.py](tests/unit/test_tts_orchestration_service.py) for resume selection, transition validation integration, and deterministic retry behavior.
+  - [x] Extend integration tests in [test_chunk_persistence_and_resume_path.py](tests/integration/test_chunk_persistence_and_resume_path.py) for end-to-end resume from failed chunk and no reprocessing of successful chunks.
+  - [x] Add repository-focused tests for conversion job state updates and transition rejection behavior.
 
 ## Dev Notes
 
@@ -204,24 +204,43 @@ gpt-5.3-codex
 ### Debug Log References
 
 - `cat ./_bmad/core/tasks/workflow.xml`
-- `cat ./_bmad/bmm/workflows/4-implementation/create-story/workflow.yaml`
-- `cat ./_bmad/bmm/workflows/4-implementation/create-story/instructions.xml`
+- `cat ./_bmad/bmm/workflows/4-implementation/dev-story/workflow.yaml`
+- `cat ./_bmad/bmm/workflows/4-implementation/dev-story/instructions.xml`
 - `cat ./_bmad-output/implementation-artifacts/sprint-status.yaml`
-- `cat ./_bmad-output/planning-artifacts/epics.md`
-- `cat ./_bmad-output/planning-artifacts/prd.md`
-- `cat ./_bmad-output/planning-artifacts/architecture.md`
-- `cat ./_bmad-output/implementation-artifacts/3-3-orchestrate-deterministic-conversion-with-engine-fallback.md`
-- `git log --oneline -n 5`
-- `git log --name-only --oneline -n 5`
-- `python - <<'PY' ... (PyPI package metadata check for PyQt5/PyYAML) ... PY`
+- `python -m unittest -q tests.unit.test_tts_orchestration_service tests.unit.test_job_state_validator tests.unit.test_conversion_jobs_repository tests.integration.test_chunk_persistence_and_resume_path`
+- `PYTHONPATH=src python -m unittest -q`
+
+### Implementation Plan
+
+- Implémenter le repository jobs SQLite pour lecture d’état et transition atomique compare-and-swap.
+- Intégrer transitions de cycle de vie et événements `job.transition_*` dans l’orchestrateur.
+- Ajouter reprise déterministe (`resume_start_index`) avec skip des chunks `synthesized_*` et option `force_reprocess`.
+- Étendre la couverture tests unitaires/intégration sur transitions, reprise, observabilité et régressions.
 
 ### Completion Notes List
 
 - Story selected from first backlog entry in sprint status: `3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk`.
-- Comprehensive context assembled from epics, PRD, architecture, sprint tracking, previous story intelligence, git history, and current codebase structure.
-- Story status explicitly set to `ready-for-dev`.
-- Ultimate context engine analysis completed - comprehensive developer guide created.
+- Implémentation de [ConversionJobsRepository](src/adapters/persistence/sqlite/repositories/conversion_jobs_repository.py): `get_job_by_id()` + `update_job_state_if_current()` atomique avec contrôle de lignes affectées.
+- Extension de [synthesize_persisted_chunks_for_job()](src/domain/services/tts_orchestration_service.py:146) avec sélection déterministe de `resume_start_index`, skip des chunks déjà synthétisés, et mode explicite `force_reprocess`.
+- Ajout des transitions de cycle de vie persistées et validées via [validate_job_state_transition()](src/domain/services/job_state_validator.py:18), avec erreurs normalisées et événements `job.transition_requested|applied|rejected`.
+- Ajout des événements de reprise `conversion.resume_checkpoint_selected` et `conversion.resume_started` avec `retry_decision_path`.
+- Wiring du repository jobs dans [build_container()](src/app/dependency_container.py:117) pour activer la persistance des transitions.
+- Couverture de tests étendue:
+  - [test_tts_orchestration_service.py](tests/unit/test_tts_orchestration_service.py),
+  - [test_chunk_persistence_and_resume_path.py](tests/integration/test_chunk_persistence_and_resume_path.py),
+  - nouveau [test_conversion_jobs_repository.py](tests/unit/test_conversion_jobs_repository.py).
+- Validation exécutée et verte: `32 tests` ciblés puis `127 tests` de régression (`OK`).
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk.md
+- src/adapters/persistence/sqlite/repositories/conversion_jobs_repository.py
+- src/domain/services/tts_orchestration_service.py
+- src/app/dependency_container.py
+- tests/unit/test_tts_orchestration_service.py
+- tests/integration/test_chunk_persistence_and_resume_path.py
+- tests/unit/test_conversion_jobs_repository.py
+
+## Change Log
+
+- 2026-02-13: Implémentation complète story 3.4 (transitions job persistées, reprise déterministe, observabilité transition/reprise, couverture de tests unitaires/intégration/régression), statut passé à `review`.

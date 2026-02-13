@@ -8,6 +8,7 @@ from pathlib import Path
 from src.adapters.persistence.sqlite.connection import create_connection
 from src.adapters.persistence.sqlite.migration_runner import apply_migrations
 from src.adapters.persistence.sqlite.repositories.chunks_repository import ChunksRepository
+from src.adapters.persistence.sqlite.repositories.conversion_jobs_repository import ConversionJobsRepository
 from src.adapters.tts.chatterbox_provider import ChatterboxProvider
 from src.adapters.tts.kokoro_provider import KokoroProvider
 from src.domain.services.chunking_service import ChunkingService
@@ -440,5 +441,184 @@ class TestChunkPersistenceAndResumePath(unittest.TestCase):
             failed = [event for event in events if event.get("event") == "tts.chunk_failed"]
             self.assertEqual([event["chunk_index"] for event in started], [0])
             self.assertEqual(len(failed), 1)
+
+            connection.close()
+
+    def test_resume_from_failed_chunk_skips_previously_synthesized_chunks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "runtime" / "local_audiobook.db"
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+
+            connection.execute(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "doc-3-4-resume",
+                    "/tmp/source.txt",
+                    "source",
+                    "txt",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO conversion_jobs(
+                    id, document_id, state, engine, voice, language,
+                    speech_rate, output_format, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "job-3-4-resume",
+                    "doc-3-4-resume",
+                    "running",
+                    "",
+                    "",
+                    "",
+                    1.0,
+                    "wav",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.commit()
+
+            chunks_repository = ChunksRepository(connection)
+            chunks_repository.replace_chunks_for_job(
+                job_id="job-3-4-resume",
+                chunks=[
+                    {"chunk_index": 0, "text_content": "Alpha", "status": "synthesized_chatterbox_gpu"},
+                    {"chunk_index": 1, "text_content": "Beta", "status": "failed"},
+                    {"chunk_index": 2, "text_content": "Gamma", "status": "pending"},
+                ],
+            )
+
+            logger = JsonlLogger(events_path)
+            orchestrator = TtsOrchestrationService(
+                primary_provider=ChatterboxProvider(healthy=True),
+                fallback_provider=KokoroProvider(healthy=True),
+                chunks_repository=chunks_repository,
+                conversion_jobs_repository=ConversionJobsRepository(connection),
+                logger=logger,
+            )
+
+            result = orchestrator.synthesize_persisted_chunks_for_job(
+                job_id="job-3-4-resume",
+                correlation_id="corr-3-4-resume",
+            )
+
+            self.assertTrue(result.ok)
+            self.assertEqual(result.data["resume_start_index"], 1)
+            self.assertEqual(result.data["retry_decision_path"], "first_non_synthesized_status:failed")
+            self.assertEqual([entry["chunk_index"] for entry in result.data["chunk_results"]], [1, 2])
+
+            statuses = connection.execute(
+                "SELECT chunk_index, status FROM chunks WHERE job_id = ? ORDER BY chunk_index ASC",
+                ("job-3-4-resume",),
+            ).fetchall()
+            self.assertEqual(statuses[0][0], 0)
+            self.assertEqual(statuses[0][1], "synthesized_chatterbox_gpu")
+            self.assertTrue(str(statuses[1][1]).startswith("synthesized_"))
+            self.assertTrue(str(statuses[2][1]).startswith("synthesized_"))
+
+            events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            started = [event for event in events if event.get("event") == "tts.chunk_started"]
+            self.assertEqual([event["chunk_index"] for event in started], [1, 2])
+
+            connection.close()
+
+    def test_transition_and_resume_events_follow_schema_and_domain_action_naming(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "runtime" / "local_audiobook.db"
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+
+            connection.execute(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "doc-3-4-events",
+                    "/tmp/source.txt",
+                    "source",
+                    "txt",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO conversion_jobs(
+                    id, document_id, state, engine, voice, language,
+                    speech_rate, output_format, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "job-3-4-events",
+                    "doc-3-4-events",
+                    "running",
+                    "",
+                    "",
+                    "",
+                    1.0,
+                    "wav",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.commit()
+
+            chunks_repository = ChunksRepository(connection)
+            chunks_repository.replace_chunks_for_job(
+                job_id="job-3-4-events",
+                chunks=[
+                    {"chunk_index": 0, "text_content": "One", "status": "pending"},
+                ],
+            )
+
+            logger = JsonlLogger(events_path)
+            orchestrator = TtsOrchestrationService(
+                primary_provider=ChatterboxProvider(healthy=True),
+                fallback_provider=KokoroProvider(healthy=True),
+                chunks_repository=chunks_repository,
+                conversion_jobs_repository=ConversionJobsRepository(connection),
+                logger=logger,
+            )
+
+            result = orchestrator.synthesize_persisted_chunks_for_job(
+                job_id="job-3-4-events",
+                correlation_id="corr-3-4-events",
+            )
+            self.assertTrue(result.ok)
+
+            events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            transition_events = [
+                event
+                for event in events
+                if event.get("event") in {"job.transition_requested", "job.transition_applied", "job.transition_rejected"}
+            ]
+            resume_events = [
+                event
+                for event in events
+                if event.get("event") in {"conversion.resume_started", "conversion.resume_checkpoint_selected"}
+            ]
+
+            self.assertGreaterEqual(len(transition_events), 2)
+            self.assertEqual(len(resume_events), 2)
+
+            for event in transition_events + resume_events:
+                self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
+                self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
+                self.assertIn(".", event["event"])
 
             connection.close()

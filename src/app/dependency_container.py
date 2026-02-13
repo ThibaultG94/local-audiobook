@@ -133,6 +133,7 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
             fallback_provider=providers.kokoro,
             chunking_service=ChunkingService(),
             chunks_repository=repositories.chunks,
+            conversion_jobs_repository=repositories.conversion_jobs,
             logger=logger,
         ),
         chunking=ChunkingService(),
