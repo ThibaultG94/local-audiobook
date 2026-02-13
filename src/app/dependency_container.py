@@ -122,8 +122,8 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         diagnostics_events=DiagnosticsEventsRepository(connection),
     )
     providers = Providers(
-        chatterbox=ChatterboxProvider(),
-        kokoro=KokoroProvider(),
+        chatterbox=ChatterboxProvider(logger=logger),
+        kokoro=KokoroProvider(logger=logger),
     )
     services = Services(
         tts_orchestration=TtsOrchestrationService(),

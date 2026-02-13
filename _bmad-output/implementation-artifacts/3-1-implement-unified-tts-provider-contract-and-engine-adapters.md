@@ -1,6 +1,6 @@
 # Story 3.1: Implement Unified TTS Provider Contract and Engine Adapters
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,25 +34,25 @@ so that the application can switch engines predictably without changing user wor
 
 ## Tasks / Subtasks
 
-- [ ] Define and enforce unified provider contract in domain boundary (AC: 1, 2, 3)
-  - [ ] Confirm canonical protocol for `synthesize_chunk`, `list_voices`, `health_check` in `src/domain/ports/tts_provider.py`.
-  - [ ] Align request/response DTOs to standardized `{ok, data, error}` and normalized error structure.
-  - [ ] Add explicit type hints and docstrings for deterministic adapter compliance.
-- [ ] Adapt Chatterbox provider to contract without fallback logic leakage (AC: 1, 3, 4)
-  - [ ] Ensure `src/adapters/tts/chatterbox_provider.py` maps provider-native payloads to canonical result envelope.
-  - [ ] Normalize exceptions to `code/message/details/retryable` with deterministic categories.
-  - [ ] Emit structured provider events usable by orchestration diagnostics.
-- [ ] Adapt Kokoro provider to same contract and semantics (AC: 1, 2, 3, 4)
-  - [ ] Ensure `src/adapters/tts/kokoro_provider.py` returns same shape and metadata conventions as Chatterbox.
-  - [ ] Normalize voice-listing output schema and failure behavior.
-  - [ ] Keep adapter responsibilities limited to provider integration (no policy decisions).
-- [ ] Preserve orchestration authority for deterministic fallback behavior (AC: 4)
-  - [ ] Verify `src/domain/services/tts_orchestration_service.py` owns all fallback decisions.
-  - [ ] Validate adapter failures are explicit enough for fallback decisioning but never execute fallback internally.
-- [ ] Add regression-safe unit/integration coverage (AC: 1..4)
-  - [ ] Unit tests for interface conformance and error normalization for both providers.
-  - [ ] Contract tests for consistent voice list and synthesis result schema across engines.
-  - [ ] Logging-focused tests ensuring required correlation/event fields are emitted.
+- [x] Define and enforce unified provider contract in domain boundary (AC: 1, 2, 3)
+  - [x] Confirm canonical protocol for `synthesize_chunk`, `list_voices`, `health_check` in `src/domain/ports/tts_provider.py`.
+  - [x] Align request/response DTOs to standardized `{ok, data, error}` and normalized error structure.
+  - [x] Add explicit type hints and docstrings for deterministic adapter compliance.
+- [x] Adapt Chatterbox provider to contract without fallback logic leakage (AC: 1, 3, 4)
+  - [x] Ensure `src/adapters/tts/chatterbox_provider.py` maps provider-native payloads to canonical result envelope.
+  - [x] Normalize exceptions to `code/message/details/retryable` with deterministic categories.
+  - [x] Emit structured provider events usable by orchestration diagnostics.
+- [x] Adapt Kokoro provider to same contract and semantics (AC: 1, 2, 3, 4)
+  - [x] Ensure `src/adapters/tts/kokoro_provider.py` returns same shape and metadata conventions as Chatterbox.
+  - [x] Normalize voice-listing output schema and failure behavior.
+  - [x] Keep adapter responsibilities limited to provider integration (no policy decisions).
+- [x] Preserve orchestration authority for deterministic fallback behavior (AC: 4)
+  - [x] Verify `src/domain/services/tts_orchestration_service.py` owns all fallback decisions.
+  - [x] Validate adapter failures are explicit enough for fallback decisioning but never execute fallback internally.
+- [x] Add regression-safe unit/integration coverage (AC: 1..4)
+  - [x] Unit tests for interface conformance and error normalization for both providers.
+  - [x] Contract tests for consistent voice list and synthesis result schema across engines.
+  - [x] Logging-focused tests ensuring required correlation/event fields are emitted.
 
 ## Dev Notes
 
@@ -201,6 +201,10 @@ gpt-5.3-codex
 - `cat ./_bmad-output/planning-artifacts/architecture.md`
 - `git log --oneline -n 5`
 - `cat ./_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `python -m unittest tests.unit.test_tts_provider_contract -v`
+- `PYTHONPATH=src python -m unittest tests.unit.test_tts_provider_contract tests.unit.test_tts_providers_health -v`
+- `PYTHONPATH=src python -m unittest tests.unit.test_tts_provider_contract tests.unit.test_tts_providers_health tests.integration.test_tts_provider_events_schema -v`
+- `PYTHONPATH=src python -m unittest discover -s tests -p 'test_*.py' -v`
 
 ### Completion Notes List
 
@@ -210,8 +214,23 @@ gpt-5.3-codex
 - Guidance emphasizes deterministic normalized errors and contract consistency between `ChatterboxProvider` and `KokoroProvider`.
 - Story includes project structure constraints, test expectations, and prior-story quality learnings.
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Unified TTS contract strengthened in `src/domain/ports/tts_provider.py` with typed DTOs for voices and synthesis payloads, plus explicit logging protocol shape.
+- Chatterbox and Kokoro adapters now return canonical `Result[{audio_bytes, metadata}]` for synthesis, canonical voice descriptors, and normalized error categories (`availability`, `input`) with deterministic retry semantics.
+- Provider adapters now emit structured `domain.action` events with correlation fields and UTC timestamps through existing JSONL logger wiring.
+- Dependency container now injects the shared logger into both TTS providers to preserve observability consistency without adding fallback behavior to adapters.
+- Added provider contract/unit coverage and integration logging coverage; full repository regression suite passes (`84` tests).
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-1-implement-unified-tts-provider-contract-and-engine-adapters.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/domain/ports/tts_provider.py
+- src/adapters/tts/chatterbox_provider.py
+- src/adapters/tts/kokoro_provider.py
+- src/app/dependency_container.py
+- tests/unit/test_tts_provider_contract.py
+- tests/integration/test_tts_provider_events_schema.py
+
+## Change Log
+
+- 2026-02-13: Implemented Story 3.1 unified provider contract/adapters, added contract and event-schema tests, and validated with full regression run.
