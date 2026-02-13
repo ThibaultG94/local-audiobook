@@ -46,7 +46,7 @@ development_status:
   1-3-surface-offline-readiness-status-and-actionable-remediation-in-ui: done
   epic-1-retrospective: optional
 
-  epic-2: in-progress
+  epic-2: done
   2-1-import-local-multi-format-documents-with-input-validation: done
   2-2-extract-clean-text-from-epub-with-actionable-failure-handling: done
   2-3-extract-text-from-pdf-with-degraded-case-handling: done
@@ -59,7 +59,7 @@ development_status:
   3-2-segment-long-text-with-phrase-first-chunking-rules: done
   3-3-orchestrate-deterministic-conversion-with-engine-fallback: done
   3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk: done
-  3-5-configure-conversion-parameters-and-output-format-in-ui: backlog
+  3-5-configure-conversion-parameters-and-output-format-in-ui: ready-for-dev
   3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals: backlog
   epic-3-retrospective: optional
 
