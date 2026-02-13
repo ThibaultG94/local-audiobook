@@ -22,6 +22,7 @@ from src.adapters.persistence.sqlite.repositories.library_items_repository impor
     LibraryItemsRepository,
 )
 from src.adapters.persistence.sqlite.repositories.chunks_repository import ChunksRepository
+from src.domain.services.chunking_service import ChunkingService
 from src.domain.services.model_registry_service import ModelRegistryService
 from src.domain.services.startup_readiness_service import StartupReadinessService
 from src.domain.services.tts_orchestration_service import TtsOrchestrationService
@@ -46,6 +47,7 @@ class Providers:
 @dataclass(slots=True)
 class Services:
     tts_orchestration: TtsOrchestrationService
+    chunking: ChunkingService
     model_registry: ModelRegistryService
     startup_readiness: StartupReadinessService
 
@@ -129,7 +131,11 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         tts_orchestration=TtsOrchestrationService(
             primary_provider=providers.chatterbox,
             fallback_provider=providers.kokoro,
+            chunking_service=ChunkingService(),
+            chunks_repository=repositories.chunks,
+            logger=logger,
         ),
+        chunking=ChunkingService(),
         model_registry=ModelRegistryService(),
         startup_readiness=StartupReadinessService(),
     )

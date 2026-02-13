@@ -6,6 +6,7 @@ import unittest
 
 from adapters.tts.chatterbox_provider import ChatterboxProvider
 from adapters.tts.kokoro_provider import KokoroProvider
+from domain.services.chunking_service import ChunkingService
 from domain.services.tts_orchestration_service import TtsOrchestrationService
 
 
@@ -150,3 +151,87 @@ class TestTtsOrchestrationService(unittest.TestCase):
         self.assertTrue(result.ok)
         # If providers log correctly, correlation fields were passed
         # (validated in provider tests)
+
+    def test_chunk_text_for_job_persists_indexed_hashes(self) -> None:
+        class _InMemoryChunksRepository:
+            def __init__(self) -> None:
+                self.items: list[dict[str, object]] = []
+
+            def replace_chunks_for_job(self, *, job_id: str, chunks: list[dict[str, object]]) -> list[dict[str, object]]:
+                self.items = [item for item in self.items if item["job_id"] != job_id]
+                normalized = []
+                for item in chunks:
+                    normalized.append(
+                        {
+                            "job_id": job_id,
+                            "chunk_index": item["chunk_index"],
+                            "text_content": item["text_content"],
+                            "content_hash": item["content_hash"],
+                            "created_at": item["created_at"],
+                        }
+                    )
+                self.items.extend(normalized)
+                return [item for item in self.items if item["job_id"] == job_id]
+
+        class _CapturingLogger:
+            def __init__(self) -> None:
+                self.events: list[dict[str, object]] = []
+
+            def emit(self, **payload: object) -> None:
+                self.events.append(payload)
+
+        repository = _InMemoryChunksRepository()
+        logger = _CapturingLogger()
+        orchestrator = TtsOrchestrationService(
+            chunking_service=ChunkingService(),
+            chunks_repository=repository,
+            logger=logger,
+        )
+
+        result = orchestrator.chunk_text_for_job(
+            text="Phrase une. Phrase deux. Phrase trois.",
+            job_id="job-chunk-1",
+            correlation_id="corr-chunk-1",
+            max_chars=20,
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.data["chunk_count"], 3)
+        self.assertEqual(result.data["chunks"][0]["chunk_index"], 0)
+        self.assertEqual(result.data["chunks"][1]["chunk_index"], 1)
+        self.assertEqual(result.data["chunks"][2]["chunk_index"], 2)
+        self.assertTrue(all(item.get("content_hash") for item in result.data["chunks"]))
+        event_names = [event.get("event") for event in logger.events]
+        self.assertIn("chunking.started", event_names)
+        self.assertIn("chunking.completed", event_names)
+
+    def test_chunk_text_for_job_returns_normalized_failure_and_emits_failed_event(self) -> None:
+        class _InMemoryChunksRepository:
+            def replace_chunks_for_job(self, *, job_id: str, chunks: list[dict[str, object]]) -> list[dict[str, object]]:
+                return chunks
+
+        class _CapturingLogger:
+            def __init__(self) -> None:
+                self.events: list[dict[str, object]] = []
+
+            def emit(self, **payload: object) -> None:
+                self.events.append(payload)
+
+        logger = _CapturingLogger()
+        orchestrator = TtsOrchestrationService(
+            chunking_service=ChunkingService(),
+            chunks_repository=_InMemoryChunksRepository(),
+            logger=logger,
+        )
+
+        result = orchestrator.chunk_text_for_job(
+            text="   ",
+            job_id="job-chunk-err",
+            correlation_id="corr-chunk-err",
+            max_chars=100,
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "chunking.invalid_text")
+        failed_events = [event for event in logger.events if event.get("event") == "chunking.failed"]
+        self.assertEqual(len(failed_events), 1)

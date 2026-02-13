@@ -1,6 +1,6 @@
 # Story 3.2: Segment Long Text with Phrase-First Chunking Rules
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,24 +34,24 @@ so that synthesis remains reliable and resumable across large inputs.
 
 ## Tasks / Subtasks
 
-- [ ] Implement deterministic phrase-first chunking service (AC: 1, 3)
-  - [ ] Create `src/domain/services/chunking_service.py` with a pure deterministic algorithm (same input => same output).
-  - [ ] Enforce phrase/sentence-aware boundaries before hard max-character fallback.
-  - [ ] Validate inputs (`text`, chunk size config, optional language hints) and return normalized failures for invalid/empty text.
-- [ ] Persist chunk metadata for orchestration/resume (AC: 2)
-  - [ ] Extend or add persistence repository methods for chunk creation/listing with stable index ordering and content hash.
-  - [ ] Link each chunk record to a conversion job id and maintain transactional integrity.
-  - [ ] Ensure schema compatibility with existing tables/repositories under `src/adapters/persistence/sqlite/repositories/`.
-- [ ] Integrate chunking into orchestration boundary without leaking fallback policy (AC: 1, 2)
-  - [ ] Wire chunk generation call sites in `src/domain/services/tts_orchestration_service.py` only where flow ownership is appropriate.
-  - [ ] Preserve orchestration as fallback policy owner; chunking service remains single-responsibility.
-- [ ] Emit structured logging for chunking lifecycle (AC: 4)
-  - [ ] Emit `chunking.started` and `chunking.completed` (plus `chunking.failed` where relevant) through `src/infrastructure/logging/jsonl_logger.py`.
-  - [ ] Include required fields: `correlation_id`, `job_id`, `stage`, `event`, `severity`, `timestamp`; include `chunk_index` only for per-chunk events.
-- [ ] Add test coverage and regression safety (AC: 1..4)
-  - [ ] Unit tests for deterministic chunk outputs and boundary behavior (sentence-first, fallback split, empty input failure).
-  - [ ] Unit/integration tests for persistence of chunk index + hash + job linkage.
-  - [ ] Tests for logging contract shape and `domain.action` naming during chunking lifecycle.
+- [x] Implement deterministic phrase-first chunking service (AC: 1, 3)
+  - [x] Create `src/domain/services/chunking_service.py` with a pure deterministic algorithm (same input => same output).
+  - [x] Enforce phrase/sentence-aware boundaries before hard max-character fallback.
+  - [x] Validate inputs (`text`, chunk size config, optional language hints) and return normalized failures for invalid/empty text.
+- [x] Persist chunk metadata for orchestration/resume (AC: 2)
+  - [x] Extend or add persistence repository methods for chunk creation/listing with stable index ordering and content hash.
+  - [x] Link each chunk record to a conversion job id and maintain transactional integrity.
+  - [x] Ensure schema compatibility with existing tables/repositories under `src/adapters/persistence/sqlite/repositories/`.
+- [x] Integrate chunking into orchestration boundary without leaking fallback policy (AC: 1, 2)
+  - [x] Wire chunk generation call sites in `src/domain/services/tts_orchestration_service.py` only where flow ownership is appropriate.
+  - [x] Preserve orchestration as fallback policy owner; chunking service remains single-responsibility.
+- [x] Emit structured logging for chunking lifecycle (AC: 4)
+  - [x] Emit `chunking.started` and `chunking.completed` (plus `chunking.failed` where relevant) through `src/infrastructure/logging/jsonl_logger.py`.
+  - [x] Include required fields: `correlation_id`, `job_id`, `stage`, `event`, `severity`, `timestamp`; include `chunk_index` only for per-chunk events.
+- [x] Add test coverage and regression safety (AC: 1..4)
+  - [x] Unit tests for deterministic chunk outputs and boundary behavior (sentence-first, fallback split, empty input failure).
+  - [x] Unit/integration tests for persistence of chunk index + hash + job linkage.
+  - [x] Tests for logging contract shape and `domain.action` naming during chunking lifecycle.
 
 ## Dev Notes
 
@@ -211,6 +211,10 @@ gpt-5.3-codex
 - `cat ./_bmad-output/implementation-artifacts/3-1-implement-unified-tts-provider-contract-and-engine-adapters.md`
 - `git log --oneline -n 5`
 - `git log --name-only --oneline -n 5`
+- `PYTHONPATH=src python -m unittest tests.unit.test_chunking_service`
+- `PYTHONPATH=src python -m unittest tests.unit.test_chunking_service tests.unit.test_tts_orchestration_service`
+- `PYTHONPATH=src python -m unittest tests.unit.test_dependency_container_no_qt tests.unit.test_chunking_service tests.unit.test_tts_orchestration_service tests.integration.test_chunk_persistence_and_resume_path`
+- `PYTHONPATH=src python -m unittest discover -s tests`
 
 ### Completion Notes List
 
@@ -220,8 +224,24 @@ gpt-5.3-codex
 - Added architecture-aligned constraints for deterministic chunking, persistence linkage, normalized errors, and structured logging.
 - Incorporated prior story and git intelligence to prevent regressions and avoid low-fidelity implementation patterns.
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Implemented deterministic phrase-first chunking service with strict input validation and deterministic fallback splitting.
+- Added orchestration-level chunking entrypoint that persists chunk metadata (`chunk_index`, `content_hash`, `job_id`, `created_at`) while keeping fallback policy ownership in orchestration.
+- Added chunk lifecycle observability events (`chunking.started`, `chunking.completed`, `chunking.failed`) with schema-required fields.
+- Implemented SQLite chunk repository methods for replace/list by job with stable ordering and transactional replacement semantics.
+- Added unit and integration coverage for deterministic outputs, normalized failures, persistence linkage, and JSONL event schema compliance.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-2-segment-long-text-with-phrase-first-chunking-rules.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/domain/services/chunking_service.py
+- src/domain/services/tts_orchestration_service.py
+- src/adapters/persistence/sqlite/repositories/chunks_repository.py
+- src/app/dependency_container.py
+- tests/unit/test_chunking_service.py
+- tests/unit/test_tts_orchestration_service.py
+- tests/integration/test_chunk_persistence_and_resume_path.py
+
+### Change Log
+
+- 2026-02-13: Implemented Story 3.2 deterministic phrase-first chunking, chunk metadata persistence, orchestration integration, lifecycle logging, and full regression test validation.

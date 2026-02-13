@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from contracts.result import Result, failure, success
 from domain.services.job_state_validator import validate_job_state_transition
 
 if TYPE_CHECKING:
+    from domain.services.chunking_service import ChunkingService
     from domain.ports.tts_provider import TtsProvider, TtsSynthesisData
 
 
@@ -22,6 +25,9 @@ class TtsOrchestrationService:
         self,
         primary_provider: TtsProvider | None = None,
         fallback_provider: TtsProvider | None = None,
+        chunking_service: ChunkingService | None = None,
+        chunks_repository: object | None = None,
+        logger: object | None = None,
     ) -> None:
         """Initialize orchestration service with optional providers.
         
@@ -31,6 +37,9 @@ class TtsOrchestrationService:
         """
         self._primary_provider = primary_provider
         self._fallback_provider = fallback_provider
+        self._chunking_service = chunking_service
+        self._chunks_repository = chunks_repository
+        self._logger = logger
 
     @staticmethod
     def validate_transition(current_state: str, next_state: str) -> Result[None]:
@@ -183,3 +192,118 @@ class TtsOrchestrationService:
             }
         
         return success(health_status)
+
+    def chunk_text_for_job(
+        self,
+        *,
+        text: str,
+        job_id: str,
+        correlation_id: str,
+        max_chars: int,
+        language_hint: str | None = None,
+    ) -> Result[dict[str, object]]:
+        """Chunk extracted text and persist deterministic chunk metadata for a job."""
+        if self._chunking_service is None:
+            return failure(
+                code="chunking.service_unavailable",
+                message="Chunking service is not configured",
+                details={"category": "configuration"},
+                retryable=False,
+            )
+
+        if self._chunks_repository is None or not hasattr(self._chunks_repository, "replace_chunks_for_job"):
+            return failure(
+                code="chunking.repository_unavailable",
+                message="Chunks repository is not configured",
+                details={"category": "configuration"},
+                retryable=False,
+            )
+
+        self._emit_chunking_event(
+            event="chunking.started",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            extra={"max_chars": max_chars},
+        )
+
+        chunking_result = self._chunking_service.chunk_text(
+            text=text,
+            max_chars=max_chars,
+            language_hint=language_hint,
+        )
+        if not chunking_result.ok:
+            self._emit_chunking_event(
+                event="chunking.failed",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                extra={"error": chunking_result.error.to_dict() if chunking_result.error else {}},
+            )
+            return chunking_result
+
+        created_at = datetime.now(timezone.utc).isoformat()
+        chunks_payload: list[dict[str, object]] = []
+        for index, chunk_text in enumerate(chunking_result.data or []):
+            chunks_payload.append(
+                {
+                    "chunk_index": index,
+                    "text_content": chunk_text,
+                    "content_hash": hashlib.sha256(chunk_text.encode("utf-8")).hexdigest(),
+                    "status": "pending",
+                    "created_at": created_at,
+                }
+            )
+
+        persisted_chunks = self._chunks_repository.replace_chunks_for_job(
+            job_id=job_id,
+            chunks=chunks_payload,
+        )
+
+        self._emit_chunking_event(
+            event="chunking.completed",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            extra={"chunk_count": len(persisted_chunks)},
+        )
+
+        return success(
+            {
+                "job_id": job_id,
+                "chunk_count": len(persisted_chunks),
+                "chunks": [
+                    {
+                        "chunk_index": chunk["chunk_index"],
+                        "text": chunk["text_content"],
+                        "content_hash": chunk.get("content_hash", ""),
+                        "created_at": chunk.get("created_at", created_at),
+                    }
+                    for chunk in persisted_chunks
+                ],
+            }
+        )
+
+    def _emit_chunking_event(
+        self,
+        *,
+        event: str,
+        severity: str,
+        correlation_id: str,
+        job_id: str,
+        extra: dict[str, object] | None = None,
+    ) -> None:
+        if self._logger is None or not hasattr(self._logger, "emit"):
+            return
+
+        self._logger.emit(
+            event=event,
+            stage="chunking",
+            severity=severity,
+            correlation_id=correlation_id,
+            job_id=job_id,
+            chunk_index=-1,
+            engine="orchestrator",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            extra=extra or {},
+        )

@@ -56,7 +56,7 @@ development_status:
 
   epic-3: in-progress
   3-1-implement-unified-tts-provider-contract-and-engine-adapters: done
-  3-2-segment-long-text-with-phrase-first-chunking-rules: ready-for-dev
+  3-2-segment-long-text-with-phrase-first-chunking-rules: review
   3-3-orchestrate-deterministic-conversion-with-engine-fallback: backlog
   3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk: backlog
   3-5-configure-conversion-parameters-and-output-format-in-ui: backlog
