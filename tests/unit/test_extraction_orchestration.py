@@ -71,6 +71,31 @@ class _FakePdfExtractor:
         )
 
 
+class _FakeTextExtractor:
+    def __init__(self, *, should_fail: bool = False) -> None:
+        self.should_fail = should_fail
+        self.calls: list[dict[str, str]] = []
+
+    def extract(self, source_path: str, *, correlation_id: str, job_id: str):
+        self.calls.append({"source_path": source_path, "correlation_id": correlation_id, "job_id": job_id})
+        if self.should_fail:
+            return failure(
+                code="extraction.encoding_invalid",
+                message="Text source contains unreadable byte sequences",
+                details={"source_path": source_path, "source_format": "txt"},
+                retryable=False,
+            )
+        return success(
+            {
+                "source_path": source_path,
+                "source_format": "txt",
+                "text": "Hello world",
+                "sections": 1,
+                "text_length": 11,
+            }
+        )
+
+
 class TestExtractionOrchestration(unittest.TestCase):
     def test_service_routes_epub_document_to_epub_extractor(self) -> None:
         logger = _CapturingLogger()
@@ -123,6 +148,39 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(len(pdf_extractor.calls), 1)
         self.assertEqual(pdf_extractor.calls[0]["source_path"], "/tmp/book.pdf")
 
+    def test_service_routes_txt_document_to_text_extractor(self) -> None:
+        logger = _CapturingLogger()
+        text_extractor = _FakeTextExtractor(should_fail=False)
+        service = ImportService(
+            documents_repository=_FakeDocumentsRepository(),
+            logger=logger,
+            text_extractor=text_extractor,
+        )
+
+        result = service.extract_document(
+            document={"id": "doc-4", "source_path": "/tmp/book.txt", "source_format": "txt"},
+            correlation_id="corr-extract-txt-ok",
+            job_id="job-4",
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(len(text_extractor.calls), 1)
+        self.assertEqual(text_extractor.calls[0]["source_path"], "/tmp/book.txt")
+
+    def test_service_returns_extractor_unavailable_for_md_when_text_extractor_missing(self) -> None:
+        logger = _CapturingLogger()
+        service = ImportService(documents_repository=_FakeDocumentsRepository(), logger=logger)
+
+        result = service.extract_document(
+            document={"id": "doc-5", "source_path": "/tmp/book.md", "source_format": "md"},
+            correlation_id="corr-extract-md-missing",
+            job_id="job-5",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertIsNotNone(result.error)
+        self.assertEqual(result.error.code, "extraction.extractor_unavailable")
+
     def test_presenter_surfaces_actionable_english_feedback_for_pdf_failure(self) -> None:
         presenter = ConversionPresenter()
         extraction_result = failure(
@@ -158,4 +216,24 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertIsNotNone(presented.data)
         self.assertEqual(presented.data["status"], "failed")
         self.assertEqual(presented.data["message"], "Unable to extract readable text from EPUB. Please verify the file contents.")
+        self.assertEqual(presented.data["severity"], "ERROR")
+
+    def test_presenter_surfaces_actionable_english_feedback_for_text_encoding_failure(self) -> None:
+        presenter = ConversionPresenter()
+        extraction_result = failure(
+            code="extraction.encoding_invalid",
+            message="Text source contains unreadable byte sequences",
+            details={"source_path": "/tmp/bad.txt", "source_format": "txt"},
+            retryable=False,
+        )
+
+        presented = presenter.map_extraction(extraction_result)
+
+        self.assertTrue(presented.ok)
+        self.assertIsNotNone(presented.data)
+        self.assertEqual(presented.data["status"], "failed")
+        self.assertEqual(
+            presented.data["message"],
+            "TXT contains unreadable or invalid encoding data. Please save the file as UTF-8 and try again.",
+        )
         self.assertEqual(presented.data["severity"], "ERROR")

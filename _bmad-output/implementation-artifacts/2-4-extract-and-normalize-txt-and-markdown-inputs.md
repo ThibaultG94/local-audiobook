@@ -1,6 +1,6 @@
 # Story 2.4: Extract and Normalize TXT and Markdown Inputs
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,28 +34,28 @@ so that extracted content is ready for reliable chunking and synthesis.
 
 ## Tasks / Subtasks
 
-- [ ] Implement TXT/Markdown extractor adapter in `src/adapters/extraction/text_extractor.py` with deterministic normalization output (AC: 1, 2, 3)
-  - [ ] Read `.txt` and `.md` files using UTF-8 first, with controlled fallback handling for encoding anomalies.
-  - [ ] Reuse shared normalization utilities from `text_normalization.py` to enforce stable whitespace and line-break behavior.
-  - [ ] Convert Markdown structural markers to clean reading text suitable for TTS input while preserving reading flow.
-  - [ ] Return normalized extraction payload with deterministic metadata (`source_format`, `sections`, `text_length`, warnings).
-- [ ] Wire extraction orchestration path for TXT/Markdown through `ImportService.extract_document()` (AC: 1, 2, 4)
-  - [ ] Route `.txt` and `.md` source formats to `text_extractor.py`.
-  - [ ] Preserve normalized envelope contract `{ok, data, error}` and error shape `{code, message, details, retryable}`.
-  - [ ] Ensure extractor-unavailable and unsupported-format failure paths stay deterministic and actionable.
-- [ ] Extend actionable presenter feedback in `conversion_presenter.py` for text-engine extraction outcomes (AC: 4)
-  - [ ] Keep all user-facing extraction messages English-only.
-  - [ ] Provide actionable failure messages for encoding and unreadable source failures.
-  - [ ] Preserve downstream conversion gating on extraction failure.
-- [ ] Add structured observability for text extraction lifecycle (AC: 4)
-  - [ ] Emit `extraction.started`, `extraction.succeeded`, `extraction.failed` with `stage=extraction` and `engine=text`.
-  - [ ] Ensure payload includes required fields: `correlation_id`, `job_id`, `chunk_index`, `event`, `severity`, `timestamp`.
-  - [ ] Add useful diagnostics (`source_format`, `text_length`, `encoding_warnings`, `normalization_warnings`).
-- [ ] Add test coverage for deterministic behavior, anomalies, and orchestration integration (AC: 1..4)
-  - [ ] Unit tests for UTF-8 parsing, line break normalization, markdown cleanup, and very large input guardrails.
-  - [ ] Unit tests for encoding anomalies and unreadable byte handling mapped to normalized errors.
-  - [ ] Orchestration tests for `.txt`/`.md` routing and extractor-unavailable behavior.
-  - [ ] Presenter tests for actionable English messaging and failure gating semantics.
+- [x] Implement TXT/Markdown extractor adapter in `src/adapters/extraction/text_extractor.py` with deterministic normalization output (AC: 1, 2, 3)
+  - [x] Read `.txt` and `.md` files using UTF-8 first, with controlled fallback handling for encoding anomalies.
+  - [x] Reuse shared normalization utilities from `text_normalization.py` to enforce stable whitespace and line-break behavior.
+  - [x] Convert Markdown structural markers to clean reading text suitable for TTS input while preserving reading flow.
+  - [x] Return normalized extraction payload with deterministic metadata (`source_format`, `sections`, `text_length`, warnings).
+- [x] Wire extraction orchestration path for TXT/Markdown through `ImportService.extract_document()` (AC: 1, 2, 4)
+  - [x] Route `.txt` and `.md` source formats to `text_extractor.py`.
+  - [x] Preserve normalized envelope contract `{ok, data, error}` and error shape `{code, message, details, retryable}`.
+  - [x] Ensure extractor-unavailable and unsupported-format failure paths stay deterministic and actionable.
+- [x] Extend actionable presenter feedback in `conversion_presenter.py` for text-engine extraction outcomes (AC: 4)
+  - [x] Keep all user-facing extraction messages English-only.
+  - [x] Provide actionable failure messages for encoding and unreadable source failures.
+  - [x] Preserve downstream conversion gating on extraction failure.
+- [x] Add structured observability for text extraction lifecycle (AC: 4)
+  - [x] Emit `extraction.started`, `extraction.succeeded`, `extraction.failed` with `stage=extraction` and `engine=text`.
+  - [x] Ensure payload includes required fields: `correlation_id`, `job_id`, `chunk_index`, `event`, `severity`, `timestamp`.
+  - [x] Add useful diagnostics (`source_format`, `text_length`, `encoding_warnings`, `normalization_warnings`).
+- [x] Add test coverage for deterministic behavior, anomalies, and orchestration integration (AC: 1..4)
+  - [x] Unit tests for UTF-8 parsing, line break normalization, markdown cleanup, and very large input guardrails.
+  - [x] Unit tests for encoding anomalies and unreadable byte handling mapped to normalized errors.
+  - [x] Orchestration tests for `.txt`/`.md` routing and extractor-unavailable behavior.
+  - [x] Presenter tests for actionable English messaging and failure gating semantics.
 
 ## Dev Notes
 
@@ -198,6 +198,8 @@ gpt-5.3-codex
 - `cat _bmad-output/planning-artifacts/architecture.md`
 - `cat _bmad-output/planning-artifacts/prd.md`
 - `git log --oneline -n 5`
+- `PYTHONPATH=src python -m unittest tests.unit.test_text_extractor tests.unit.test_extraction_orchestration tests.integration.test_import_flow_integration`
+- `PYTHONPATH=src python -m unittest discover -s tests -t .`
 
 ### Completion Notes List
 
@@ -205,7 +207,24 @@ gpt-5.3-codex
 - Acceptance criteria aligned with Epic 2 Story 2.4 in planning artifacts.
 - Developer context includes architecture constraints, prior-story learnings, git intelligence, and implementation guardrails.
 - Story intentionally emphasizes deterministic normalization, normalized error contract continuity, and local observability.
+- Implemented `TextExtractor` with deterministic TXT/Markdown normalization, markdown cleanup, UTF-8-first decoding, and normalized error handling for encoding anomalies.
+- Wired `.txt` / `.md` routing in `ImportService.extract_document()` with deterministic extractor-unavailable behavior.
+- Extended presenter messaging for actionable English-only text encoding failures.
+- Added unit + orchestration + integration coverage for text extraction flow and observability payload expectations.
+- Ran full regression suite: `68` tests passed.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/2-4-extract-and-normalize-txt-and-markdown-inputs.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/adapters/extraction/__init__.py
+- src/adapters/extraction/text_extractor.py
+- src/domain/services/import_service.py
+- src/ui/presenters/conversion_presenter.py
+- tests/integration/test_import_flow_integration.py
+- tests/unit/test_extraction_orchestration.py
+- tests/unit/test_text_extractor.py
+
+## Change Log
+
+- 2026-02-13: Implemented Story 2.4 TXT/Markdown extraction, observability, orchestration routing, presenter messaging, and regression-safe test coverage.
