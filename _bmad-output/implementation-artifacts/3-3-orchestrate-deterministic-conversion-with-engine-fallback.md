@@ -1,6 +1,6 @@
 # Story 3.3: Orchestrate Deterministic Conversion with Engine Fallback
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,26 +34,26 @@ so that conversion can continue when the primary engine fails.
 
 ## Tasks / Subtasks
 
-- [ ] Implement deterministic orchestration pipeline over persisted chunks (AC: 1)
-  - [ ] Add orchestration entrypoint in `src/domain/services/tts_orchestration_service.py` to process all chunks for a job in strict `chunk_index` order.
-  - [ ] Fetch chunk rows only through `src/adapters/persistence/sqlite/repositories/chunks_repository.py` and reject execution when no persisted chunks exist.
-  - [ ] Return normalized stage results using `src/contracts/result.py` and `src/contracts/errors.py` without leaking provider-specific internals.
-- [ ] Keep fallback policy exclusively in orchestration layer (AC: 2)
-  - [ ] Reuse/extend `synthesize_with_fallback(...)` policy in `tts_orchestration_service.py`; do not implement fallback branching in `src/adapters/tts/chatterbox_provider.py` or `src/adapters/tts/kokoro_provider.py`.
-  - [ ] Enforce deterministic fallback trigger criteria (availability category and non-retryable semantics) and consistent error codes for both single-chunk and whole-job orchestration flows.
-  - [ ] Persist/emit which engine actually synthesized each chunk so downstream diagnostics remain deterministic.
-- [ ] Emit complete observability events per chunk lifecycle (AC: 3)
-  - [ ] For each chunk, emit `tts.chunk_started`, `tts.chunk_succeeded`, `tts.chunk_failed`, and `tts.fallback_applied` (when applicable) through the event logger boundary.
-  - [ ] Ensure payload includes required schema fields: `correlation_id`, `job_id`, `chunk_index`, `engine`, `stage`, `event`, `severity`, `timestamp`.
-  - [ ] Keep event names in `domain.action` format and UTC ISO-8601 timestamps.
-- [ ] Handle unrecoverable chunk failures with validated state ownership (AC: 4)
-  - [ ] If both providers fail on a chunk, return deterministic normalized failure and stop further chunk synthesis for that job run.
-  - [ ] Delegate any job status transition intent to validated state rules (`queued`, `running`, `paused`, `failed`, `completed`) via service-level transition validation.
-  - [ ] Avoid direct UI-thread or adapter-side state mutation.
-- [ ] Add robust regression coverage for orchestration and fallback (AC: 1..4)
-  - [ ] Unit tests in `tests/unit/test_tts_orchestration_service.py` for strict index order, fallback conditions, and deterministic error behavior.
-  - [ ] Integration tests in `tests/integration/test_chunk_persistence_and_resume_path.py` for persisted chunk execution order and failure path consistency.
-  - [ ] Validate event contract shape in tests to ensure required JSONL fields and `domain.action` naming are preserved.
+- [x] Implement deterministic orchestration pipeline over persisted chunks (AC: 1)
+  - [x] Add orchestration entrypoint in `src/domain/services/tts_orchestration_service.py` to process all chunks for a job in strict `chunk_index` order.
+  - [x] Fetch chunk rows only through `src/adapters/persistence/sqlite/repositories/chunks_repository.py` and reject execution when no persisted chunks exist.
+  - [x] Return normalized stage results using `src/contracts/result.py` and `src/contracts/errors.py` without leaking provider-specific internals.
+- [x] Keep fallback policy exclusively in orchestration layer (AC: 2)
+  - [x] Reuse/extend `synthesize_with_fallback(...)` policy in `tts_orchestration_service.py`; do not implement fallback branching in `src/adapters/tts/chatterbox_provider.py` or `src/adapters/tts/kokoro_provider.py`.
+  - [x] Enforce deterministic fallback trigger criteria (availability category and non-retryable semantics) and consistent error codes for both single-chunk and whole-job orchestration flows.
+  - [x] Persist/emit which engine actually synthesized each chunk so downstream diagnostics remain deterministic.
+- [x] Emit complete observability events per chunk lifecycle (AC: 3)
+  - [x] For each chunk, emit `tts.chunk_started`, `tts.chunk_succeeded`, `tts.chunk_failed`, and `tts.fallback_applied` (when applicable) through the event logger boundary.
+  - [x] Ensure payload includes required schema fields: `correlation_id`, `job_id`, `chunk_index`, `engine`, `stage`, `event`, `severity`, `timestamp`.
+  - [x] Keep event names in `domain.action` format and UTC ISO-8601 timestamps.
+- [x] Handle unrecoverable chunk failures with validated state ownership (AC: 4)
+  - [x] If both providers fail on a chunk, return deterministic normalized failure and stop further chunk synthesis for that job run.
+  - [x] Delegate any job status transition intent to validated state rules (`queued`, `running`, `paused`, `failed`, `completed`) via service-level transition validation.
+  - [x] Avoid direct UI-thread or adapter-side state mutation.
+- [x] Add robust regression coverage for orchestration and fallback (AC: 1..4)
+  - [x] Unit tests in `tests/unit/test_tts_orchestration_service.py` for strict index order, fallback conditions, and deterministic error behavior.
+  - [x] Integration tests in `tests/integration/test_chunk_persistence_and_resume_path.py` for persisted chunk execution order and failure path consistency.
+  - [x] Validate event contract shape in tests to ensure required JSONL fields and `domain.action` naming are preserved.
 
 ## Dev Notes
 
@@ -225,6 +225,10 @@ gpt-5.3-codex
 - `git log --oneline -n 5`
 - `git log --name-only --oneline -n 5`
 - `python - <<'PY' ... (PyPI package metadata check) ... PY`
+- `python -m pytest tests/unit/test_tts_orchestration_service.py tests/integration/test_chunk_persistence_and_resume_path.py -q`
+- `python -m unittest tests.unit.test_tts_orchestration_service tests.integration.test_chunk_persistence_and_resume_path -v`
+- `PYTHONPATH=.:src python -m unittest tests.unit.test_tts_orchestration_service tests.integration.test_chunk_persistence_and_resume_path -v`
+- `PYTHONPATH=.:src python -m unittest -v`
 
 ### Completion Notes List
 
@@ -233,7 +237,23 @@ gpt-5.3-codex
 - Deterministic orchestration guardrails defined: persisted chunk order, fallback ownership, normalized failure behavior, and strict observability schema.
 - Story status explicitly set to `ready-for-dev`.
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Implemented `synthesize_persisted_chunks_for_job(...)` in orchestration service to process persisted chunks in strict ascending `chunk_index` order and return normalized `{ok, data, error}` envelopes.
+- Extended orchestration-owned fallback flow with deterministic attempt trace and reusable policy path without introducing any fallback branch in provider adapters.
+- Added per-chunk observability events `tts.chunk_started`, `tts.fallback_applied`, `tts.chunk_succeeded`, `tts.chunk_failed` with required JSONL schema fields and UTC ISO-8601 timestamps.
+- Added deterministic unrecoverable failure behavior (`tts_orchestration.chunk_failed_unrecoverable`) with `retryable=false`, attempted engine details, chunk index, and validated transition intent through service-layer state validation.
+- Added repository method `update_chunk_synthesis_outcome(...)` to persist chunk synthesis status selected by orchestration.
+- Added/updated unit and integration coverage for ordering, fallback eligibility, dual-provider failure halting, deterministic error payloads, and event schema conformance.
+- Full regression suite executed with `PYTHONPATH=.:src python -m unittest -v`: 118 tests passed.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-3-orchestrate-deterministic-conversion-with-engine-fallback.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/domain/services/tts_orchestration_service.py
+- src/adapters/persistence/sqlite/repositories/chunks_repository.py
+- tests/unit/test_tts_orchestration_service.py
+- tests/integration/test_chunk_persistence_and_resume_path.py
+
+### Change Log
+
+- 2026-02-13: Implemented Story 3.3 deterministic persisted-chunk orchestration with orchestration-owned fallback, structured per-chunk events, deterministic dual-failure handling, and comprehensive regression coverage.

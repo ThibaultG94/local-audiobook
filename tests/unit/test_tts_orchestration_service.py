@@ -235,3 +235,165 @@ class TestTtsOrchestrationService(unittest.TestCase):
         self.assertEqual(result.error.code, "chunking.invalid_text")
         failed_events = [event for event in logger.events if event.get("event") == "chunking.failed"]
         self.assertEqual(len(failed_events), 1)
+
+    def test_synthesize_persisted_chunks_processes_strict_index_order_and_emits_lifecycle_events(self) -> None:
+        class _InMemoryChunksRepository:
+            def __init__(self) -> None:
+                self.rows = [
+                    {"job_id": "job-order", "chunk_index": 2, "text_content": "trois", "status": "pending"},
+                    {"job_id": "job-order", "chunk_index": 0, "text_content": "un", "status": "pending"},
+                    {"job_id": "job-order", "chunk_index": 1, "text_content": "deux", "status": "pending"},
+                ]
+                self.updated: list[tuple[str, int, str]] = []
+
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return [row for row in self.rows if row["job_id"] == job_id]
+
+            def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+                self.updated.append((job_id, chunk_index, status))
+
+        class _CapturingLogger:
+            def __init__(self) -> None:
+                self.events: list[dict[str, object]] = []
+
+            def emit(self, **payload: object) -> None:
+                self.events.append(payload)
+
+        repo = _InMemoryChunksRepository()
+        logger = _CapturingLogger()
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(healthy=True),
+            fallback_provider=KokoroProvider(healthy=True),
+            chunks_repository=repo,
+            logger=logger,
+        )
+
+        result = orchestrator.synthesize_persisted_chunks_for_job(
+            job_id="job-order",
+            correlation_id="corr-order",
+        )
+
+        self.assertTrue(result.ok)
+        indices = [item["chunk_index"] for item in result.data["chunk_results"]]
+        self.assertEqual(indices, [0, 1, 2])
+        self.assertEqual([item[1] for item in repo.updated], [0, 1, 2])
+
+        event_names = [event.get("event") for event in logger.events]
+        self.assertGreaterEqual(event_names.count("tts.chunk_started"), 3)
+        self.assertGreaterEqual(event_names.count("tts.chunk_succeeded"), 3)
+        for event in logger.events:
+            self.assertIn("correlation_id", event)
+            self.assertIn("job_id", event)
+            self.assertIn("chunk_index", event)
+            self.assertIn("engine", event)
+            self.assertIn("stage", event)
+            self.assertIn("event", event)
+            self.assertIn("severity", event)
+            self.assertIn("timestamp", event)
+
+    def test_synthesize_persisted_chunks_applies_fallback_only_for_eligible_failures(self) -> None:
+        class _InMemoryChunksRepository:
+            def __init__(self) -> None:
+                self.rows = [{"job_id": "job-fallback", "chunk_index": 0, "text_content": "Texte ok", "status": "pending"}]
+                self.updated: list[tuple[str, int, str]] = []
+
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return [row for row in self.rows if row["job_id"] == job_id]
+
+            def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+                self.updated.append((job_id, chunk_index, status))
+
+        class _CapturingLogger:
+            def __init__(self) -> None:
+                self.events: list[dict[str, object]] = []
+
+            def emit(self, **payload: object) -> None:
+                self.events.append(payload)
+
+        repo = _InMemoryChunksRepository()
+        logger = _CapturingLogger()
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(model_available=False),
+            fallback_provider=KokoroProvider(healthy=True),
+            chunks_repository=repo,
+            logger=logger,
+        )
+
+        result = orchestrator.synthesize_persisted_chunks_for_job(
+            job_id="job-fallback",
+            correlation_id="corr-fallback",
+        )
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.data["chunk_results"][0]["engine"], "kokoro_cpu")
+        fallback_events = [event for event in logger.events if event.get("event") == "tts.fallback_applied"]
+        self.assertEqual(len(fallback_events), 1)
+        self.assertEqual(repo.updated[0][2], "synthesized_kokoro_cpu")
+
+    def test_synthesize_persisted_chunks_dual_failure_returns_deterministic_error_and_halts(self) -> None:
+        class _InMemoryChunksRepository:
+            def __init__(self) -> None:
+                self.rows = [
+                    {"job_id": "job-fail", "chunk_index": 0, "text_content": "A", "status": "pending"},
+                    {"job_id": "job-fail", "chunk_index": 1, "text_content": "B", "status": "pending"},
+                ]
+                self.updated: list[tuple[str, int, str]] = []
+
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return [row for row in self.rows if row["job_id"] == job_id]
+
+            def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+                self.updated.append((job_id, chunk_index, status))
+
+        class _CapturingLogger:
+            def __init__(self) -> None:
+                self.events: list[dict[str, object]] = []
+
+            def emit(self, **payload: object) -> None:
+                self.events.append(payload)
+
+        repo = _InMemoryChunksRepository()
+        logger = _CapturingLogger()
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(model_available=False),
+            fallback_provider=KokoroProvider(model_available=False),
+            chunks_repository=repo,
+            logger=logger,
+        )
+
+        result = orchestrator.synthesize_persisted_chunks_for_job(
+            job_id="job-fail",
+            correlation_id="corr-fail",
+            current_job_state="running",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "tts_orchestration.chunk_failed_unrecoverable")
+        self.assertFalse(result.error.retryable)
+        self.assertEqual(result.error.details["chunk_index"], 0)
+        self.assertEqual(result.error.details["attempted_engines"], ["chatterbox_gpu", "kokoro_cpu"])
+        self.assertTrue(result.error.details["transition_intent"]["validated"])
+
+        started_events = [event for event in logger.events if event.get("event") == "tts.chunk_started"]
+        self.assertEqual([event["chunk_index"] for event in started_events], [0])
+        failed_events = [event for event in logger.events if event.get("event") == "tts.chunk_failed"]
+        self.assertEqual(len(failed_events), 1)
+        self.assertEqual(repo.updated, [("job-fail", 0, "failed")])
+
+    def test_synthesize_persisted_chunks_rejects_empty_persisted_set(self) -> None:
+        class _InMemoryChunksRepository:
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return []
+
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(healthy=True),
+            chunks_repository=_InMemoryChunksRepository(),
+        )
+
+        result = orchestrator.synthesize_persisted_chunks_for_job(
+            job_id="job-empty",
+            correlation_id="corr-empty",
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "tts_orchestration.no_persisted_chunks")

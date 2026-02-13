@@ -103,3 +103,15 @@ class ChunksRepository(BaseRepository):
             }
             for row in rows
         ]
+
+    def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+        """Persist deterministic synthesis outcome for one chunk."""
+        with self._connection:
+            self._connection.execute(
+                """
+                UPDATE chunks
+                SET status = ?
+                WHERE job_id = ? AND chunk_index = ?
+                """,
+                (status, job_id, int(chunk_index)),
+            )
