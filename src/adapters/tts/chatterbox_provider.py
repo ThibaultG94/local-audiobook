@@ -6,8 +6,7 @@ import struct
 import wave
 from io import BytesIO
 
-from contracts.result import Result, success
-from domain.ports.tts_provider import TtsSynthesisData, TtsVoice
+from domain.ports.tts_provider import TtsVoice
 from adapters.tts.base_tts_provider import BaseTtsProvider
 
 
@@ -57,114 +56,9 @@ class ChatterboxProvider(BaseTtsProvider):
         
         return buffer.getvalue()
 
-    def synthesize_chunk(
-        self,
-        text: str,
-        voice: str | None = None,
-        *,
-        correlation_id: str = "",
-        job_id: str = "",
-        chunk_index: int = -1,
-    ) -> Result[TtsSynthesisData]:
-        """Synthesize one text chunk into canonical audio + metadata payload."""
-        self._emit_event(
-            event="tts.synthesis_started",
-            stage="tts",
-            correlation_id=correlation_id,
-            job_id=job_id,
-            chunk_index=chunk_index,
-            extra={"voice": voice or "default"},
-        )
-
-        # Check engine availability before synthesis
-        if self._model_available is not None and not self._model_available:
-            self._emit_event(
-                event="tts.synthesis_failed",
-                stage="tts",
-                severity="ERROR",
-                correlation_id=correlation_id,
-                job_id=job_id,
-                chunk_index=chunk_index,
-                extra={"code": "tts_engine_unavailable"},
-            )
-            return self._build_health_failure("model_not_available")
-
-        if not self._healthy:
-            self._emit_event(
-                event="tts.synthesis_failed",
-                stage="tts",
-                severity="ERROR",
-                correlation_id=correlation_id,
-                job_id=job_id,
-                chunk_index=chunk_index,
-                extra={"code": "tts_engine_unavailable"},
-            )
-            return self._build_health_failure("unhealthy")
-
-        # Validate text input
-        text_validation = self._validate_text_input(text)
-        if not text_validation.ok:
-            self._emit_event(
-                event="tts.synthesis_failed",
-                stage="tts",
-                severity="ERROR",
-                correlation_id=correlation_id,
-                job_id=job_id,
-                chunk_index=chunk_index,
-                extra={"code": text_validation.error.code},
-            )
-            return Result(ok=False, data=None, error=text_validation.error)
-
-        # Validate voice input
-        voice_validation = self._validate_voice_input(voice, self._get_available_voice_ids())
-        if not voice_validation.ok:
-            self._emit_event(
-                event="tts.synthesis_failed",
-                stage="tts",
-                severity="ERROR",
-                correlation_id=correlation_id,
-                job_id=job_id,
-                chunk_index=chunk_index,
-                extra={"code": voice_validation.error.code},
-            )
-            return Result(ok=False, data=None, error=voice_validation.error)
-
-        selected_voice = voice_validation.data
-        
-        # Synthesize audio
-        audio_bytes = self._synthesize_audio(text, selected_voice)
-        
-        data: TtsSynthesisData = {
-            "audio_bytes": audio_bytes,
-            "metadata": {
-                "engine": self.engine_name,
-                "voice_id": selected_voice,
-                "content_type": "audio/wav",
-                "sample_rate_hz": self._get_sample_rate(),
-            },
-        }
-
-        self._emit_event(
-            event="tts.synthesis_completed",
-            stage="tts",
-            correlation_id=correlation_id,
-            job_id=job_id,
-            chunk_index=chunk_index,
-            extra={"voice": selected_voice, "audio_size_bytes": len(audio_bytes)},
-        )
-        return success(data)
-
-    def list_voices(self) -> Result[list[TtsVoice]]:
-        """Return locally available voices in canonical shape."""
-        self._emit_event(
-            event="tts.list_voices_started",
-            stage="tts",
-            correlation_id="system",
-            job_id="",
-            chunk_index=-1,
-        )
-        
-        voices: list[TtsVoice] = [
+    def _build_voice_list(self) -> list[TtsVoice]:
+        """Build the list of available voices for Chatterbox engine."""
+        return [
             {
                 "id": "default",
                 "name": "Default Chatterbox Voice",
@@ -173,57 +67,3 @@ class ChatterboxProvider(BaseTtsProvider):
                 "supports_streaming": False,
             }
         ]
-        
-        self._emit_event(
-            event="tts.list_voices_completed",
-            stage="tts",
-            correlation_id="system",
-            job_id="",
-            chunk_index=-1,
-            extra={"voice_count": len(voices)},
-        )
-        return success(voices)
-
-    def health_check(self) -> Result[dict[str, object]]:
-        """Report local engine health and availability."""
-        self._emit_event(
-            event="tts.health_check_started",
-            stage="tts",
-            correlation_id="system",
-            job_id="",
-            chunk_index=-1,
-        )
-        
-        # If model availability was explicitly provided, use it to gate health
-        if self._model_available is not None and not self._model_available:
-            self._emit_event(
-                event="tts.health_check_failed",
-                stage="tts",
-                severity="ERROR",
-                correlation_id="system",
-                job_id="",
-                chunk_index=-1,
-                extra={"code": "tts_engine_unavailable"},
-            )
-            return self._build_health_failure("model_not_available")
-
-        if not self._healthy:
-            self._emit_event(
-                event="tts.health_check_failed",
-                stage="tts",
-                severity="ERROR",
-                correlation_id="system",
-                job_id="",
-                chunk_index=-1,
-                extra={"code": "tts_engine_unavailable"},
-            )
-            return self._build_health_failure("unhealthy")
-
-        self._emit_event(
-            event="tts.health_check_completed",
-            stage="tts",
-            correlation_id="system",
-            job_id="",
-            chunk_index=-1,
-        )
-        return success({"engine": self.engine_name, "available": True})

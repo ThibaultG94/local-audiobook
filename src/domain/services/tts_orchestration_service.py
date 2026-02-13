@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from contracts.result import Result, failure, success
 from domain.services.job_state_validator import validate_job_state_transition
@@ -12,6 +12,44 @@ from domain.services.job_state_validator import validate_job_state_transition
 if TYPE_CHECKING:
     from domain.services.chunking_service import ChunkingService
     from domain.ports.tts_provider import TtsProvider, TtsSynthesisData
+
+
+@runtime_checkable
+class ChunksRepositoryPort(Protocol):
+    """Protocol for chunks repository operations."""
+
+    def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+        """List all chunks for a job in chunk_index order."""
+        ...
+
+    def replace_chunks_for_job(self, *, job_id: str, chunks: list[dict[str, object]]) -> list[dict[str, object]]:
+        """Replace all chunks for a job with new chunk set."""
+        ...
+
+    def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+        """Update synthesis outcome status for a specific chunk."""
+        ...
+
+
+@runtime_checkable
+class EventLoggerPort(Protocol):
+    """Protocol for event logging operations."""
+
+    def emit(
+        self,
+        *,
+        event: str,
+        stage: str,
+        severity: str = "INFO",
+        correlation_id: str = "",
+        job_id: str = "",
+        chunk_index: int = -1,
+        engine: str = "",
+        timestamp: str = "",
+        extra: dict[str, object] | None = None,
+    ) -> None:
+        """Emit a structured event."""
+        ...
 
 
 class TtsOrchestrationService:
@@ -26,14 +64,17 @@ class TtsOrchestrationService:
         primary_provider: TtsProvider | None = None,
         fallback_provider: TtsProvider | None = None,
         chunking_service: ChunkingService | None = None,
-        chunks_repository: object | None = None,
-        logger: object | None = None,
+        chunks_repository: ChunksRepositoryPort | None = None,
+        logger: EventLoggerPort | None = None,
     ) -> None:
         """Initialize orchestration service with optional providers.
         
         Args:
             primary_provider: Primary TTS provider (e.g., Chatterbox GPU)
             fallback_provider: Fallback TTS provider (e.g., Kokoro CPU)
+            chunking_service: Service for text chunking operations
+            chunks_repository: Repository for chunk persistence
+            logger: Event logger for structured logging
         """
         self._primary_provider = primary_provider
         self._fallback_provider = fallback_provider
@@ -92,7 +133,7 @@ class TtsOrchestrationService:
         This orchestration entrypoint owns fallback policy decisions and emits
         per-chunk structured lifecycle events for diagnosis.
         """
-        if self._chunks_repository is None or not hasattr(self._chunks_repository, "list_chunks_for_job"):
+        if self._chunks_repository is None:
             return failure(
                 code="tts_orchestration.repository_unavailable",
                 message="Chunks repository is not configured",
@@ -109,6 +150,8 @@ class TtsOrchestrationService:
                 retryable=False,
             )
 
+        # Sort chunks by index to ensure deterministic processing order
+        # Convert to int to handle both string and numeric chunk_index values from repository
         ordered_chunks = sorted(persisted_chunks, key=lambda chunk: int(chunk["chunk_index"]))
         chunk_results: list[dict[str, object]] = []
 
@@ -200,7 +243,12 @@ class TtsOrchestrationService:
                 job_id=job_id,
                 chunk_index=chunk_index,
                 engine=str(attempt_trace.get("selected_engine") or started_engine),
-                extra={"code": "tts_orchestration.chunk_failed_unrecoverable"},
+                extra={
+                    "code": "tts_orchestration.chunk_failed_unrecoverable",
+                    "primary_error": attempt_trace.get("primary_error", {}),
+                    "fallback_error": attempt_trace.get("fallback_error", {}),
+                    "attempted_engines": attempt_trace.get("attempted_engines", []),
+                },
             )
 
             return failure(
@@ -409,7 +457,7 @@ class TtsOrchestrationService:
                 retryable=False,
             )
 
-        if self._chunks_repository is None or not hasattr(self._chunks_repository, "replace_chunks_for_job"):
+        if self._chunks_repository is None:
             return failure(
                 code="chunking.repository_unavailable",
                 message="Chunks repository is not configured",
@@ -545,9 +593,18 @@ class TtsOrchestrationService:
         )
 
     def _persist_chunk_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
-        """Persist chunk-level synthesis outcome when repository supports it."""
-        if self._chunks_repository is None or not hasattr(self._chunks_repository, "update_chunk_synthesis_outcome"):
-            return
+        """Persist chunk-level synthesis outcome.
+        
+        Critical: This method must succeed or raise an exception. Silent failures
+        would compromise resume capability and state consistency.
+        
+        Raises:
+            RuntimeError: If repository is not configured or persistence fails
+        """
+        if self._chunks_repository is None:
+            raise RuntimeError(
+                f"Cannot persist chunk outcome: repository not configured (job_id={job_id}, chunk_index={chunk_index})"
+            )
 
         self._chunks_repository.update_chunk_synthesis_outcome(
             job_id=job_id,

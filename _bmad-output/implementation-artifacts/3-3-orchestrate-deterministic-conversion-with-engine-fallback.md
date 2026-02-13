@@ -1,6 +1,6 @@
 # Story 3.3: Orchestrate Deterministic Conversion with Engine Fallback
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -244,6 +244,7 @@ gpt-5.3-codex
 - Added repository method `update_chunk_synthesis_outcome(...)` to persist chunk synthesis status selected by orchestration.
 - Added/updated unit and integration coverage for ordering, fallback eligibility, dual-provider failure halting, deterministic error payloads, and event schema conformance.
 - Full regression suite executed with `PYTHONPATH=.:src python -m unittest -v`: 118 tests passed.
+- **Code review completed (2026-02-13)**: Fixed 7 HIGH/MEDIUM issues including type safety, code duplication, error handling, and test coverage. All tests passing (16 unit + 5 integration).
 
 ### File List
 
@@ -251,9 +252,21 @@ gpt-5.3-codex
 - _bmad-output/implementation-artifacts/sprint-status.yaml
 - src/domain/services/tts_orchestration_service.py
 - src/adapters/persistence/sqlite/repositories/chunks_repository.py
+- src/adapters/tts/base_tts_provider.py
+- src/adapters/tts/chatterbox_provider.py
+- src/adapters/tts/kokoro_provider.py
 - tests/unit/test_tts_orchestration_service.py
 - tests/integration/test_chunk_persistence_and_resume_path.py
 
 ### Change Log
 
 - 2026-02-13: Implemented Story 3.3 deterministic persisted-chunk orchestration with orchestration-owned fallback, structured per-chunk events, deterministic dual-failure handling, and comprehensive regression coverage.
+- 2026-02-13: Code review fixes applied:
+  - Added Protocol types for `ChunksRepositoryPort` and `EventLoggerPort` to replace weak `object` types
+  - Removed fragile `hasattr` runtime checks in favor of type-safe Protocol contracts
+  - Changed `_persist_chunk_outcome` to raise `RuntimeError` on missing repository instead of silent failure
+  - Eliminated 230 lines of code duplication by moving common provider logic to `BaseTtsProvider`
+  - Enhanced event logging with error details in `tts.chunk_failed` events
+  - Added event schema validation tests (ISO-8601, domain.action format, severity values)
+  - Added test for critical `_persist_chunk_outcome` exception behavior
+  - Added documentation comment explaining chunk sorting logic

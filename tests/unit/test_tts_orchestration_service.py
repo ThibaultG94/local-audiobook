@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 
 from adapters.tts.chatterbox_provider import ChatterboxProvider
 from adapters.tts.kokoro_provider import KokoroProvider
 from domain.services.chunking_service import ChunkingService
 from domain.services.tts_orchestration_service import TtsOrchestrationService
+from infrastructure.logging.event_schema import is_valid_utc_iso_8601
 
 
 class TestTtsOrchestrationService(unittest.TestCase):
@@ -281,7 +283,10 @@ class TestTtsOrchestrationService(unittest.TestCase):
         event_names = [event.get("event") for event in logger.events]
         self.assertGreaterEqual(event_names.count("tts.chunk_started"), 3)
         self.assertGreaterEqual(event_names.count("tts.chunk_succeeded"), 3)
+        
+        # Validate event schema compliance
         for event in logger.events:
+            # Required fields
             self.assertIn("correlation_id", event)
             self.assertIn("job_id", event)
             self.assertIn("chunk_index", event)
@@ -290,6 +295,15 @@ class TestTtsOrchestrationService(unittest.TestCase):
             self.assertIn("event", event)
             self.assertIn("severity", event)
             self.assertIn("timestamp", event)
+            
+            # Validate timestamp format (ISO-8601 UTC)
+            self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
+            
+            # Validate event naming convention (domain.action)
+            self.assertRegex(event["event"], r"^\w+\.\w+$", f"Event name '{event['event']}' must follow domain.action format")
+            
+            # Validate severity values
+            self.assertIn(event["severity"], ["INFO", "WARNING", "ERROR"])
 
     def test_synthesize_persisted_chunks_applies_fallback_only_for_eligible_failures(self) -> None:
         class _InMemoryChunksRepository:
@@ -397,3 +411,21 @@ class TestTtsOrchestrationService(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "tts_orchestration.no_persisted_chunks")
+
+    def test_persist_chunk_outcome_raises_on_missing_repository(self) -> None:
+        """Critical: _persist_chunk_outcome must raise exception if repository unavailable."""
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(healthy=True),
+            chunks_repository=None,  # No repository configured
+        )
+
+        with self.assertRaises(RuntimeError) as context:
+            orchestrator._persist_chunk_outcome(
+                job_id="test-job",
+                chunk_index=0,
+                status="synthesized_test",
+            )
+
+        self.assertIn("repository not configured", str(context.exception).lower())
+        self.assertIn("job_id=test-job", str(context.exception))
+        self.assertIn("chunk_index=0", str(context.exception))
