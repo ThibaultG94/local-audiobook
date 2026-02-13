@@ -143,3 +143,105 @@ class TestConversionPresenter(unittest.TestCase):
         assert result.error is not None
         self.assertEqual(result.error.code, "configuration.speech_rate_out_of_bounds")
         self.assertEqual(result.error.details["field"], "speech_rate")
+
+    def test_build_conversion_config_rejects_unsupported_engine(self) -> None:
+        presenter = ConversionPresenter()
+
+        result = presenter.build_conversion_config(
+            engine="invalid_engine",
+            voice_id="default",
+            language="EN",
+            speech_rate=1.0,
+            output_format="mp3",
+            voice_catalog=[{"id": "default", "engine": "chatterbox_gpu", "language": "en"}],
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "configuration.engine_unsupported")
+        self.assertEqual(result.error.details["field"], "engine")
+
+    def test_build_conversion_config_rejects_unsupported_output_format(self) -> None:
+        presenter = ConversionPresenter()
+
+        result = presenter.build_conversion_config(
+            engine="chatterbox_gpu",
+            voice_id="default",
+            language="EN",
+            speech_rate=1.0,
+            output_format="ogg",
+            voice_catalog=[{"id": "default", "engine": "chatterbox_gpu", "language": "en"}],
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "configuration.output_format_unsupported")
+        self.assertEqual(result.error.details["field"], "output_format")
+
+    def test_build_conversion_config_rejects_negative_speech_rate(self) -> None:
+        presenter = ConversionPresenter()
+
+        result = presenter.build_conversion_config(
+            engine="chatterbox_gpu",
+            voice_id="default",
+            language="EN",
+            speech_rate=-1.0,
+            output_format="mp3",
+            voice_catalog=[{"id": "default", "engine": "chatterbox_gpu", "language": "en"}],
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "configuration.speech_rate_out_of_bounds")
+        self.assertEqual(result.error.details["field"], "speech_rate")
+
+    def test_build_conversion_config_rejects_empty_voice_catalog(self) -> None:
+        presenter = ConversionPresenter()
+
+        result = presenter.build_conversion_config(
+            engine="chatterbox_gpu",
+            voice_id="default",
+            language="EN",
+            speech_rate=1.0,
+            output_format="mp3",
+            voice_catalog=[],
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "configuration.voice_catalog_empty")
+        self.assertEqual(result.error.details["field"], "voice_catalog")
+
+    def test_build_conversion_config_rejects_engine_with_no_voices_in_catalog(self) -> None:
+        presenter = ConversionPresenter()
+
+        result = presenter.build_conversion_config(
+            engine="kokoro_cpu",
+            voice_id="default",
+            language="EN",
+            speech_rate=1.0,
+            output_format="mp3",
+            voice_catalog=[{"id": "voice1", "engine": "chatterbox_gpu", "language": "en"}],
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "configuration.engine_has_no_voices")
+        self.assertEqual(result.error.details["field"], "engine")
+
+    def test_build_conversion_config_rejects_incompatible_voice_id(self) -> None:
+        presenter = ConversionPresenter()
+
+        result = presenter.build_conversion_config(
+            engine="chatterbox_gpu",
+            voice_id="nonexistent_voice",
+            language="EN",
+            speech_rate=1.0,
+            output_format="mp3",
+            voice_catalog=[{"id": "default", "engine": "chatterbox_gpu", "language": "en"}],
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "configuration.voice_not_compatible")
+        self.assertEqual(result.error.details["field"], "voice_id")

@@ -1,6 +1,6 @@
 # Story 3.5: Configure Conversion Parameters and Output Format in UI
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -189,6 +189,13 @@ gpt-5.3-codex
 - Extended conversion jobs repository for full configuration readback and explicit job creation API.
 - Added/updated unit and integration coverage for validation boundaries, option mapping, persistence/handoff immutability, and configuration event schema compliance.
 - Full regression suite executed successfully: `Ran 135 tests ... OK`.
+- **Code review fixes applied (2026-02-13):**
+  - Fixed import paths in `conversion_view.py` and `conversion_worker.py` to use `src.contracts.result`
+  - Added validation for empty `voice_catalog` with error code `configuration.voice_catalog_empty`
+  - Added validation that selected engine has voices in catalog with error code `configuration.engine_has_no_voices`
+  - Added 6 new unit tests covering edge cases: unsupported engine, unsupported output format, negative speech rate, empty voice catalog, engine with no voices, incompatible voice ID
+  - Added comprehensive docstring to `ConversionView` explaining `current_state` schema
+  - Full regression suite now passes with 141 tests (6 new tests added)
 
 ### File List
 
@@ -207,8 +214,9 @@ gpt-5.3-codex
 
 - 2026-02-13: Story 3.5 context created with full implementation guidance and status `ready-for-dev`.
 - 2026-02-13: Implemented Story 3.5 configuration payload validation, view option mapping, worker persistence/handoff, and observability with full unit/integration coverage.
+- 2026-02-13: Code review completed - fixed 7 HIGH and 3 MEDIUM issues: import paths, validation gaps, missing tests, and documentation. Test suite expanded from 135 to 141 tests.
 
 ## Story Completion Status
 
-- Status set to: `review`
-- Completion note: Implementation complete; all tasks/subtasks checked, configuration ACs validated, and full regression suite passed.
+- Status set to: `done`
+- Completion note: Implementation complete with code review fixes applied; all tasks/subtasks checked, configuration ACs validated, and full regression suite passed (141 tests).

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any, Callable
 
-from contracts.result import Result, failure
+from src.contracts.result import Result, failure
 
 
 Callback = Callable[[Result[dict[str, Any]]], None]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from contracts.result import Result
+from src.contracts.result import Result
 
 
 @runtime_checkable
@@ -30,7 +30,22 @@ class EventLogger(Protocol):
 
 
 class ConversionView:
-    """Framework-neutral conversion view state holder."""
+    """Framework-neutral conversion view state holder.
+    
+    The `current_state` dictionary contains:
+    - status: str - "ready" or "not_ready"
+    - start_enabled: bool - Whether conversion can be started
+    - engine_availability: dict[str, bool] - Engine availability by engine ID
+    - remediation_items: list[str] - Actionable remediation messages
+    - configuration_options: dict - Available configuration options:
+        - engines: list[dict] - Engine options with id, label, disabled, reason
+        - voices: list[dict] - Voice options with id, label, engine, language, disabled, reason
+        - languages: list[dict] - Language options with id, label, disabled, reason
+        - speech_rate: dict - Speech rate bounds with min, max, step
+        - output_formats: list[dict] - Format options with id, label, disabled, reason
+    - error: dict | None - Error details if state update failed
+    - title: str - View title
+    """
 
     def __init__(
         self,

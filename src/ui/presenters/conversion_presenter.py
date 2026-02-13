@@ -146,6 +146,16 @@ class ConversionPresenter:
         normalized_language = str(language).strip().upper()
         normalized_output_format = str(output_format).strip().lower()
 
+        # Validate voice_catalog is not empty
+        if not voice_catalog:
+            return self._reject_configuration(
+                code="configuration.voice_catalog_empty",
+                message="Voice catalog is empty; cannot validate voice compatibility",
+                details={"field": "voice_catalog"},
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
+
         if normalized_engine not in self._SUPPORTED_ENGINES:
             return self._reject_configuration(
                 code="configuration.engine_unsupported",
@@ -154,6 +164,23 @@ class ConversionPresenter:
                     "field": "engine",
                     "engine": normalized_engine,
                     "supported": sorted(self._SUPPORTED_ENGINES),
+                },
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
+
+        # Validate that selected engine has at least one voice in catalog
+        engine_has_voices = any(
+            str(item.get("engine", "")).strip() == normalized_engine
+            for item in voice_catalog
+        )
+        if not engine_has_voices:
+            return self._reject_configuration(
+                code="configuration.engine_has_no_voices",
+                message="Selected engine has no available voices in catalog",
+                details={
+                    "field": "engine",
+                    "engine": normalized_engine,
                 },
                 correlation_id=correlation_id,
                 job_id=job_id,
