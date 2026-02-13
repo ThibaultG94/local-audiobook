@@ -610,11 +610,11 @@ class TestChunkPersistenceAndResumePath(unittest.TestCase):
             resume_events = [
                 event
                 for event in events
-                if event.get("event") in {"conversion.resume_started", "conversion.resume_checkpoint_selected"}
+                if event.get("event") == "conversion.resume_started"
             ]
 
             self.assertGreaterEqual(len(transition_events), 2)
-            self.assertEqual(len(resume_events), 2)
+            self.assertEqual(len(resume_events), 1)
 
             for event in transition_events + resume_events:
                 self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))

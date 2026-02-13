@@ -5,11 +5,11 @@ from __future__ import annotations
 import re
 import unittest
 
-from adapters.tts.chatterbox_provider import ChatterboxProvider
-from adapters.tts.kokoro_provider import KokoroProvider
-from domain.services.chunking_service import ChunkingService
-from domain.services.tts_orchestration_service import TtsOrchestrationService
-from infrastructure.logging.event_schema import is_valid_utc_iso_8601
+from src.adapters.tts.chatterbox_provider import ChatterboxProvider
+from src.adapters.tts.kokoro_provider import KokoroProvider
+from src.domain.services.chunking_service import ChunkingService
+from src.domain.services.tts_orchestration_service import TtsOrchestrationService
+from src.infrastructure.logging.event_schema import is_valid_utc_iso_8601
 
 
 class TestTtsOrchestrationService(unittest.TestCase):
@@ -543,9 +543,9 @@ class TestTtsOrchestrationService(unittest.TestCase):
         self.assertEqual(result.data["retry_decision_path"], "forced_full_reprocess")
         self.assertEqual([item[1] for item in repo.updated], [0, 1])
 
-        checkpoint = [event for event in logger.events if event.get("event") == "conversion.resume_checkpoint_selected"]
-        self.assertEqual(len(checkpoint), 1)
-        self.assertTrue(checkpoint[0].get("extra", {}).get("force_reprocess"))
+        resume_started = [event for event in logger.events if event.get("event") == "conversion.resume_started"]
+        self.assertEqual(len(resume_started), 1)
+        self.assertTrue(resume_started[0].get("extra", {}).get("force_reprocess"))
 
     def test_synthesize_persisted_chunks_rejects_invalid_lifecycle_transition_with_normalized_error(self) -> None:
         class _InMemoryChunksRepository:

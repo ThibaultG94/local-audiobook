@@ -1,6 +1,6 @@
 # Story 3.4: Persist Job Lifecycle and Resume Conversion from Last Failed Chunk
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -244,3 +244,13 @@ gpt-5.3-codex
 ## Change Log
 
 - 2026-02-13: Implémentation complète story 3.4 (transitions job persistées, reprise déterministe, observabilité transition/reprise, couverture de tests unitaires/intégration/régression), statut passé à `review`.
+- 2026-02-13: Code review adversarial complété - 10 issues trouvés (3 CRITICAL, 5 MEDIUM, 2 LOW), 8 corrigés automatiquement:
+  - ✅ CRITICAL #1: Ajout migration 0002 pour `source_format` dans table `documents`
+  - ✅ CRITICAL #2: Autorisation transition `failed` → `running` pour permettre retry
+  - ✅ CRITICAL #3: Ajout champ `retryable` dans toutes les erreurs du validateur
+  - ✅ MEDIUM #4: Uniformisation imports tests (préfixe `src.`)
+  - ✅ MEDIUM #5: Ajout flag `persistence_applied` dans événements de transition
+  - ✅ MEDIUM #7: Suppression événement dupliqué `conversion.resume_checkpoint_selected`
+  - ✅ MEDIUM #8: Documentation complète de `force_reprocess` dans docstring
+  - ✅ LOW #10: Amélioration message d'erreur "chunks repository not configured"
+  - Statut passé à `done` après validation tests (29/29 OK).

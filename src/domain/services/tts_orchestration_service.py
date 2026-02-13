@@ -156,6 +156,16 @@ class TtsOrchestrationService:
 
         This orchestration entrypoint owns fallback policy decisions and emits
         per-chunk structured lifecycle events for diagnosis.
+        
+        Args:
+            job_id: Job identifier
+            correlation_id: Request correlation ID
+            voice: Voice ID (provider-specific)
+            current_job_state: Current job state (default: "running")
+            force_reprocess: If True, reprocess all chunks regardless of status (default: False)
+            
+        Returns:
+            Success with chunk results and resume metadata, or failure with error details
         """
         if self._chunks_repository is None:
             return failure(
@@ -210,19 +220,6 @@ class TtsOrchestrationService:
         )
 
         self._emit_tts_event(
-            event="conversion.resume_checkpoint_selected",
-            severity="INFO",
-            correlation_id=correlation_id,
-            job_id=job_id,
-            chunk_index=resume_start_index,
-            engine="orchestrator",
-            extra={
-                "resume_start_index": resume_start_index,
-                "retry_decision_path": retry_decision_path,
-                "force_reprocess": force_reprocess,
-            },
-        )
-        self._emit_tts_event(
             event="conversion.resume_started",
             severity="INFO",
             correlation_id=correlation_id,
@@ -233,6 +230,7 @@ class TtsOrchestrationService:
                 "resume_start_index": resume_start_index,
                 "retry_decision_path": retry_decision_path,
                 "force_reprocess": force_reprocess,
+                "total_chunks": len(ordered_chunks),
             },
         )
 
@@ -522,6 +520,7 @@ class TtsOrchestrationService:
                 retryable=bool(normalized.get("retryable", False)),
             )
 
+        persistence_applied = False
         if self._conversion_jobs_repository is not None:
             persisted = self._conversion_jobs_repository.update_job_state_if_current(
                 job_id=job_id,
@@ -567,6 +566,7 @@ class TtsOrchestrationService:
                     },
                     retryable=True,
                 )
+            persistence_applied = True
 
         self._emit_tts_event(
             event="job.transition_applied",
@@ -582,6 +582,7 @@ class TtsOrchestrationService:
                     "validated": True,
                 },
                 "reason": reason,
+                "persistence_applied": persistence_applied,
             },
         )
         return success({"current_state": current_state, "next_state": next_state, "no_op": False})
@@ -915,11 +916,11 @@ class TtsOrchestrationService:
         would compromise resume capability and state consistency.
         
         Raises:
-            RuntimeError: If repository is not configured or persistence fails
+            RuntimeError: If chunks repository is not configured or persistence fails
         """
         if self._chunks_repository is None:
             raise RuntimeError(
-                f"Cannot persist chunk outcome: repository not configured (job_id={job_id}, chunk_index={chunk_index})"
+                f"Cannot persist chunk outcome: chunks repository not configured (job_id={job_id}, chunk_index={chunk_index})"
             )
 
         self._chunks_repository.update_chunk_synthesis_outcome(
