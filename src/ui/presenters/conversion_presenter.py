@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from src.contracts.result import Result, failure, success
 
 
+@runtime_checkable
+class EventLoggerPort(Protocol):
+    def emit(self, *, event: str, stage: str, severity: str = "INFO", correlation_id: str = "", **kwargs: Any) -> None: ...
+
+
+class _NoopLogger:
+    def emit(self, *, event: str, stage: str, severity: str = "INFO", correlation_id: str = "", **kwargs: Any) -> None:
+        return None
+
+
 class ConversionPresenter:
     """Map startup readiness payloads into a stable UI-facing view model."""
+
+    def __init__(self, *, logger: EventLoggerPort | None = None) -> None:
+        self._logger = logger or _NoopLogger()
 
     def map_readiness(self, readiness_result: Result[dict[str, Any]]) -> Result[dict[str, Any]]:
         if not readiness_result.ok or readiness_result.data is None:
@@ -62,20 +75,46 @@ class ConversionPresenter:
 
         error = extraction_result.error
         code = error.code if error else "extraction.unknown"
-        details = error.to_dict() if error else {}
+        details = error.to_dict() if error else {"code": code, "message": "Unknown extraction error", "details": {}, "retryable": False}
 
-        source_format = str(details.get("details", {}).get("source_format", "document")).upper()
+        nested_details = details.get("details", {}) if isinstance(details.get("details", {}), dict) else {}
+        source_format_value = str(nested_details.get("source_format", "document"))
+        source_format = source_format_value.upper()
+        retry_enabled = bool(details.get("retryable", False))
+        correlation_id = str(nested_details.get("correlation_id", ""))
+        job_id = str(nested_details.get("job_id", ""))
 
         if code == "extraction.no_text_content":
-            message = f"Unable to extract readable text from {source_format}. Please verify the file contents."
+            message = f"Unable to extract readable text from {source_format}. Verify file contents and re-import the local file."
         elif code in {"extraction.malformed_package", "extraction.malformed_pdf"}:
-            message = f"{source_format} structure appears invalid. Please provide a well-formed file."
+            message = f"{source_format} structure appears invalid. Repair or replace the local file, then retry import."
         elif code == "extraction.encoding_invalid":
             message = f"{source_format} contains unreadable encoding. Please save the file as UTF-8 and try again."
         elif code in {"extraction.unreadable_archive", "extraction.unreadable_source"}:
-            message = f"{source_format} file could not be read. Please check file permissions or integrity."
+            message = f"{source_format} file could not be read. Check local file permissions and integrity, then retry."
+        elif code == "extraction.extractor_unavailable":
+            message = f"No local extractor is available for {source_format}. Verify local setup and try again."
+        elif code == "extraction.unsupported_source_format":
+            message = f"{source_format} is not supported for local extraction. Choose EPUB, PDF, TXT, or MD."
         else:
-            message = f"{source_format} extraction failed. Please try again or select a different file."
+            message = f"{source_format} extraction failed. Review the local file and retry import."
+
+        self._logger.emit(
+            event="diagnostics.presented",
+            stage="extraction",
+            severity="ERROR",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            chunk_index=-1,
+            engine=source_format_value or "extraction",
+            extra={
+                "error_code": code,
+                "retryable": retry_enabled,
+                "source_path": str(nested_details.get("source_path", "")),
+                "source_format": source_format_value,
+                "remediation": message,
+            },
+        )
 
         return success(
             {
@@ -83,6 +122,7 @@ class ConversionPresenter:
                 "severity": "ERROR",
                 "message": message,
                 "details": details,
+                "retry_enabled": retry_enabled,
             }
         )
 

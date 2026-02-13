@@ -90,12 +90,21 @@ class TestImportFlowIntegration(unittest.TestCase):
                 self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
                 self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
 
-            presenter = ConversionPresenter()
+            presenter = ConversionPresenter(logger=logger)
             presented = presenter.map_extraction(extraction)
             self.assertTrue(presented.ok)
             self.assertEqual(presented.data["status"], "failed")
             self.assertIn("EPUB", presented.data["message"])
             self.assertEqual(presented.data["severity"], "ERROR")
+
+            all_events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            diagnostics_events = [event for event in all_events if event.get("event") == "diagnostics.presented"]
+            self.assertEqual(len(diagnostics_events), 1)
+            diagnostics_event = diagnostics_events[0]
+            self.assertEqual(diagnostics_event["stage"], "extraction")
+            self.assertEqual(diagnostics_event["severity"], "ERROR")
+            self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(diagnostics_event.keys()))
+            self.assertTrue(is_valid_utc_iso_8601(diagnostics_event["timestamp"]))
 
             connection.close()
 
@@ -167,7 +176,7 @@ class TestImportFlowIntegration(unittest.TestCase):
                 self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
                 self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
 
-            presenter = ConversionPresenter()
+            presenter = ConversionPresenter(logger=logger)
             presented = presenter.map_extraction(extraction)
             self.assertTrue(presented.ok)
             self.assertEqual(presented.data["status"], "failed")

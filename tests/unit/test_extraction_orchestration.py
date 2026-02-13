@@ -12,15 +12,15 @@ class _CapturingLogger:
         self.events: list[dict[str, str]] = []
 
     def emit(self, *, event: str, stage: str, severity: str = "INFO", correlation_id: str = "", **kwargs: object) -> None:
-        self.events.append(
-            {
-                "event": event,
-                "stage": stage,
-                "severity": severity,
-                "correlation_id": correlation_id,
-                "engine": str(kwargs.get("engine", "")),
-            }
-        )
+        payload: dict[str, object] = {
+            "event": event,
+            "stage": stage,
+            "severity": severity,
+            "correlation_id": correlation_id,
+            "engine": str(kwargs.get("engine", "")),
+        }
+        payload.update(kwargs)
+        self.events.append(payload)
 
 
 class _FakeDocumentsRepository:
@@ -126,6 +126,10 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIsNotNone(result.error)
         self.assertEqual(result.error.code, "extraction.unsupported_source_format")
+        self.assertEqual(result.error.details.get("source_path"), "/tmp/book.docx")
+        self.assertEqual(result.error.details.get("source_format"), "docx")
+        self.assertEqual(result.error.details.get("correlation_id"), "corr-extract-pdf")
+        self.assertEqual(result.error.details.get("job_id"), "job-2")
 
     def test_service_routes_pdf_document_to_pdf_extractor(self) -> None:
         logger = _CapturingLogger()
@@ -180,6 +184,10 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIsNotNone(result.error)
         self.assertEqual(result.error.code, "extraction.extractor_unavailable")
+        self.assertEqual(result.error.details.get("source_path"), "/tmp/book.md")
+        self.assertEqual(result.error.details.get("source_format"), "md")
+        self.assertEqual(result.error.details.get("correlation_id"), "corr-extract-md-missing")
+        self.assertEqual(result.error.details.get("job_id"), "job-5")
 
     def test_presenter_surfaces_actionable_english_feedback_for_pdf_failure(self) -> None:
         presenter = ConversionPresenter()
@@ -197,9 +205,10 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(presented.data["status"], "failed")
         self.assertEqual(
             presented.data["message"],
-            "PDF structure appears invalid. Please provide a well-formed file.",
+            "PDF structure appears invalid. Repair or replace the local file, then retry import.",
         )
         self.assertEqual(presented.data["severity"], "ERROR")
+        self.assertFalse(presented.data["retry_enabled"])
 
     def test_presenter_surfaces_actionable_english_feedback_for_failure(self) -> None:
         presenter = ConversionPresenter()
@@ -215,8 +224,12 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertTrue(presented.ok)
         self.assertIsNotNone(presented.data)
         self.assertEqual(presented.data["status"], "failed")
-        self.assertEqual(presented.data["message"], "Unable to extract readable text from EPUB. Please verify the file contents.")
+        self.assertEqual(
+            presented.data["message"],
+            "Unable to extract readable text from EPUB. Verify file contents and re-import the local file.",
+        )
         self.assertEqual(presented.data["severity"], "ERROR")
+        self.assertFalse(presented.data["retry_enabled"])
 
     def test_presenter_surfaces_actionable_english_feedback_for_text_encoding_failure(self) -> None:
         presenter = ConversionPresenter()
@@ -237,3 +250,46 @@ class TestExtractionOrchestration(unittest.TestCase):
             "TXT contains unreadable encoding. Please save the file as UTF-8 and try again.",
         )
         self.assertEqual(presented.data["severity"], "ERROR")
+        self.assertFalse(presented.data["retry_enabled"])
+
+    def test_presenter_enables_retry_only_when_retryable_true(self) -> None:
+        presenter = ConversionPresenter()
+        extraction_result = failure(
+            code="extraction.unreadable_source",
+            message="Text source file could not be read",
+            details={"source_path": "/tmp/book.txt", "source_format": "txt"},
+            retryable=True,
+        )
+
+        presented = presenter.map_extraction(extraction_result)
+
+        self.assertTrue(presented.ok)
+        self.assertIsNotNone(presented.data)
+        self.assertEqual(presented.data["status"], "failed")
+        self.assertTrue(presented.data["retry_enabled"])
+
+    def test_presenter_emits_diagnostics_presented_event_for_failed_extraction(self) -> None:
+        logger = _CapturingLogger()
+        presenter = ConversionPresenter(logger=logger)
+        extraction_result = failure(
+            code="extraction.malformed_pdf",
+            message="PDF extraction failed due to malformed or unsupported content",
+            details={
+                "source_path": "/tmp/broken.pdf",
+                "source_format": "pdf",
+                "correlation_id": "corr-diag-1",
+                "job_id": "job-diag-1",
+            },
+            retryable=False,
+        )
+
+        presented = presenter.map_extraction(extraction_result)
+
+        self.assertTrue(presented.ok)
+        diagnostic_events = [event for event in logger.events if event.get("event") == "diagnostics.presented"]
+        self.assertEqual(len(diagnostic_events), 1)
+        event = diagnostic_events[0]
+        self.assertEqual(event.get("stage"), "extraction")
+        self.assertEqual(event.get("severity"), "ERROR")
+        self.assertEqual(event.get("correlation_id"), "corr-diag-1")
+        self.assertEqual(event.get("job_id"), "job-diag-1")

@@ -158,41 +158,133 @@ class ImportService:
         job_id: str,
     ) -> Result[dict[str, Any]]:
         source_path = document.get("source_path", "")
-        source_format = document.get("source_format", "").lower()
+        source_format = document.get("source_format", "").lower() or "unknown"
 
         if source_format == "epub":
             if self._epub_extractor is None:
-                return failure(
+                return self._normalized_extraction_failure(
                     code="extraction.extractor_unavailable",
-                    message="EPUB extractor is not configured",
-                    details={"source_format": source_format},
+                    message="No extractor configured for source format: epub",
+                    source_path=source_path,
+                    source_format=source_format,
+                    correlation_id=correlation_id,
+                    job_id=job_id,
                     retryable=False,
                 )
-            return self._epub_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            result = self._epub_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            return self._normalize_extraction_result(
+                result,
+                source_path=source_path,
+                source_format=source_format,
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
 
         if source_format == "pdf":
             if self._pdf_extractor is None:
-                return failure(
+                return self._normalized_extraction_failure(
                     code="extraction.extractor_unavailable",
-                    message="PDF extractor is not configured",
-                    details={"source_format": source_format},
+                    message="No extractor configured for source format: pdf",
+                    source_path=source_path,
+                    source_format=source_format,
+                    correlation_id=correlation_id,
+                    job_id=job_id,
                     retryable=False,
                 )
-            return self._pdf_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            result = self._pdf_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            return self._normalize_extraction_result(
+                result,
+                source_path=source_path,
+                source_format=source_format,
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
 
         if source_format in {"txt", "md"}:
             if self._text_extractor is None:
-                return failure(
+                return self._normalized_extraction_failure(
                     code="extraction.extractor_unavailable",
-                    message="Text extractor is not configured",
-                    details={"source_format": source_format},
+                    message=f"No extractor configured for source format: {source_format}",
+                    source_path=source_path,
+                    source_format=source_format,
+                    correlation_id=correlation_id,
+                    job_id=job_id,
                     retryable=False,
                 )
-            return self._text_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            result = self._text_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            return self._normalize_extraction_result(
+                result,
+                source_path=source_path,
+                source_format=source_format,
+                correlation_id=correlation_id,
+                job_id=job_id,
+            )
 
-        return failure(
+        return self._normalized_extraction_failure(
             code="extraction.unsupported_source_format",
             message="Unsupported source format for extraction",
-            details={"source_format": source_format, "source_path": source_path},
+            source_path=source_path,
+            source_format=source_format,
+            correlation_id=correlation_id,
+            job_id=job_id,
             retryable=False,
+        )
+
+    @staticmethod
+    def _normalized_extraction_failure(
+        *,
+        code: str,
+        message: str,
+        source_path: str,
+        source_format: str,
+        correlation_id: str,
+        job_id: str,
+        retryable: bool,
+    ) -> Result[dict[str, Any]]:
+        return failure(
+            code=code,
+            message=message,
+            details={
+                "source_path": source_path,
+                "source_format": source_format,
+                "correlation_id": correlation_id,
+                "job_id": job_id,
+            },
+            retryable=retryable,
+        )
+
+    def _normalize_extraction_result(
+        self,
+        extraction_result: Result[dict[str, Any]],
+        *,
+        source_path: str,
+        source_format: str,
+        correlation_id: str,
+        job_id: str,
+    ) -> Result[dict[str, Any]]:
+        if extraction_result.ok:
+            return extraction_result
+
+        if extraction_result.error is None:
+            return self._normalized_extraction_failure(
+                code="extraction.runtime_error",
+                message="Extraction failed without a structured error payload",
+                source_path=source_path,
+                source_format=source_format,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                retryable=True,
+            )
+
+        normalized_details = dict(extraction_result.error.details)
+        normalized_details.setdefault("source_path", source_path)
+        normalized_details.setdefault("source_format", source_format)
+        normalized_details.setdefault("correlation_id", correlation_id)
+        normalized_details.setdefault("job_id", job_id)
+
+        return failure(
+            code=extraction_result.error.code,
+            message=extraction_result.error.message,
+            details=normalized_details,
+            retryable=extraction_result.error.retryable,
         )

@@ -95,11 +95,11 @@ def recheck_startup_readiness(container: AppContainer, model_manifest_path: str)
     return readiness_result
 
 
-def build_conversion_presenter() -> Any:
+def build_conversion_presenter(*, logger: JsonlLogger | None = None) -> Any:
     """Build conversion presenter without introducing any UI runtime dependency."""
     from ui.presenters.conversion_presenter import ConversionPresenter
 
-    return ConversionPresenter()
+    return ConversionPresenter(logger=logger)
 
 
 def build_conversion_worker(container: AppContainer, model_manifest_path: str) -> Any:

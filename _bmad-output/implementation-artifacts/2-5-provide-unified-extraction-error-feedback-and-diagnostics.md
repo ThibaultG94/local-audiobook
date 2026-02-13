@@ -1,6 +1,6 @@
 # Story 2.5: Provide Unified Extraction Error Feedback and Diagnostics
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,22 +34,22 @@ so that I can quickly resolve issues and retry successfully.
 
 ## Tasks / Subtasks
 
-- [ ] Unify extraction failure envelope at orchestration boundary in `src/domain/services/import_service.py` (AC: 1)
-  - [ ] Ensure every extractor failure path returns `{ok, data, error}` with normalized `AppError` shape.
-  - [ ] Standardize `details` fields across EPUB/PDF/TXT-MD paths (`source_path`, `source_format`, optional extractor-specific keys).
-  - [ ] Keep extractor-unavailable and unsupported-format failures deterministic and non-ambiguous.
-- [ ] Harden extraction UI diagnostics mapping in `src/ui/presenters/conversion_presenter.py` (AC: 2, 4)
-  - [ ] Map normalized extraction error codes to actionable English remediation messages.
-  - [ ] Surface retry affordance only when `retryable=true`.
-  - [ ] Keep remediation local-only (file integrity, encoding fix, file permissions, local re-import).
-- [ ] Add explicit diagnostics event emission for UI-facing failure presentation (AC: 3)
-  - [ ] Emit `diagnostics.presented` when extraction failure is transformed into user-facing guidance.
-  - [ ] Keep event payload compliant with required schema fields in `event_schema.py`.
-  - [ ] Preserve `domain.action` naming and ISO-8601 UTC timestamp behavior.
-- [ ] Add regression-safe tests for unified extraction diagnostics behavior (AC: 1..4)
-  - [ ] Unit tests for normalized error envelope consistency across extractor failure variants.
-  - [ ] Presenter tests for deterministic message mapping and retry toggle semantics.
-  - [ ] Integration tests for extraction failure logging plus `diagnostics.presented` event emission.
+- [x] Unify extraction failure envelope at orchestration boundary in `src/domain/services/import_service.py` (AC: 1)
+  - [x] Ensure every extractor failure path returns `{ok, data, error}` with normalized `AppError` shape.
+  - [x] Standardize `details` fields across EPUB/PDF/TXT-MD paths (`source_path`, `source_format`, optional extractor-specific keys).
+  - [x] Keep extractor-unavailable and unsupported-format failures deterministic and non-ambiguous.
+- [x] Harden extraction UI diagnostics mapping in `src/ui/presenters/conversion_presenter.py` (AC: 2, 4)
+  - [x] Map normalized extraction error codes to actionable English remediation messages.
+  - [x] Surface retry affordance only when `retryable=true`.
+  - [x] Keep remediation local-only (file integrity, encoding fix, file permissions, local re-import).
+- [x] Add explicit diagnostics event emission for UI-facing failure presentation (AC: 3)
+  - [x] Emit `diagnostics.presented` when extraction failure is transformed into user-facing guidance.
+  - [x] Keep event payload compliant with required schema fields in `event_schema.py`.
+  - [x] Preserve `domain.action` naming and ISO-8601 UTC timestamp behavior.
+- [x] Add regression-safe tests for unified extraction diagnostics behavior (AC: 1..4)
+  - [x] Unit tests for normalized error envelope consistency across extractor failure variants.
+  - [x] Presenter tests for deterministic message mapping and retry toggle semantics.
+  - [x] Integration tests for extraction failure logging plus `diagnostics.presented` event emission.
 
 ## Dev Notes
 
@@ -184,6 +184,10 @@ gpt-5.3-codex
 - `cat _bmad-output/planning-artifacts/prd.md`
 - `cat _bmad-output/planning-artifacts/architecture.md`
 - `git log --oneline -n 5`
+- `python -m unittest tests.unit.test_extraction_orchestration tests.integration.test_import_flow_integration`
+- `PYTHONPATH=src python -m unittest tests.unit.test_extraction_orchestration tests.integration.test_import_flow_integration`
+- `PYTHONPATH=src python -m unittest discover -s tests`
+- `git status --short`
 
 ### Completion Notes List
 
@@ -191,11 +195,24 @@ gpt-5.3-codex
 - Acceptance criteria aligned to Epic 2 Story 2.5.
 - Developer context includes architecture constraints, previous story learnings, and diagnostics-focused guardrails.
 - Implementation guidance emphasizes normalized error envelope consistency, deterministic presenter mapping, and extraction diagnostics event coverage.
+- Implemented extraction failure normalization in `ImportService.extract_document()` to guarantee deterministic `{ok, data, error}` failures with consistent `details` keys (`source_path`, `source_format`, `correlation_id`, `job_id`) across unsupported/extractor-unavailable and propagated adapter failures.
+- Hardened extraction diagnostics in `ConversionPresenter.map_extraction()` with local-only remediation wording, explicit retry gating via `retryable`, and standardized UI payload field `retry_enabled`.
+- Added `diagnostics.presented` event emission from presenter failure mapping with schema-compatible payload (`stage`, `event`, `severity`, `correlation_id`, `job_id`, `engine`, `timestamp`) through injected logger.
+- Updated dependency wiring so presenter can receive logger injection via `build_conversion_presenter(logger=...)` without introducing network/cloud behavior.
+- Added/updated regression coverage for normalized error details, retry semantics, and diagnostics event emission in unit/integration suites.
+- Validation complete: `PYTHONPATH=src python -m unittest discover -s tests` → 72 tests passed.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/2-5-provide-unified-extraction-error-feedback-and-diagnostics.md
+- src/domain/services/import_service.py
+- src/ui/presenters/conversion_presenter.py
+- src/app/dependency_container.py
+- tests/unit/test_extraction_orchestration.py
+- tests/integration/test_import_flow_integration.py
+- _bmad-output/implementation-artifacts/sprint-status.yaml
 
 ## Change Log
 
 - 2026-02-13: Story created with comprehensive developer context and set to `ready-for-dev`.
+- 2026-02-13: Implemented unified extraction diagnostics contract, presenter retry/local remediation mapping, `diagnostics.presented` logging, and regression coverage; story moved to `review`.
