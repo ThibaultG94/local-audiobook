@@ -54,8 +54,8 @@ development_status:
   2-5-provide-unified-extraction-error-feedback-and-diagnostics: done
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-implement-unified-tts-provider-contract-and-engine-adapters: backlog
+  epic-3: in-progress
+  3-1-implement-unified-tts-provider-contract-and-engine-adapters: ready-for-dev
   3-2-segment-long-text-with-phrase-first-chunking-rules: backlog
   3-3-orchestrate-deterministic-conversion-with-engine-fallback: backlog
   3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk: backlog
