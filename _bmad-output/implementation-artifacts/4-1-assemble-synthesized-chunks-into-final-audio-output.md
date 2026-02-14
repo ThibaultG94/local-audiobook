@@ -1,6 +1,6 @@
 # Story 4.1: Assemble Synthesized Chunks into Final Audio Output
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,25 +34,25 @@ so that I can listen to a continuous audiobook in my selected format.
 
 ## Tasks / Subtasks
 
-- [ ] Implement post-processing service for deterministic chunk assembly and format rendering (AC: 1, 2, 3)
-  - [ ] Add `audio_postprocess_service.py` with a single orchestration entrypoint that accepts job id, output format, and chunk artifacts.
-  - [ ] Validate chunk ordering and continuity preconditions before assembly; fail fast with normalized errors on gaps/duplicates/missing payloads.
-  - [ ] Produce normalized success payload containing output artifact metadata for downstream library persistence.
-- [ ] Implement WAV and MP3 adapter boundaries (AC: 2, 3)
-  - [ ] Add `wav_builder.py` to generate valid WAV output deterministically from assembled chunk audio.
-  - [ ] Add `mp3_encoder.py` to generate valid MP3 output deterministically from assembled chunk audio.
-  - [ ] Ensure adapter failures map to normalized `{code, message, details, retryable}` payloads.
-- [ ] Wire post-processing into conversion flow without breaking existing orchestration ownership (AC: 1, 2, 3)
-  - [ ] Integrate service wiring in `dependency_container.py`.
-  - [ ] Extend domain orchestration/worker handoff so post-processing executes after successful synthesis while preserving existing lifecycle semantics.
-  - [ ] Preserve UI non-blocking behavior and existing presenter/view contracts.
-- [ ] Add observability for post-processing lifecycle (AC: 4)
-  - [ ] Emit JSONL events for `postprocess.started`, `postprocess.succeeded`, and `postprocess.failed` (or equivalent stable `domain.action` names).
-  - [ ] Include required fields: `correlation_id`, `job_id`, `stage`, `event`, `severity`, `timestamp` (+ `engine`/`chunk_index` where applicable).
-- [ ] Add test coverage for assembly, format encoding, and observability (AC: 1..4)
-  - [ ] Unit tests for order validation, normalized failure behavior, and metadata payload shape in post-processing service.
-  - [ ] Adapter-focused tests for WAV/MP3 success and failure paths.
-  - [ ] Integration test for end-of-conversion path proving final artifact creation and postprocess event emission.
+- [x] Implement post-processing service for deterministic chunk assembly and format rendering (AC: 1, 2, 3)
+  - [x] Add `audio_postprocess_service.py` with a single orchestration entrypoint that accepts job id, output format, and chunk artifacts.
+  - [x] Validate chunk ordering and continuity preconditions before assembly; fail fast with normalized errors on gaps/duplicates/missing payloads.
+  - [x] Produce normalized success payload containing output artifact metadata for downstream library persistence.
+- [x] Implement WAV and MP3 adapter boundaries (AC: 2, 3)
+  - [x] Add `wav_builder.py` to generate valid WAV output deterministically from assembled chunk audio.
+  - [x] Add `mp3_encoder.py` to generate valid MP3 output deterministically from assembled chunk audio.
+  - [x] Ensure adapter failures map to normalized `{code, message, details, retryable}` payloads.
+- [x] Wire post-processing into conversion flow without breaking existing orchestration ownership (AC: 1, 2, 3)
+  - [x] Integrate service wiring in `dependency_container.py`.
+  - [x] Extend domain orchestration/worker handoff so post-processing executes after successful synthesis while preserving existing lifecycle semantics.
+  - [x] Preserve UI non-blocking behavior and existing presenter/view contracts.
+- [x] Add observability for post-processing lifecycle (AC: 4)
+  - [x] Emit JSONL events for `postprocess.started`, `postprocess.succeeded`, and `postprocess.failed` (or equivalent stable `domain.action` names).
+  - [x] Include required fields: `correlation_id`, `job_id`, `stage`, `event`, `severity`, `timestamp` (+ `engine`/`chunk_index` where applicable).
+- [x] Add test coverage for assembly, format encoding, and observability (AC: 1..4)
+  - [x] Unit tests for order validation, normalized failure behavior, and metadata payload shape in post-processing service.
+  - [x] Adapter-focused tests for WAV/MP3 success and failure paths.
+  - [x] Integration test for end-of-conversion path proving final artifact creation and postprocess event emission.
 
 ## Dev Notes
 
@@ -148,24 +148,31 @@ gpt-5.3-codex
 - `find . -name 'project-context.md' -print`
 - `PYTHONPATH=src python -m unittest tests.unit.test_conversion_worker tests.unit.test_tts_orchestration_service`
 - `PYTHONPATH=src python -m unittest discover -s tests`
+- `PYTHONPATH=src python -m unittest tests.unit.test_audio_postprocess_service tests.unit.test_wav_builder tests.unit.test_mp3_encoder tests.unit.test_tts_orchestration_service`
+- `PYTHONPATH=src python -m unittest tests.integration.test_postprocess_pipeline_integration tests.unit.test_conversion_worker tests.unit.test_audio_postprocess_service tests.unit.test_wav_builder tests.unit.test_mp3_encoder tests.unit.test_tts_orchestration_service`
 
 ### Completion Notes List
 
-- Story selected from first backlog entry in sprint status: `4-1-assemble-synthesized-chunks-into-final-audio-output`.
-- Comprehensive context assembled from epics, PRD, architecture, sprint tracking, previous implementation artifact, recent commit history, and current source baseline.
-- Story file generated as implementation-ready context with explicit guardrails for deterministic assembly, adapter boundaries, normalized errors, and observability.
-- Story status set to `ready-for-dev` for direct handoff to `dev-story`.
+- Implemented `audio_postprocess_service` with deterministic chunk ordering validation, continuity checks (WAV parameter compatibility), normalized failures, and normalized success payload containing output artifact metadata.
+- Added adapter boundaries for deterministic rendering: WAV generation via `wav_builder` and local deterministic MP3 artifact generation via `mp3_encoder`, including normalized adapter error mapping.
+- Extended orchestration with `launch_conversion` to execute synthesis then post-processing, preserving orchestration ownership and existing lifecycle behavior.
+- Wired post-processing and conversion handoff in dependency container without adding UI-thread file assembly responsibilities.
+- Added post-processing observability events (`postprocess.started|succeeded|failed`) with required schema fields and UTC ISO-8601 timestamps through JSONL logger.
+- Added comprehensive unit/integration coverage for service behavior, adapter behavior, orchestration handoff, and end-to-end final artifact creation.
+- Validation results:
+  - `PYTHONPATH=src python -m unittest tests.integration.test_postprocess_pipeline_integration tests.unit.test_conversion_worker tests.unit.test_audio_postprocess_service tests.unit.test_wav_builder tests.unit.test_mp3_encoder tests.unit.test_tts_orchestration_service` → PASS
+  - `PYTHONPATH=src python -m unittest discover -s tests` → PASS (154 tests)
 
 ### File List
 
 - _bmad-output/implementation-artifacts/4-1-assemble-synthesized-chunks-into-final-audio-output.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/adapters/audio/__init__.py
 - src/domain/services/audio_postprocess_service.py
 - src/adapters/audio/wav_builder.py
 - src/adapters/audio/mp3_encoder.py
 - src/app/dependency_container.py
 - src/domain/services/tts_orchestration_service.py
-- src/ui/workers/conversion_worker.py
 - tests/unit/test_audio_postprocess_service.py
 - tests/unit/test_wav_builder.py
 - tests/unit/test_mp3_encoder.py
@@ -174,4 +181,5 @@ gpt-5.3-codex
 ## Story Completion Status
 
 - Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Story 4.1 implemented with deterministic post-processing, WAV/MP3 adapters, orchestration/dependency wiring, observability, and passing regression suite.

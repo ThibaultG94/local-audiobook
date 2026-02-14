@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
 from src.contracts.result import Result, failure, success
 from src.domain.services.job_state_validator import validate_job_state_transition
 
 if TYPE_CHECKING:
+    from src.domain.services.audio_postprocess_service import AudioPostprocessService
     from domain.services.chunking_service import ChunkingService
     from domain.ports.tts_provider import TtsProvider, TtsSynthesisData
 
@@ -83,6 +85,7 @@ class TtsOrchestrationService:
         self,
         primary_provider: TtsProvider | None = None,
         fallback_provider: TtsProvider | None = None,
+        audio_postprocess_service: AudioPostprocessService | None = None,
         chunking_service: ChunkingService | None = None,
         chunks_repository: ChunksRepositoryPort | None = None,
         conversion_jobs_repository: ConversionJobsRepositoryPort | None = None,
@@ -93,6 +96,7 @@ class TtsOrchestrationService:
         Args:
             primary_provider: Primary TTS provider (e.g., Chatterbox GPU)
             fallback_provider: Fallback TTS provider (e.g., Kokoro CPU)
+            audio_postprocess_service: Service for final audio assembly and rendering
             chunking_service: Service for text chunking operations
             chunks_repository: Repository for chunk persistence
             conversion_jobs_repository: Repository for conversion job lifecycle persistence
@@ -100,10 +104,58 @@ class TtsOrchestrationService:
         """
         self._primary_provider = primary_provider
         self._fallback_provider = fallback_provider
+        self._audio_postprocess_service = audio_postprocess_service
         self._chunking_service = chunking_service
         self._chunks_repository = chunks_repository
         self._conversion_jobs_repository = conversion_jobs_repository
         self._logger = logger
+
+    def launch_conversion(
+        self,
+        *,
+        job_id: str,
+        correlation_id: str,
+        conversion_config: dict[str, Any],
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> Result[dict[str, object]]:
+        """Launch full conversion flow: synthesis then post-processing."""
+        synthesis_result = self.synthesize_persisted_chunks_for_job(
+            job_id=job_id,
+            correlation_id=correlation_id,
+            voice=str(conversion_config.get("voice_id") or "default"),
+            current_job_state="running",
+            force_reprocess=bool(conversion_config.get("force_reprocess", False)),
+            progress_callback=progress_callback,
+        )
+        if not synthesis_result.ok:
+            return synthesis_result
+
+        if self._audio_postprocess_service is None:
+            return synthesis_result
+
+        output_format = str(conversion_config.get("output_format") or "wav").lower()
+        target_path = str(Path("runtime") / "library" / "audio" / f"{job_id}.{output_format}")
+
+        postprocess_result = self._audio_postprocess_service.assemble_and_render(
+            job_id=job_id,
+            correlation_id=correlation_id,
+            output_format=output_format,
+            chunk_artifacts=list((synthesis_result.data or {}).get("chunk_results") or []),
+            target_path=target_path,
+        )
+        if not postprocess_result.ok:
+            return postprocess_result
+
+        merged_payload = dict(synthesis_result.data or {})
+        merged_payload.update(
+            {
+                "output_artifact": (postprocess_result.data or {}).get("output_artifact", {}),
+                "postprocess": {
+                    "chunk_count": int((postprocess_result.data or {}).get("chunk_count", 0) or 0),
+                },
+            }
+        )
+        return success(merged_payload)
 
     @staticmethod
     def validate_transition(current_state: str, next_state: str) -> Result[None]:

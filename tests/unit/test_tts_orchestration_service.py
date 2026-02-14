@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unittest
 
+from src.contracts.result import success
 from src.adapters.tts.chatterbox_provider import ChatterboxProvider
 from src.adapters.tts.kokoro_provider import KokoroProvider
 from src.domain.services.chunking_service import ChunkingService
@@ -13,6 +14,64 @@ from src.infrastructure.logging.event_schema import is_valid_utc_iso_8601
 
 
 class TestTtsOrchestrationService(unittest.TestCase):
+    def test_launch_conversion_runs_postprocess_and_returns_output_artifact(self) -> None:
+        class _InMemoryChunksRepository:
+            def __init__(self) -> None:
+                self.rows = [{"job_id": "job-post", "chunk_index": 0, "text_content": "Alpha", "status": "pending"}]
+
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return [row for row in self.rows if row["job_id"] == job_id]
+
+            def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+                for row in self.rows:
+                    if row["job_id"] == job_id and int(row["chunk_index"]) == int(chunk_index):
+                        row["status"] = status
+
+        class _PostprocessStub:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def assemble_and_render(self, **kwargs: object):
+                self.calls.append(dict(kwargs))
+                return success(
+                    {
+                        "job_id": str(kwargs.get("job_id")),
+                        "chunk_count": len(list(kwargs.get("chunk_artifacts") or [])),
+                        "output_artifact": {
+                            "path": str(kwargs.get("target_path")),
+                            "format": str(kwargs.get("output_format")),
+                            "byte_size": 123,
+                            "duration_seconds": 1.0,
+                        },
+                    }
+                )
+
+        repo = _InMemoryChunksRepository()
+        postprocess = _PostprocessStub()
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(healthy=True),
+            fallback_provider=KokoroProvider(healthy=True),
+            audio_postprocess_service=postprocess,
+            chunks_repository=repo,
+        )
+
+        result = orchestrator.launch_conversion(
+            job_id="job-post",
+            correlation_id="corr-post",
+            conversion_config={
+                "engine": "chatterbox_gpu",
+                "voice_id": "default",
+                "language": "FR",
+                "speech_rate": 1.0,
+                "output_format": "wav",
+            },
+        )
+
+        self.assertTrue(result.ok)
+        self.assertIn("output_artifact", result.data)
+        self.assertEqual(result.data["output_artifact"]["format"], "wav")
+        self.assertEqual(len(postprocess.calls), 1)
+
     def test_synthesize_with_healthy_primary_uses_primary(self) -> None:
         """When primary is healthy, it should be used."""
         primary = ChatterboxProvider(healthy=True)

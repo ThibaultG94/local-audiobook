@@ -1,0 +1,131 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from src.adapters.audio.mp3_encoder import Mp3Encoder
+from src.adapters.audio.wav_builder import WavBuilder
+from src.adapters.persistence.sqlite.connection import create_connection
+from src.adapters.persistence.sqlite.migration_runner import apply_migrations
+from src.adapters.persistence.sqlite.repositories.chunks_repository import ChunksRepository
+from src.adapters.persistence.sqlite.repositories.conversion_jobs_repository import ConversionJobsRepository
+from src.adapters.tts.chatterbox_provider import ChatterboxProvider
+from src.adapters.tts.kokoro_provider import KokoroProvider
+from src.domain.services.audio_postprocess_service import AudioPostprocessService
+from src.domain.services.tts_orchestration_service import TtsOrchestrationService
+from src.infrastructure.logging.event_schema import REQUIRED_EVENT_FIELDS, is_valid_utc_iso_8601
+from src.infrastructure.logging.jsonl_logger import JsonlLogger
+from src.ui.workers.conversion_worker import ConversionWorker
+
+
+class TestPostprocessPipelineIntegration(unittest.TestCase):
+    def test_end_to_end_conversion_creates_final_wav_and_emits_postprocess_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "runtime" / "local_audiobook.db"
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+
+            connection.execute(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "doc-4-1-int",
+                    "/tmp/source.txt",
+                    "source",
+                    "txt",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO conversion_jobs(
+                    id, document_id, state, engine, voice, language,
+                    speech_rate, output_format, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "job-4-1-int",
+                    "doc-4-1-int",
+                    "running",
+                    "chatterbox_gpu",
+                    "default",
+                    "FR",
+                    1.0,
+                    "wav",
+                    "2026-02-13T00:00:00+00:00",
+                    "2026-02-13T00:00:00+00:00",
+                ),
+            )
+            connection.commit()
+
+            chunks_repository = ChunksRepository(connection)
+            chunks_repository.replace_chunks_for_job(
+                job_id="job-4-1-int",
+                chunks=[
+                    {"chunk_index": 0, "text_content": "Alpha", "status": "pending"},
+                    {"chunk_index": 1, "text_content": "Beta", "status": "pending"},
+                ],
+            )
+
+            logger = JsonlLogger(events_path)
+            postprocess_service = AudioPostprocessService(
+                wav_builder=WavBuilder(),
+                mp3_encoder=Mp3Encoder(),
+                logger=logger,
+            )
+            orchestrator = TtsOrchestrationService(
+                primary_provider=ChatterboxProvider(healthy=True),
+                fallback_provider=KokoroProvider(healthy=True),
+                audio_postprocess_service=postprocess_service,
+                chunks_repository=chunks_repository,
+                conversion_jobs_repository=ConversionJobsRepository(connection),
+                logger=logger,
+            )
+
+            worker = ConversionWorker(
+                recheck_callable=lambda: None,
+                logger=logger,
+                conversion_launcher=orchestrator,
+            )
+
+            try:
+                result = worker.launch_conversion(
+                    document_id="doc-4-1-int",
+                    job_id="job-4-1-int",
+                    correlation_id="corr-4-1-int",
+                    conversion_config={
+                        "engine": "chatterbox_gpu",
+                        "voice_id": "default",
+                        "language": "FR",
+                        "speech_rate": 1.0,
+                        "output_format": "wav",
+                    },
+                )
+            finally:
+                worker.shutdown()
+
+            self.assertTrue(result.ok)
+            output_artifact = result.data["output_artifact"]
+            output_path = Path(output_artifact["path"])
+            self.assertTrue(output_path.exists())
+            self.assertEqual(output_artifact["format"], "wav")
+            self.assertGreater(int(output_artifact["byte_size"]), 44)
+
+            events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            postprocess_events = [event for event in events if str(event.get("event", "")).startswith("postprocess.")]
+            self.assertEqual([event["event"] for event in postprocess_events if event["event"] == "postprocess.started"], ["postprocess.started"])
+            self.assertEqual([event["event"] for event in postprocess_events if event["event"] == "postprocess.succeeded"], ["postprocess.succeeded"])
+
+            for event in postprocess_events:
+                self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
+                self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
+
+            connection.close()

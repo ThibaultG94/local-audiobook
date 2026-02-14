@@ -64,7 +64,7 @@ development_status:
   epic-3-retrospective: optional
 
   epic-4: in-progress
-  4-1-assemble-synthesized-chunks-into-final-audio-output: ready-for-dev
+  4-1-assemble-synthesized-chunks-into-final-audio-output: review
   4-2-persist-final-audio-artifacts-and-library-metadata: backlog
   4-3-browse-and-reopen-audiobooks-from-local-library-view: backlog
   4-4-integrate-local-audio-playback-service-and-adapter: backlog

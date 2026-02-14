@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.contracts.result import Result
+from src.adapters.audio.mp3_encoder import Mp3Encoder
+from src.adapters.audio.wav_builder import WavBuilder
 from src.adapters.tts.chatterbox_provider import ChatterboxProvider
 from src.adapters.tts.kokoro_provider import KokoroProvider
 from src.adapters.persistence.sqlite.repositories.conversion_jobs_repository import (
@@ -22,6 +24,7 @@ from src.adapters.persistence.sqlite.repositories.library_items_repository impor
     LibraryItemsRepository,
 )
 from src.adapters.persistence.sqlite.repositories.chunks_repository import ChunksRepository
+from src.domain.services.audio_postprocess_service import AudioPostprocessService
 from src.domain.services.chunking_service import ChunkingService
 from src.domain.services.model_registry_service import ModelRegistryService
 from src.domain.services.startup_readiness_service import StartupReadinessService
@@ -47,6 +50,7 @@ class Providers:
 @dataclass(slots=True)
 class Services:
     tts_orchestration: TtsOrchestrationService
+    audio_postprocess: AudioPostprocessService
     chunking: ChunkingService
     model_registry: ModelRegistryService
     startup_readiness: StartupReadinessService
@@ -111,6 +115,8 @@ def build_conversion_worker(container: AppContainer, model_manifest_path: str) -
     return ConversionWorker(
         recheck_callable=lambda: recheck_startup_readiness(container, model_manifest_path),
         logger=container.logger,
+        conversion_jobs_repository=container.repositories.conversion_jobs,
+        conversion_launcher=container.services.tts_orchestration,
     )
 
 
@@ -127,15 +133,22 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         chatterbox=ChatterboxProvider(logger=logger),
         kokoro=KokoroProvider(logger=logger),
     )
+    audio_postprocess = AudioPostprocessService(
+        wav_builder=WavBuilder(),
+        mp3_encoder=Mp3Encoder(),
+        logger=logger,
+    )
     services = Services(
         tts_orchestration=TtsOrchestrationService(
             primary_provider=providers.chatterbox,
             fallback_provider=providers.kokoro,
+            audio_postprocess_service=audio_postprocess,
             chunking_service=ChunkingService(),
             chunks_repository=repositories.chunks,
             conversion_jobs_repository=repositories.conversion_jobs,
             logger=logger,
         ),
+        audio_postprocess=audio_postprocess,
         chunking=ChunkingService(),
         model_registry=ModelRegistryService(),
         startup_readiness=StartupReadinessService(),
