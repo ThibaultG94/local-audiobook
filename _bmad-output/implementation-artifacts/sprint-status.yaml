@@ -52,7 +52,7 @@ development_status:
   2-3-extract-text-from-pdf-with-degraded-case-handling: done
   2-4-extract-and-normalize-txt-and-markdown-inputs: done
   2-5-provide-unified-extraction-error-feedback-and-diagnostics: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   epic-3: done
   3-1-implement-unified-tts-provider-contract-and-engine-adapters: done
