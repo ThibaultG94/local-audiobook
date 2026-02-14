@@ -61,7 +61,7 @@ development_status:
   3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk: done
   3-5-configure-conversion-parameters-and-output-format-in-ui: done
   3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   epic-4: in-progress
   4-1-assemble-synthesized-chunks-into-final-audio-output: done
