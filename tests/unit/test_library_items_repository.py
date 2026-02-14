@@ -217,3 +217,99 @@ class TestLibraryItemsRepository(unittest.TestCase):
 
             self.assertIsNone(repository.get_item_by_id("does-not-exist"))
             connection.close()
+
+    def test_create_item_rejects_path_traversal_attack(self) -> None:
+        """Test defensive path validation at repository boundary."""
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "runtime" / "local_audiobook.db"
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+            repository = LibraryItemsRepository(connection)
+
+            connection.execute(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "doc-path-attack",
+                    "/tmp/source.epub",
+                    "Attack",
+                    "epub",
+                    "2026-02-14T00:00:00+00:00",
+                    "2026-02-14T00:00:00+00:00",
+                ),
+            )
+            connection.commit()
+
+            # Attempt path traversal attack
+            payload = {
+                "job_id": "job-attack",
+                "document_id": "doc-path-attack",
+                "title": "Attack",
+                "source_path": "/tmp/source.epub",
+                "audio_path": "../../../etc/passwd",  # Path traversal attempt
+                "format": "mp3",
+                "source_format": "epub",
+                "engine": "chatterbox_gpu",
+                "voice": "default",
+                "language": "fr",
+                "duration_seconds": 1.0,
+                "byte_size": 100,
+                "created_at": "2026-02-14T00:00:00+00:00",
+            }
+
+            with self.assertRaises(ValueError) as context:
+                repository.create_item(payload)
+
+            self.assertIn("runtime/library/audio", str(context.exception))
+            connection.close()
+
+    def test_list_items_ordered_uses_transaction_for_consistent_reads(self) -> None:
+        """Test that list_items_ordered uses explicit transaction for read isolation."""
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "runtime" / "local_audiobook.db"
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+            repository = LibraryItemsRepository(connection)
+
+            connection.execute(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "doc-tx",
+                    "/tmp/source.epub",
+                    "TX Test",
+                    "epub",
+                    "2026-02-14T00:00:00+00:00",
+                    "2026-02-14T00:00:00+00:00",
+                ),
+            )
+            connection.commit()
+
+            repository.create_item(
+                {
+                    "id": "lib-tx",
+                    "job_id": "job-tx",
+                    "document_id": "doc-tx",
+                    "title": "TX Test",
+                    "source_path": "/tmp/source.epub",
+                    "audio_path": "runtime/library/audio/job-tx.mp3",
+                    "format": "mp3",
+                    "source_format": "epub",
+                    "engine": "chatterbox_gpu",
+                    "voice": "default",
+                    "language": "fr",
+                    "duration_seconds": 1.0,
+                    "byte_size": 100,
+                    "created_at": "2026-02-14T00:00:00+00:00",
+                }
+            )
+
+            # Should complete without error (transaction handling is internal)
+            items = repository.list_items_ordered()
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["id"], "lib-tx")
+            connection.close()

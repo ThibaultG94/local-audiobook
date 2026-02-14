@@ -175,6 +175,78 @@ class TestLibraryService(unittest.TestCase):
         self.assertEqual(result.error.code, "library_browse.audio_missing")
         self.assertIn("reconvert", str(result.error.details.get("remediation", "")).lower())
 
+    def test_reopen_library_item_empty_item_id_returns_normalized_error(self) -> None:
+        """Test AC2: Verify empty item_id is rejected with actionable error."""
+        repository = _InMemoryLibraryItemsRepository()
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.reopen_library_item(correlation_id="corr-open-empty", item_id="")
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "library_browse.invalid_item_id")
+        self.assertIn("select", str(result.error.message).lower())
+        self.assertFalse(result.error.retryable)
+
+    def test_reopen_library_item_none_item_id_returns_normalized_error(self) -> None:
+        """Test AC2: Verify None item_id is rejected with actionable error."""
+        repository = _InMemoryLibraryItemsRepository()
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.reopen_library_item(correlation_id="corr-open-none", item_id=None)
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "library_browse.invalid_item_id")
+
+    def test_reopen_library_item_does_not_trigger_extraction_or_synthesis(self) -> None:
+        """Test AC2: Verify reopen prepares playback context without re-running extraction or synthesis.
+        
+        This test ensures that reopen_library_item only accesses the repository
+        and does not call any extraction, chunking, or TTS services.
+        """
+        repository = _InMemoryLibraryItemsRepository()
+        repository.items = [
+            {
+                "id": "lib-no-reconvert",
+                "title": "No Reconvert",
+                "source_path": "/tmp/source.epub",
+                "language": "fr",
+                "format": "mp3",
+                "created_at": "2026-02-14T10:00:00+00:00",
+                "audio_path": "runtime/library/audio/.gitkeep",
+                "job_id": "job-no-reconvert",
+                "source_format": "epub",
+            }
+        ]
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        # Track repository access count
+        initial_access_count = len(repository.items)
+        
+        result = service.reopen_library_item(correlation_id="corr-no-reconvert", item_id="lib-no-reconvert")
+
+        # Verify success
+        self.assertTrue(result.ok)
+        
+        # Verify only repository was accessed (no new items created)
+        self.assertEqual(len(repository.items), initial_access_count)
+        self.assertEqual(len(repository.created), 0)
+        
+        # Verify no extraction/synthesis events in logs
+        event_names = [event.get("event") for event in logger.events]
+        self.assertNotIn("extraction.started", event_names)
+        self.assertNotIn("chunking.started", event_names)
+        self.assertNotIn("tts.chunk_started", event_names)
+        self.assertNotIn("synthesis.started", event_names)
+        
+        # Verify only library_browse events
+        for event in logger.events:
+            self.assertEqual(event.get("stage"), "library_browse")
+
     def test_persist_final_artifact_rejects_missing_required_fields(self) -> None:
         repository = _InMemoryLibraryItemsRepository()
         logger = _CapturingLogger()

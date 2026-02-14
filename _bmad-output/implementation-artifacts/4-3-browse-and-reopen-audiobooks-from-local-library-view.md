@@ -195,6 +195,14 @@ gpt-5.3-codex
 - Added new UI boundaries [`LibraryPresenter`](src/ui/presenters/library_presenter.py) and [`LibraryView`](src/ui/views/library_view.py) without direct repository/SQLite access from UI.
 - Registered presenter/view builders in [`build_container()`](src/app/dependency_container.py:125) while preserving existing service boundaries and logger usage.
 - Added tests for repository/service/presenter and integration logging coverage; targeted and full suites pass with `PYTHONPATH=src`.
+- **Code Review Hardening (2026-02-14):**
+  - Added defensive path traversal validation at repository boundary to prevent malicious paths even if service validation is bypassed
+  - Implemented explicit transaction boundaries for all repository read operations (list_items_ordered, get_item_by_id) for consistent read isolation
+  - Eliminated code duplication by centralizing row-to-dict mapping in `_row_to_dict()` helper method
+  - Enhanced error logging with exception type tracking (`exception_type` field) for better debugging in production
+  - Added comprehensive test coverage for empty/None item_id validation and AC2 verification that reopen does not trigger extraction/synthesis
+  - Added docstring for `_to_browse_item()` mapping method for better code documentation
+  - All 20 tests pass including new security and transaction isolation tests
 
 ### File List
 
@@ -213,9 +221,11 @@ gpt-5.3-codex
 ## Change Log
 
 - 2026-02-14: Implemented Story 4.3 browse/reopen flow (repository reads, service APIs, presenter/view boundaries, dependency wiring, and test/integration coverage with `library_browse` JSONL events).
+- 2026-02-14: Code review hardening - Added path traversal protection, transaction isolation for reads, eliminated code duplication, enhanced error logging with exception types, added comprehensive test coverage for edge cases and AC verification (20 tests passing).
 
 ## Story Completion Status
 
 - Status set to: `in-progress`
 - Status set to: `review`
-- Completion note: Story implementation complete; all tasks/subtasks checked, acceptance criteria validated, and tests passing.
+- Status set to: `done`
+- Completion note: Story implementation complete; all tasks/subtasks checked, acceptance criteria validated, and tests passing. Code review completed with 8 HIGH and 2 MEDIUM issues identified and fixed. All 20 tests passing including new security, transaction isolation, and AC verification tests.

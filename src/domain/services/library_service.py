@@ -62,6 +62,7 @@ class LibraryService:
                 details={
                     "category": "persistence",
                     "exception": str(exc),
+                    "exception_type": type(exc).__name__,
                     "remediation": "Retry loading the library. If the issue persists, verify local SQLite integrity.",
                 },
                 retryable=True,
@@ -72,7 +73,10 @@ class LibraryService:
                 severity="ERROR",
                 correlation_id=correlation_id,
                 job_id="",
-                extra={"error": error.error.to_dict() if error.error else {}},
+                extra={
+                    "error": error.error.to_dict() if error.error else {},
+                    "exception_type": type(exc).__name__,
+                },
             )
             return error
 
@@ -198,6 +202,7 @@ class LibraryService:
                     "category": "persistence",
                     "job_id": payload.get("job_id", ""),
                     "exception": str(exc),
+                    "exception_type": type(exc).__name__,
                 },
                 retryable=True,
             )
@@ -207,7 +212,10 @@ class LibraryService:
                 severity="ERROR",
                 correlation_id=correlation_id,
                 job_id=str(payload.get("job_id") or ""),
-                extra={"error": error.error.to_dict() if error.error else {}},
+                extra={
+                    "error": error.error.to_dict() if error.error else {},
+                    "exception_type": type(exc).__name__,
+                },
             )
             return error
 
@@ -370,6 +378,19 @@ class LibraryService:
 
     @staticmethod
     def _to_browse_item(item: dict[str, object]) -> dict[str, object]:
+        """Transform repository record into UI-friendly browse item payload.
+        
+        Maps internal persistence fields to presentation layer contract:
+        - source_path -> source (for UI display)
+        - created_at -> created_date (semantic clarity)
+        - Preserves audio_path, job_id, source_format for reopen context
+        
+        Args:
+            item: Raw repository record with all persistence fields
+            
+        Returns:
+            Normalized browse item dict for presenter/view consumption
+        """
         return {
             "id": str(item.get("id") or ""),
             "title": str(item.get("title") or ""),
