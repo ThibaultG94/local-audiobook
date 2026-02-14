@@ -1,5 +1,4 @@
-"""Tests for TTS orchestration service fallback logic."""
-
+"""Unit tests for TTS orchestration service."""
 from __future__ import annotations
 
 import re
@@ -694,3 +693,83 @@ class TestTtsOrchestrationService(unittest.TestCase):
 
         rejected_events = [event for event in logger.events if event.get("event") == "job.transition_rejected"]
         self.assertEqual(len(rejected_events), 1)
+
+    def test_launch_conversion_handles_none_documents_repository(self) -> None:
+        """Test that launch_conversion works when documents_repository is None."""
+        class _InMemoryChunksRepository:
+            def __init__(self) -> None:
+                self.rows = [{"job_id": "job-no-doc-repo", "chunk_index": 0, "text_content": "Test", "status": "pending"}]
+
+            def list_chunks_for_job(self, *, job_id: str) -> list[dict[str, object]]:
+                return [row for row in self.rows if row["job_id"] == job_id]
+
+            def update_chunk_synthesis_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
+                for row in self.rows:
+                    if row["job_id"] == job_id and int(row["chunk_index"]) == int(chunk_index):
+                        row["status"] = status
+
+        class _PostprocessStub:
+            def assemble_and_render(self, **kwargs: object):
+                return success(
+                    {
+                        "job_id": str(kwargs.get("job_id")),
+                        "chunk_count": 1,
+                        "output_artifact": {
+                            "path": "runtime/library/audio/job-no-doc-repo.wav",
+                            "format": "wav",
+                            "byte_size": 100,
+                            "duration_seconds": 1.0,
+                        },
+                    }
+                )
+
+        class _LibraryServiceStub:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def persist_final_artifact(self, **kwargs: object):
+                self.calls.append(dict(kwargs))
+                # Verify that document parameter is passed even when documents_repository is None
+                document = kwargs.get("document", {})
+                self.last_document = document
+                return success({"id": "lib-no-doc", "job_id": "job-no-doc-repo"})
+
+        class _JobsRepositoryStub:
+            def get_job_by_id(self, *, job_id: str) -> dict[str, object] | None:
+                return {"id": job_id, "document_id": "doc-unknown", "state": "running"}
+
+            def update_job_state_if_current(self, *, job_id: str, expected_state: str, next_state: str, **kwargs: object) -> bool:
+                return True
+
+        repo = _InMemoryChunksRepository()
+        postprocess = _PostprocessStub()
+        library_service = _LibraryServiceStub()
+        
+        # Create orchestrator WITHOUT documents_repository (None)
+        orchestrator = TtsOrchestrationService(
+            primary_provider=ChatterboxProvider(healthy=True),
+            fallback_provider=KokoroProvider(healthy=True),
+            audio_postprocess_service=postprocess,
+            library_service=library_service,
+            chunks_repository=repo,
+            conversion_jobs_repository=_JobsRepositoryStub(),
+            documents_repository=None,  # Explicitly None
+        )
+
+        result = orchestrator.launch_conversion(
+            job_id="job-no-doc-repo",
+            correlation_id="corr-no-doc-repo",
+            conversion_config={
+                "engine": "chatterbox_gpu",
+                "voice_id": "default",
+                "language": "FR",
+                "output_format": "wav",
+            },
+        )
+
+        # Should succeed even without documents_repository
+        self.assertTrue(result.ok)
+        self.assertEqual(len(library_service.calls), 1)
+        
+        # Verify that library service received a minimal document dict with just the id
+        self.assertEqual(library_service.last_document, {"id": "doc-unknown"})

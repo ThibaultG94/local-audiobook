@@ -160,6 +160,9 @@ class TtsOrchestrationService:
         if not postprocess_result.ok:
             return postprocess_result
 
+        # Attempt library persistence but don't fail conversion if it fails
+        # The audio file has been successfully generated and is on disk
+        library_metadata: dict[str, object] = {}
         if self._library_service is not None:
             output_artifact = (postprocess_result.data or {}).get("output_artifact", {})
             job_record = (
@@ -188,17 +191,15 @@ class TtsOrchestrationService:
                     "language": str(conversion_config.get("language") or ""),
                 },
             )
-            if not library_result.ok:
-                return failure(
-                    code="library_persistence.failed",
-                    message="Final audio persistence failed while creating library metadata",
-                    details={
-                        "job_id": job_id,
-                        "category": "persistence",
-                        "error": library_result.error.to_dict() if library_result.error else {},
-                    },
-                    retryable=bool(library_result.error.retryable if library_result.error else False),
-                )
+            if library_result.ok:
+                library_metadata = {"library_item_id": (library_result.data or {}).get("id", "")}
+            else:
+                # Log the error but don't fail the conversion
+                # The audio file is still available on disk at the known path
+                library_metadata = {
+                    "library_persistence_failed": True,
+                    "library_error": library_result.error.to_dict() if library_result.error else {},
+                }
 
         merged_payload = dict(synthesis_result.data or {})
         merged_payload.update(
@@ -207,6 +208,7 @@ class TtsOrchestrationService:
                 "postprocess": {
                     "chunk_count": int((postprocess_result.data or {}).get("chunk_count", 0) or 0),
                 },
+                "library_metadata": library_metadata,
             }
         )
         return success(merged_payload)

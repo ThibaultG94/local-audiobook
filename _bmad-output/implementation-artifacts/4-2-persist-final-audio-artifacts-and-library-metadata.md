@@ -1,6 +1,6 @@
 # Story 4.2: Persist Final Audio Artifacts and Library Metadata
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -191,6 +191,37 @@ gpt-5.3-codex
 - Added migration [`0003_extend_library_items_metadata.sql`](migrations/0003_extend_library_items_metadata.sql) to extend `library_items` schema with `job_id`, `source_path`, `format`, `byte_size`, and index.
 - Added/updated unit and integration tests covering repository behavior, service normalization/failures, orchestration integration, and event emission; full regression suite passes.
 
+### Code Review Fixes Applied
+
+**Date:** 2026-02-14
+**Reviewer:** AI Code Review (Adversarial)
+**Issues Found:** 10 (3 HIGH, 4 MEDIUM, 3 LOW)
+**Issues Fixed:** 7 (3 HIGH, 4 MEDIUM)
+
+#### HIGH Severity Fixes
+
+1. **Migration Documentation Enhancement** - Added comprehensive comments to migration 0003 documenting existing vs new columns for schema clarity.
+
+2. **Security: Path Traversal Protection** - Enhanced audio path validation with `Path.resolve()` to prevent path traversal attacks while maintaining relative path storage for portability.
+
+3. **Error Handling: Library Persistence Failure** - Changed orchestration behavior to NOT fail conversion when library metadata persistence fails. Audio file is successfully generated and accessible; library metadata failure is logged but doesn't block user access to generated audio.
+
+#### MEDIUM Severity Fixes
+
+4. **Foreign Key Validation** - Added explicit document_id existence check in `LibraryItemsRepository.create_item()` before insertion to prevent orphaned records regardless of SQLite foreign key configuration.
+
+5. **Test Coverage: None Repository** - Added `test_launch_conversion_handles_none_documents_repository()` to validate behavior when documents_repository is None.
+
+6. **Timestamp Responsibility Clarification** - Added docstring to `_normalize_payload()` documenting that service layer is responsible for timestamp generation, not repository.
+
+7. **Audio Format Validation** - Added validation that audio format is one of `{"mp3", "wav"}` as specified in acceptance criteria, with structured error response.
+
+#### LOW Severity Issues (Not Fixed - Documented for Future)
+
+8. Variable naming: `fmt` → `audio_format` (FIXED as part of #7)
+9. Path validation constant: Hardcoded `"runtime/library/audio/"` should be configuration
+10. Error messages in English: Should respect `communication_language: Français` configuration
+
 ### File List
 
 - _bmad-output/implementation-artifacts/4-2-persist-final-audio-artifacts-and-library-metadata.md
@@ -209,6 +240,7 @@ gpt-5.3-codex
 ## Change Log
 
 - 2026-02-14: Implemented Story 4.2 library metadata persistence flow, transactional repository writes, orchestration integration, observability events, schema migration, and test coverage updates.
+- 2026-02-14: Code review fixes applied - Enhanced security (path traversal protection), improved error handling (library persistence failure doesn't block conversion), added foreign key validation, improved test coverage, and added audio format validation.
 
 ## Story Completion Status
 

@@ -20,7 +20,26 @@ class LibraryItemsRepository(BaseRepository):
 
         The method uses a single transactional block (BEGIN/COMMIT), and
         performs rollback on any database exception.
+        
+        Raises:
+            sqlite3.IntegrityError: If document_id foreign key constraint fails
+            sqlite3.Error: For other database errors
         """
+        # Validate that document_id exists before attempting insert
+        document_id = str(record["document_id"])
+        cursor = self._connection.cursor()
+        try:
+            doc_exists = cursor.execute(
+                "SELECT 1 FROM documents WHERE id = ?",
+                (document_id,),
+            ).fetchone()
+            if doc_exists is None:
+                raise sqlite3.IntegrityError(
+                    f"FOREIGN KEY constraint failed: document_id '{document_id}' does not exist in documents table"
+                )
+        finally:
+            cursor.close()
+        
         normalized = {
             "id": str(record.get("id") or uuid4()),
             "document_id": str(record["document_id"]),
