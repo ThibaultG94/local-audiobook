@@ -80,12 +80,26 @@ class AudioPostprocessService:
         chunk_artifacts: list[dict[str, object]],
         target_path: str,
     ) -> Result[dict[str, object]]:
+        # Validate output format early to avoid wasting CPU on assembly
+        normalized_format = output_format.lower().strip()
+        if normalized_format not in ("wav", "mp3"):
+            return failure(
+                code="audio_postprocess.unsupported_output_format",
+                message="Output format is not supported",
+                details={"category": "input", "output_format": output_format, "supported": ["wav", "mp3"]},
+                retryable=False,
+            )
+
         self._emit_event(
             event="postprocess.started",
             severity="INFO",
             correlation_id=correlation_id,
             job_id=job_id,
-            extra={"output_format": output_format, "chunk_count": len(chunk_artifacts)},
+            extra={
+                "output_format": normalized_format,
+                "chunk_count": len(chunk_artifacts),
+                "target_path": target_path,
+            },
         )
 
         ordering_error = self._validate_ordered_artifacts(chunk_artifacts)
@@ -136,6 +150,28 @@ class AudioPostprocessService:
             chunk_rate = int(read_data["sample_rate_hz"])
             chunk_channels = int(read_data["channels"])
             chunk_sample_width = int(read_data["sample_width_bytes"])
+            chunk_pcm = read_data["pcm_frames"]
+
+            # Validate minimum audio content to avoid silent/empty chunks
+            if len(chunk_pcm) == 0:
+                empty_chunk = failure(
+                    code="audio_postprocess.empty_chunk_audio",
+                    message="Chunk contains no audio frames",
+                    details={
+                        "category": "input",
+                        "chunk_index": expected_index,
+                    },
+                    retryable=False,
+                )
+                self._emit_event(
+                    event="postprocess.failed",
+                    severity="ERROR",
+                    correlation_id=correlation_id,
+                    job_id=job_id,
+                    chunk_index=expected_index,
+                    extra=empty_chunk.error.to_dict() if empty_chunk.error else {},
+                )
+                return empty_chunk
 
             if expected_index == 0:
                 sample_rate_hz = chunk_rate
@@ -171,9 +207,30 @@ class AudioPostprocessService:
                 )
                 return mismatch
 
-            pcm_frames.extend(read_data["pcm_frames"])
+            pcm_frames.extend(chunk_pcm)
 
-        normalized_format = output_format.lower().strip()
+        # Memory safety check: prevent unbounded memory accumulation
+        MAX_PCM_BYTES = 500 * 1024 * 1024  # 500 MB limit
+        if len(pcm_frames) > MAX_PCM_BYTES:
+            memory_error = failure(
+                code="audio_postprocess.memory_limit_exceeded",
+                message="Assembled audio exceeds maximum memory limit",
+                details={
+                    "category": "resource",
+                    "assembled_bytes": len(pcm_frames),
+                    "limit_bytes": MAX_PCM_BYTES,
+                },
+                retryable=False,
+            )
+            self._emit_event(
+                event="postprocess.failed",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                extra=memory_error.error.to_dict() if memory_error.error else {},
+            )
+            return memory_error
+
         if normalized_format == "wav":
             render_result = self._wav_builder.build_from_frames(
                 target_path=target_path,
@@ -189,13 +246,6 @@ class AudioPostprocessService:
                 sample_rate_hz=sample_rate_hz,
                 channels=channels,
                 sample_width_bytes=sample_width,
-            )
-        else:
-            render_result = failure(
-                code="audio_postprocess.unsupported_output_format",
-                message="Output format is not supported",
-                details={"category": "input", "output_format": output_format},
-                retryable=False,
             )
 
         if not render_result.ok:
@@ -229,6 +279,10 @@ class AudioPostprocessService:
                 "output_format": payload["output_artifact"]["format"],
                 "output_path": payload["output_artifact"]["path"],
                 "chunk_count": payload["chunk_count"],
+                "byte_size": payload["output_artifact"]["byte_size"],
+                "duration_seconds": payload["output_artifact"]["duration_seconds"],
+                "sample_rate_hz": sample_rate_hz,
+                "channels": channels,
             },
         )
         return success(payload)

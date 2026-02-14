@@ -1,6 +1,6 @@
 # Story 4.1: Assemble Synthesized Chunks into Final Audio Output
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -159,9 +159,18 @@ gpt-5.3-codex
 - Wired post-processing and conversion handoff in dependency container without adding UI-thread file assembly responsibilities.
 - Added post-processing observability events (`postprocess.started|succeeded|failed`) with required schema fields and UTC ISO-8601 timestamps through JSONL logger.
 - Added comprehensive unit/integration coverage for service behavior, adapter behavior, orchestration handoff, and end-to-end final artifact creation.
+- **Code Review Fixes Applied (2026-02-14):**
+  - Added early validation of output format to avoid wasting CPU on invalid formats
+  - Added validation for empty audio chunks to prevent silent/corrupted output
+  - Added memory safety check (500MB limit) to prevent unbounded memory accumulation
+  - Enhanced logging with additional diagnostic fields (sample_rate, channels, byte_size, duration)
+  - Improved WAV builder with thread-safe directory creation, disk space checks, atomic writes via temp files, and proper cleanup on failure
+  - Improved MP3 encoder with thread-safe directory creation, disk space checks, atomic writes via temp files, proper cleanup on failure, and documented magic numbers
+  - Added 5 additional unit tests covering: non-contiguous chunks, empty chunk list, unsupported format early rejection, MP3 format rendering
+  - All adapters now use atomic file operations (write to .tmp then rename) to prevent partial file corruption
 - Validation results:
   - `PYTHONPATH=src python -m unittest tests.integration.test_postprocess_pipeline_integration tests.unit.test_conversion_worker tests.unit.test_audio_postprocess_service tests.unit.test_wav_builder tests.unit.test_mp3_encoder tests.unit.test_tts_orchestration_service` → PASS
-  - `PYTHONPATH=src python -m unittest discover -s tests` → PASS (154 tests)
+  - `PYTHONPATH=src python -m unittest discover -s tests` → PASS (158 tests, +4 from review fixes)
 
 ### File List
 
