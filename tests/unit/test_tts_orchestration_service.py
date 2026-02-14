@@ -46,13 +46,50 @@ class TestTtsOrchestrationService(unittest.TestCase):
                     }
                 )
 
+        class _LibraryServiceStub:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def persist_final_artifact(self, **kwargs: object):
+                self.calls.append(dict(kwargs))
+                return success({"id": "lib-1", "job_id": "job-post"})
+
+        class _DocumentsRepositoryStub:
+            def get_document_by_id(self, *, document_id: str) -> dict[str, object] | None:
+                if document_id == "doc-post":
+                    return {
+                        "id": "doc-post",
+                        "title": "Titre",
+                        "source_path": "/tmp/source.txt",
+                        "source_format": "txt",
+                    }
+                return None
+
+        class _JobsRepositoryStub:
+            def get_job_by_id(self, *, job_id: str) -> dict[str, object] | None:
+                return {"id": job_id, "document_id": "doc-post", "state": "running", "updated_at": "2026-02-13T00:00:00+00:00"}
+
+            def update_job_state_if_current(
+                self,
+                *,
+                job_id: str,
+                expected_state: str,
+                next_state: str,
+                updated_at: str | None = None,
+            ) -> bool:
+                return True
+
         repo = _InMemoryChunksRepository()
         postprocess = _PostprocessStub()
+        library_service = _LibraryServiceStub()
         orchestrator = TtsOrchestrationService(
             primary_provider=ChatterboxProvider(healthy=True),
             fallback_provider=KokoroProvider(healthy=True),
             audio_postprocess_service=postprocess,
+            library_service=library_service,
             chunks_repository=repo,
+            conversion_jobs_repository=_JobsRepositoryStub(),
+            documents_repository=_DocumentsRepositoryStub(),
         )
 
         result = orchestrator.launch_conversion(
@@ -71,6 +108,7 @@ class TestTtsOrchestrationService(unittest.TestCase):
         self.assertIn("output_artifact", result.data)
         self.assertEqual(result.data["output_artifact"]["format"], "wav")
         self.assertEqual(len(postprocess.calls), 1)
+        self.assertEqual(len(library_service.calls), 1)
 
     def test_synthesize_with_healthy_primary_uses_primary(self) -> None:
         """When primary is healthy, it should be used."""

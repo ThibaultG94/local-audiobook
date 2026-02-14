@@ -12,6 +12,7 @@ from src.domain.services.job_state_validator import validate_job_state_transitio
 
 if TYPE_CHECKING:
     from src.domain.services.audio_postprocess_service import AudioPostprocessService
+    from src.domain.services.library_service import LibraryService
     from domain.services.chunking_service import ChunkingService
     from domain.ports.tts_provider import TtsProvider, TtsSynthesisData
 
@@ -74,6 +75,15 @@ class ConversionJobsRepositoryPort(Protocol):
         ...
 
 
+@runtime_checkable
+class DocumentsRepositoryPort(Protocol):
+    """Protocol for document persistence reads used by orchestration."""
+
+    def get_document_by_id(self, *, document_id: str) -> dict[str, object] | None:
+        """Fetch a document by id."""
+        ...
+
+
 class TtsOrchestrationService:
     """Orchestration service managing TTS provider selection and fallback behavior.
     
@@ -86,9 +96,11 @@ class TtsOrchestrationService:
         primary_provider: TtsProvider | None = None,
         fallback_provider: TtsProvider | None = None,
         audio_postprocess_service: AudioPostprocessService | None = None,
+        library_service: LibraryService | None = None,
         chunking_service: ChunkingService | None = None,
         chunks_repository: ChunksRepositoryPort | None = None,
         conversion_jobs_repository: ConversionJobsRepositoryPort | None = None,
+        documents_repository: DocumentsRepositoryPort | None = None,
         logger: EventLoggerPort | None = None,
     ) -> None:
         """Initialize orchestration service with optional providers.
@@ -105,9 +117,11 @@ class TtsOrchestrationService:
         self._primary_provider = primary_provider
         self._fallback_provider = fallback_provider
         self._audio_postprocess_service = audio_postprocess_service
+        self._library_service = library_service
         self._chunking_service = chunking_service
         self._chunks_repository = chunks_repository
         self._conversion_jobs_repository = conversion_jobs_repository
+        self._documents_repository = documents_repository
         self._logger = logger
 
     def launch_conversion(
@@ -145,6 +159,46 @@ class TtsOrchestrationService:
         )
         if not postprocess_result.ok:
             return postprocess_result
+
+        if self._library_service is not None:
+            output_artifact = (postprocess_result.data or {}).get("output_artifact", {})
+            job_record = (
+                self._conversion_jobs_repository.get_job_by_id(job_id=job_id)
+                if self._conversion_jobs_repository is not None
+                else None
+            )
+            document_id = str((job_record or {}).get("document_id") or "")
+            document_record = (
+                self._documents_repository.get_document_by_id(document_id=document_id)
+                if self._documents_repository is not None and document_id
+                else None
+            )
+
+            library_result = self._library_service.persist_final_artifact(
+                correlation_id=correlation_id,
+                document=document_record or {"id": document_id},
+                artifact={
+                    "job_id": job_id,
+                    "path": str(output_artifact.get("path") or target_path),
+                    "format": str(output_artifact.get("format") or output_format),
+                    "duration_seconds": float(output_artifact.get("duration_seconds") or 0.0),
+                    "byte_size": int(output_artifact.get("byte_size") or 0),
+                    "engine": str(conversion_config.get("engine") or ""),
+                    "voice": str(conversion_config.get("voice_id") or ""),
+                    "language": str(conversion_config.get("language") or ""),
+                },
+            )
+            if not library_result.ok:
+                return failure(
+                    code="library_persistence.failed",
+                    message="Final audio persistence failed while creating library metadata",
+                    details={
+                        "job_id": job_id,
+                        "category": "persistence",
+                        "error": library_result.error.to_dict() if library_result.error else {},
+                    },
+                    retryable=bool(library_result.error.retryable if library_result.error else False),
+                )
 
         merged_payload = dict(synthesis_result.data or {})
         merged_payload.update(

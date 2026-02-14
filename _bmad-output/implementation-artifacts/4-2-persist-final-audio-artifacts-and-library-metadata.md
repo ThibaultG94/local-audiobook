@@ -1,6 +1,6 @@
 # Story 4.2: Persist Final Audio Artifacts and Library Metadata
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,24 +34,24 @@ so that I can reliably find and replay generated audiobooks later.
 
 ## Tasks / Subtasks
 
-- [ ] Create `library_service.py` orchestration for final artifact persistence (AC: 1, 2, 3, 4)
-  - [ ] Accept post-process artifact payload from conversion flow (`job_id`, `path`, `format`, `duration_sec`, `byte_size`, engine/voice/language context).
-  - [ ] Validate required fields and local path rules under `runtime/library/audio/`.
-  - [ ] Return normalized success/failure via `src/contracts/result.py` and `src/contracts/errors.py`.
-- [ ] Implement `LibraryItemsRepository` persistence operations with SQLite transaction safety (AC: 1, 2, 3)
-  - [ ] Add explicit insert method for library item creation with `snake_case` fields.
-  - [ ] Persist `created_at` in ISO-8601 UTC.
-  - [ ] Ensure rollback-safe behavior and structured error propagation on DB failures.
-- [ ] Integrate library persistence into conversion completion flow (AC: 1, 3)
-  - [ ] Extend `tts_orchestration_service.py` completion path to call `library_service` after successful post-processing.
-  - [ ] Keep UI thread non-blocking (integration remains in worker/orchestration boundaries).
-- [ ] Add observability for library persistence lifecycle (AC: 4)
-  - [ ] Emit `library.item_created` and `library.item_create_failed` (stable `domain.action`) with `stage=library_persistence`.
-  - [ ] Include required correlation and timestamp fields.
-- [ ] Add tests for repository, service, and integration behavior (AC: 1..4)
-  - [ ] Unit tests for `library_service.py` success/failure and normalized contract.
-  - [ ] Unit tests for `library_items_repository.py` insert/query behavior and transaction rollback semantics.
-  - [ ] Integration test validating conversion completion persists metadata and logs expected events.
+- [x] Create `library_service.py` orchestration for final artifact persistence (AC: 1, 2, 3, 4)
+  - [x] Accept post-process artifact payload from conversion flow (`job_id`, `path`, `format`, `duration_sec`, `byte_size`, engine/voice/language context).
+  - [x] Validate required fields and local path rules under `runtime/library/audio/`.
+  - [x] Return normalized success/failure via `src/contracts/result.py` and `src/contracts/errors.py`.
+- [x] Implement `LibraryItemsRepository` persistence operations with SQLite transaction safety (AC: 1, 2, 3)
+  - [x] Add explicit insert method for library item creation with `snake_case` fields.
+  - [x] Persist `created_at` in ISO-8601 UTC.
+  - [x] Ensure rollback-safe behavior and structured error propagation on DB failures.
+- [x] Integrate library persistence into conversion completion flow (AC: 1, 3)
+  - [x] Extend `tts_orchestration_service.py` completion path to call `library_service` after successful post-processing.
+  - [x] Keep UI thread non-blocking (integration remains in worker/orchestration boundaries).
+- [x] Add observability for library persistence lifecycle (AC: 4)
+  - [x] Emit `library.item_created` and `library.item_create_failed` (stable `domain.action`) with `stage=library_persistence`.
+  - [x] Include required correlation and timestamp fields.
+- [x] Add tests for repository, service, and integration behavior (AC: 1..4)
+  - [x] Unit tests for `library_service.py` success/failure and normalized contract.
+  - [x] Unit tests for `library_items_repository.py` insert/query behavior and transaction rollback semantics.
+  - [x] Integration test validating conversion completion persists metadata and logs expected events.
 
 ## Dev Notes
 
@@ -178,17 +178,40 @@ gpt-5.3-codex
 
 - `git log -n 5 --pretty=format:'%h|%s' --name-only`
 - `rg -n "library|Library" src`
+- `PYTHONPATH=src python -m unittest tests.unit.test_library_items_repository tests.unit.test_library_service tests.unit.test_tts_orchestration_service tests.integration.test_postprocess_pipeline_integration tests.integration.test_bootstrap_and_migrations`
+- `PYTHONPATH=src python -m unittest`
 
 ### Completion Notes List
 
-- Created comprehensive developer-ready story context for 4.2 with implementation guardrails, architectural constraints, testing expectations, and integration touchpoints.
-- Story status set to `ready-for-dev` as requested by workflow.
+- Added [`LibraryService`](src/domain/services/library_service.py) to normalize library artifact payloads, validate runtime path constraints, persist metadata, and emit `library.item_created` / `library.item_create_failed` events at `stage=library_persistence`.
+- Implemented transactional insert in [`LibraryItemsRepository.create_item()`](src/adapters/persistence/sqlite/repositories/library_items_repository.py:19) with explicit `BEGIN` / `COMMIT` and rollback-on-error behavior.
+- Extended orchestration in [`TtsOrchestrationService.launch_conversion()`](src/domain/services/tts_orchestration_service.py:113) to persist library metadata immediately after successful post-processing and fail conversion completion if metadata persistence fails.
+- Added document lookup support via [`DocumentsRepository.get_document_by_id()`](src/adapters/persistence/sqlite/repositories/documents_repository.py:44).
+- Wired the new service through [`build_container()`](src/app/dependency_container.py:123) and service dataclasses.
+- Added migration [`0003_extend_library_items_metadata.sql`](migrations/0003_extend_library_items_metadata.sql) to extend `library_items` schema with `job_id`, `source_path`, `format`, `byte_size`, and index.
+- Added/updated unit and integration tests covering repository behavior, service normalization/failures, orchestration integration, and event emission; full regression suite passes.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/4-2-persist-final-audio-artifacts-and-library-metadata.md
+- migrations/0003_extend_library_items_metadata.sql
+- src/adapters/persistence/sqlite/repositories/library_items_repository.py
+- src/adapters/persistence/sqlite/repositories/documents_repository.py
+- src/domain/services/library_service.py
+- src/domain/services/tts_orchestration_service.py
+- src/app/dependency_container.py
+- tests/unit/test_library_items_repository.py
+- tests/unit/test_library_service.py
+- tests/unit/test_tts_orchestration_service.py
+- tests/integration/test_postprocess_pipeline_integration.py
+- tests/integration/test_bootstrap_and_migrations.py
+
+## Change Log
+
+- 2026-02-14: Implemented Story 4.2 library metadata persistence flow, transactional repository writes, orchestration integration, observability events, schema migration, and test coverage updates.
 
 ## Story Completion Status
 
 - Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Story implementation complete; all tasks checked, acceptance criteria validated, and full test suite passing.

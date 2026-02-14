@@ -122,9 +122,10 @@ class TestBootstrapAndMigrationsIntegration(unittest.TestCase):
             )
             rows = cursor.fetchall()
 
-            self.assertEqual(len(rows), 2)
+            self.assertEqual(len(rows), 3)
             self.assertEqual(rows[0][0], "0001_initial_schema")
             self.assertEqual(rows[1][0], "0002_add_source_format_to_documents")
+            self.assertEqual(rows[2][0], "0003_extend_library_items_metadata")
 
             second.connection.close()
 

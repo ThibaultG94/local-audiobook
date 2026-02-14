@@ -40,3 +40,25 @@ class DocumentsRepository(BaseRepository):
             "created_at": now,
             "updated_at": now,
         }
+
+    def get_document_by_id(self, *, document_id: str) -> dict[str, str] | None:
+        """Fetch a document by id."""
+        row = self._connection.execute(
+            """
+            SELECT id, source_path, title, source_format, created_at, updated_at
+            FROM documents
+            WHERE id = ?
+            """,
+            (document_id,),
+        ).fetchone()
+        if row is None:
+            return None
+
+        return {
+            "id": row["id"],
+            "source_path": row["source_path"],
+            "title": row["title"],
+            "source_format": row["source_format"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }

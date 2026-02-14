@@ -11,9 +11,12 @@ from src.adapters.persistence.sqlite.connection import create_connection
 from src.adapters.persistence.sqlite.migration_runner import apply_migrations
 from src.adapters.persistence.sqlite.repositories.chunks_repository import ChunksRepository
 from src.adapters.persistence.sqlite.repositories.conversion_jobs_repository import ConversionJobsRepository
+from src.adapters.persistence.sqlite.repositories.documents_repository import DocumentsRepository
+from src.adapters.persistence.sqlite.repositories.library_items_repository import LibraryItemsRepository
 from src.adapters.tts.chatterbox_provider import ChatterboxProvider
 from src.adapters.tts.kokoro_provider import KokoroProvider
 from src.domain.services.audio_postprocess_service import AudioPostprocessService
+from src.domain.services.library_service import LibraryService
 from src.domain.services.tts_orchestration_service import TtsOrchestrationService
 from src.infrastructure.logging.event_schema import REQUIRED_EVENT_FIELDS, is_valid_utc_iso_8601
 from src.infrastructure.logging.jsonl_logger import JsonlLogger
@@ -81,12 +84,18 @@ class TestPostprocessPipelineIntegration(unittest.TestCase):
                 mp3_encoder=Mp3Encoder(),
                 logger=logger,
             )
+            library_service = LibraryService(
+                library_items_repository=LibraryItemsRepository(connection),
+                logger=logger,
+            )
             orchestrator = TtsOrchestrationService(
                 primary_provider=ChatterboxProvider(healthy=True),
                 fallback_provider=KokoroProvider(healthy=True),
                 audio_postprocess_service=postprocess_service,
+                library_service=library_service,
                 chunks_repository=chunks_repository,
                 conversion_jobs_repository=ConversionJobsRepository(connection),
+                documents_repository=DocumentsRepository(connection),
                 logger=logger,
             )
 
@@ -119,13 +128,32 @@ class TestPostprocessPipelineIntegration(unittest.TestCase):
             self.assertEqual(output_artifact["format"], "wav")
             self.assertGreater(int(output_artifact["byte_size"]), 44)
 
+            library_row = connection.execute(
+                "SELECT job_id, audio_path, format, engine, voice, language FROM library_items WHERE job_id = ?",
+                ("job-4-1-int",),
+            ).fetchone()
+            self.assertIsNotNone(library_row)
+            assert library_row is not None
+            self.assertEqual(library_row[0], "job-4-1-int")
+            self.assertEqual(library_row[2], "wav")
+            self.assertEqual(library_row[3], "chatterbox_gpu")
+            self.assertEqual(library_row[4], "default")
+            self.assertEqual(library_row[5], "FR")
+
             events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
             postprocess_events = [event for event in events if str(event.get("event", "")).startswith("postprocess.")]
+            library_events = [event for event in events if str(event.get("event", "")).startswith("library.")]
             self.assertEqual([event["event"] for event in postprocess_events if event["event"] == "postprocess.started"], ["postprocess.started"])
             self.assertEqual([event["event"] for event in postprocess_events if event["event"] == "postprocess.succeeded"], ["postprocess.succeeded"])
+            self.assertEqual([event["event"] for event in library_events if event["event"] == "library.item_created"], ["library.item_created"])
 
             for event in postprocess_events:
                 self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
                 self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
+
+            for event in library_events:
+                self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
+                self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
+                self.assertEqual(event["stage"], "library_persistence")
 
             connection.close()

@@ -26,6 +26,7 @@ from src.adapters.persistence.sqlite.repositories.library_items_repository impor
 from src.adapters.persistence.sqlite.repositories.chunks_repository import ChunksRepository
 from src.domain.services.audio_postprocess_service import AudioPostprocessService
 from src.domain.services.chunking_service import ChunkingService
+from src.domain.services.library_service import LibraryService
 from src.domain.services.model_registry_service import ModelRegistryService
 from src.domain.services.startup_readiness_service import StartupReadinessService
 from src.domain.services.tts_orchestration_service import TtsOrchestrationService
@@ -51,6 +52,7 @@ class Providers:
 class Services:
     tts_orchestration: TtsOrchestrationService
     audio_postprocess: AudioPostprocessService
+    library: LibraryService
     chunking: ChunkingService
     model_registry: ModelRegistryService
     startup_readiness: StartupReadinessService
@@ -138,17 +140,24 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         mp3_encoder=Mp3Encoder(),
         logger=logger,
     )
+    library_service = LibraryService(
+        library_items_repository=repositories.library_items,
+        logger=logger,
+    )
     services = Services(
         tts_orchestration=TtsOrchestrationService(
             primary_provider=providers.chatterbox,
             fallback_provider=providers.kokoro,
             audio_postprocess_service=audio_postprocess,
+            library_service=library_service,
             chunking_service=ChunkingService(),
             chunks_repository=repositories.chunks,
             conversion_jobs_repository=repositories.conversion_jobs,
+            documents_repository=repositories.documents,
             logger=logger,
         ),
         audio_postprocess=audio_postprocess,
+        library=library_service,
         chunking=ChunkingService(),
         model_registry=ModelRegistryService(),
         startup_readiness=StartupReadinessService(),
