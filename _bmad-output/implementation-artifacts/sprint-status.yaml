@@ -54,7 +54,7 @@ development_status:
   2-5-provide-unified-extraction-error-feedback-and-diagnostics: done
   epic-2-retrospective: optional
 
-  epic-3: in-progress
+  epic-3: done
   3-1-implement-unified-tts-provider-contract-and-engine-adapters: done
   3-2-segment-long-text-with-phrase-first-chunking-rules: done
   3-3-orchestrate-deterministic-conversion-with-engine-fallback: done
@@ -66,7 +66,7 @@ development_status:
   epic-4: in-progress
   4-1-assemble-synthesized-chunks-into-final-audio-output: done
   4-2-persist-final-audio-artifacts-and-library-metadata: done
-  4-3-browse-and-reopen-audiobooks-from-local-library-view: backlog
+  4-3-browse-and-reopen-audiobooks-from-local-library-view: ready-for-dev
   4-4-integrate-local-audio-playback-service-and-adapter: backlog
   4-5-provide-playback-controls-with-pause-resume-seek-and-progress: backlog
   epic-4-retrospective: optional
