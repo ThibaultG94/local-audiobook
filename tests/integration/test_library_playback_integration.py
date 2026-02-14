@@ -18,6 +18,8 @@ from src.infrastructure.logging.jsonl_logger import JsonlLogger
 class _FakeAdapter:
     def __init__(self) -> None:
         self.state = "idle"
+        self.position_seconds = 0.0
+        self.duration_seconds = 60.0
 
     def load(self, *, file_path: str) -> Result[dict[str, object]]:
         self.state = "stopped"
@@ -36,14 +38,21 @@ class _FakeAdapter:
         return success({"state": self.state})
 
     def seek(self, *, position_seconds: float) -> Result[dict[str, object]]:
-        return success({"state": self.state, "position_seconds": position_seconds})
+        self.position_seconds = float(position_seconds)
+        return success({"state": self.state, "position_seconds": self.position_seconds})
 
     def get_status(self) -> Result[dict[str, object]]:
-        return success({"state": self.state})
+        return success(
+            {
+                "state": self.state,
+                "position_seconds": self.position_seconds,
+                "duration_seconds": self.duration_seconds,
+            }
+        )
 
 
 class TestLibraryPlaybackIntegration(unittest.TestCase):
-    def test_reopen_then_initialize_playback_emits_player_events(self) -> None:
+    def test_reopen_then_initialize_playback_emits_player_events_and_progress_updates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             runtime_audio = Path("runtime") / "library" / "audio"
@@ -112,6 +121,14 @@ class TestLibraryPlaybackIntegration(unittest.TestCase):
 
                 self.assertTrue(player_service.play(correlation_id="corr-player-play-int").ok)
                 self.assertTrue(player_service.pause(correlation_id="corr-player-pause-int").ok)
+                self.assertTrue(player_service.play(correlation_id="corr-player-resume-int").ok)
+                self.assertTrue(player_service.seek(correlation_id="corr-player-seek-int", position_seconds=15.0).ok)
+                status_result = player_service.get_status(correlation_id="corr-player-status-int")
+                self.assertTrue(status_result.ok)
+                self.assertEqual((status_result.data or {}).get("state"), "playing")
+                self.assertEqual((status_result.data or {}).get("position_seconds"), 15.0)
+                self.assertEqual((status_result.data or {}).get("duration_seconds"), 60.0)
+                self.assertAlmostEqual(float((status_result.data or {}).get("progress", 0.0)), 0.25)
                 self.assertTrue(player_service.stop(correlation_id="corr-player-stop-int").ok)
 
                 events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
@@ -122,6 +139,7 @@ class TestLibraryPlaybackIntegration(unittest.TestCase):
                 self.assertIn("player.load_requested", event_names)
                 self.assertIn("player.play_started", event_names)
                 self.assertIn("player.paused", event_names)
+                self.assertIn("player.seeked", event_names)
                 self.assertIn("player.stopped", event_names)
 
                 for event in player_events:

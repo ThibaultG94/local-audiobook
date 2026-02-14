@@ -15,7 +15,7 @@ class _FakePlaybackAdapter:
         self.pause_result = success({"state": "paused"})
         self.stop_result = success({"state": "stopped"})
         self.seek_result = success({"state": "paused"})
-        self.status_result = success({"state": "stopped"})
+        self.status_result = success({"state": "stopped", "position_seconds": 0.0, "duration_seconds": 0.0})
 
     def load(self, *, file_path: str):
         return self.load_result
@@ -128,6 +128,53 @@ class TestPlayerService(unittest.TestCase):
         assert result.error is not None
         self.assertEqual(result.error.code, "player.seek_invalid_state")
 
+    def test_seek_rejects_invalid_numeric_payload(self) -> None:
+        adapter = _FakePlaybackAdapter()
+        service = PlayerService(playback_adapter=adapter)
+        audio_base = Path("runtime/library/audio")
+        audio_base.mkdir(parents=True, exist_ok=True)
+        audio_file = audio_base / "test-player-seek-invalid-payload.mp3"
+        audio_file.write_bytes(b"ID3")
+        try:
+            init_result = service.initialize_playback(
+                correlation_id="corr-player-seek-invalid-init",
+                playback_context={"library_item_id": "lib-seek-invalid", "audio_path": str(audio_file), "format": "mp3"},
+            )
+            self.assertTrue(init_result.ok)
+
+            result = service.seek(correlation_id="corr-player-seek-invalid", position_seconds="abc")  # type: ignore[arg-type]
+
+            self.assertFalse(result.ok)
+            assert result.error is not None
+            self.assertEqual(result.error.code, "player.seek_invalid_payload")
+        finally:
+            if audio_file.exists():
+                audio_file.unlink()
+
+    def test_seek_rejects_out_of_range_position(self) -> None:
+        adapter = _FakePlaybackAdapter()
+        adapter.status_result = success({"state": "paused", "position_seconds": 3.0, "duration_seconds": 8.0})
+        service = PlayerService(playback_adapter=adapter)
+        audio_base = Path("runtime/library/audio")
+        audio_base.mkdir(parents=True, exist_ok=True)
+        audio_file = audio_base / "test-player-seek-range.mp3"
+        audio_file.write_bytes(b"ID3")
+        try:
+            init_result = service.initialize_playback(
+                correlation_id="corr-player-seek-range-init",
+                playback_context={"library_item_id": "lib-seek-range", "audio_path": str(audio_file), "format": "mp3"},
+            )
+            self.assertTrue(init_result.ok)
+
+            result = service.seek(correlation_id="corr-player-seek-range", position_seconds=12.0)
+
+            self.assertFalse(result.ok)
+            assert result.error is not None
+            self.assertEqual(result.error.code, "player.seek_out_of_range")
+        finally:
+            if audio_file.exists():
+                audio_file.unlink()
+
     def test_play_pause_stop_and_status_flow(self) -> None:
         adapter = _FakePlaybackAdapter()
         service = PlayerService(playback_adapter=adapter)
@@ -154,6 +201,13 @@ class TestPlayerService(unittest.TestCase):
             status_result = service.get_status(correlation_id="corr-player-seq-status")
             self.assertTrue(status_result.ok)
             self.assertEqual(status_result.data["state"], "paused")
+
+            adapter.status_result = success({"state": "paused", "position_seconds": 10.0, "duration_seconds": 50.0})
+            progress_status = service.get_status(correlation_id="corr-player-seq-progress")
+            self.assertTrue(progress_status.ok)
+            self.assertEqual(progress_status.data["position_seconds"], 10.0)
+            self.assertEqual(progress_status.data["duration_seconds"], 50.0)
+            self.assertAlmostEqual(progress_status.data["progress"], 0.2)
 
             stop_result = service.stop(correlation_id="corr-player-seq-stop")
             self.assertTrue(stop_result.ok)

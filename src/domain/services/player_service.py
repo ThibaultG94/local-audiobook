@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import math
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -195,13 +196,53 @@ class PlayerService:
                 remediation="Load audio before seeking and use play/pause/stopped states only.",
             )
 
-        if position_seconds < 0:
+        try:
+            normalized_position = float(position_seconds)
+        except (TypeError, ValueError):
+            error = failure(
+                code="player.seek_invalid_payload",
+                message="Seek position must be a numeric value in seconds.",
+                details={
+                    "category": "input",
+                    "position_seconds": position_seconds,
+                    "remediation": "Provide a numeric seek position (for example: 42.5).",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="player.error",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        if not math.isfinite(normalized_position):
+            error = failure(
+                code="player.seek_invalid_payload",
+                message="Seek position must be a finite numeric value.",
+                details={
+                    "category": "input",
+                    "position_seconds": position_seconds,
+                    "remediation": "Provide a finite seek position in seconds.",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="player.error",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        if normalized_position < 0:
             error = failure(
                 code="player.seek_invalid_position",
                 message="Seek position must be a non-negative value.",
                 details={
                     "category": "input",
-                    "position_seconds": position_seconds,
+                    "position_seconds": normalized_position,
                     "remediation": "Provide a position greater than or equal to 0.",
                 },
                 retryable=False,
@@ -214,12 +255,35 @@ class PlayerService:
             )
             return error
 
-        result = self._playback_adapter.seek(position_seconds=float(position_seconds))
+        status_result = self._playback_adapter.get_status()
+        if status_result.ok:
+            duration_seconds = self._coerce_non_negative_float((status_result.data or {}).get("duration_seconds"))
+            if duration_seconds > 0 and normalized_position > duration_seconds:
+                error = failure(
+                    code="player.seek_out_of_range",
+                    message="Seek position exceeds current audio duration.",
+                    details={
+                        "category": "input",
+                        "position_seconds": normalized_position,
+                        "duration_seconds": duration_seconds,
+                        "remediation": "Seek to a value between 0 and the total duration.",
+                    },
+                    retryable=False,
+                )
+                self._emit(
+                    event="player.error",
+                    severity="ERROR",
+                    correlation_id=correlation_id,
+                    extra={"error": error.error.to_dict() if error.error else {}},
+                )
+                return error
+
+        result = self._playback_adapter.seek(position_seconds=normalized_position)
         if not result.ok:
             return self._adapter_failure(correlation_id=correlation_id, action="seek", result=result)
 
-        self._emit(event="player.seeked", severity="INFO", correlation_id=correlation_id, extra={"position_seconds": float(position_seconds)})
-        return success({"state": self._state, "position_seconds": float(position_seconds)})
+        self._emit(event="player.seeked", severity="INFO", correlation_id=correlation_id, extra={"position_seconds": normalized_position})
+        return success({"state": self._state, "position_seconds": normalized_position})
 
     def get_status(self, *, correlation_id: str) -> Result[dict[str, object]]:
         result = self._playback_adapter.get_status()
@@ -233,7 +297,28 @@ class PlayerService:
 
         payload = dict(result.data or {})
         payload["state"] = self._state
+        duration_seconds = self._coerce_non_negative_float(payload.get("duration_seconds"))
+        position_seconds = self._coerce_non_negative_float(payload.get("position_seconds"))
+        if duration_seconds > 0:
+            position_seconds = min(position_seconds, duration_seconds)
+            progress = min(1.0, max(0.0, position_seconds / duration_seconds))
+        else:
+            progress = 0.0
+
+        payload["position_seconds"] = position_seconds
+        payload["duration_seconds"] = duration_seconds
+        payload["progress"] = progress
         return success(payload)
+
+    @staticmethod
+    def _coerce_non_negative_float(value: object) -> float:
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        if not math.isfinite(numeric_value):
+            return 0.0
+        return max(0.0, numeric_value)
 
     def _validate_playback_path(self, playback_context: dict[str, object]) -> Result[dict[str, object]]:
         raw_audio_path = str(playback_context.get("audio_path") or "").strip()

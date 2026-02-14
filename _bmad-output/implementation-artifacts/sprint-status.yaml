@@ -68,7 +68,7 @@ development_status:
   4-2-persist-final-audio-artifacts-and-library-metadata: done
   4-3-browse-and-reopen-audiobooks-from-local-library-view: done
   4-4-integrate-local-audio-playback-service-and-adapter: done
-  4-5-provide-playback-controls-with-pause-resume-seek-and-progress: ready-for-dev
+  4-5-provide-playback-controls-with-pause-resume-seek-and-progress: review
   epic-4-retrospective: optional
 
   epic-5: backlog

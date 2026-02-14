@@ -46,6 +46,9 @@ class LibraryPresenter:
             "selected_item_id": "",
             "playback_context": None,
             "playback_state": "idle",
+            "playback_position_seconds": 0.0,
+            "playback_duration_seconds": 0.0,
+            "playback_progress": 0.0,
             "error": None,
         }
 
@@ -106,6 +109,46 @@ class LibraryPresenter:
             "selected_item_id": str(item_id or ""),
             "playback_context": playback_context,
             "playback_state": playback_state,
+            "playback_position_seconds": 0.0,
+            "playback_duration_seconds": 0.0,
+            "playback_progress": 0.0,
+            "error": None,
+        }
+        return self.state
+
+    def play(self, *, correlation_id: str) -> dict[str, Any]:
+        result = self._player_service.play(correlation_id=correlation_id)
+        return self._update_from_player_result(result)
+
+    def pause(self, *, correlation_id: str) -> dict[str, Any]:
+        result = self._player_service.pause(correlation_id=correlation_id)
+        return self._update_from_player_result(result)
+
+    def seek(self, *, correlation_id: str, position_seconds: float) -> dict[str, Any]:
+        result = self._player_service.seek(correlation_id=correlation_id, position_seconds=position_seconds)
+        return self._update_from_player_result(result)
+
+    def refresh_playback_status(self, *, correlation_id: str) -> dict[str, Any]:
+        result = self._player_service.get_status(correlation_id=correlation_id)
+        return self._update_from_player_result(result)
+
+    def _update_from_player_result(self, result: Result[dict[str, object]]) -> dict[str, Any]:
+        if not result.ok:
+            self.state = {
+                **self.state,
+                "status": "error",
+                "error": self._map_error(result.error.to_dict() if result.error else {}),
+            }
+            return self.state
+
+        payload = dict(result.data or {})
+        self.state = {
+            **self.state,
+            "status": "opened",
+            "playback_state": str(payload.get("state") or self.state.get("playback_state") or "idle"),
+            "playback_position_seconds": float(payload.get("position_seconds") or 0.0),
+            "playback_duration_seconds": float(payload.get("duration_seconds") or 0.0),
+            "playback_progress": float(payload.get("progress") or 0.0),
             "error": None,
         }
         return self.state

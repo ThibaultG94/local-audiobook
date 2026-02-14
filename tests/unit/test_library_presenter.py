@@ -26,24 +26,35 @@ class _FakeLibraryService:
 class _FakePlayerService:
     def __init__(self) -> None:
         self.initialize_result = success({"state": "stopped"})
+        self.play_result = success({"state": "playing"})
+        self.pause_result = success({"state": "paused"})
+        self.seek_result = success({"state": "paused", "position_seconds": 10.0})
+        self.status_result = success(
+            {
+                "state": "paused",
+                "position_seconds": 10.0,
+                "duration_seconds": 100.0,
+                "progress": 0.1,
+            }
+        )
 
     def initialize_playback(self, *, correlation_id: str, playback_context: dict[str, object]):
         return self.initialize_result
 
     def play(self, *, correlation_id: str):  # pragma: no cover - protocol completeness only
-        return success({"state": "playing"})
+        return self.play_result
 
     def pause(self, *, correlation_id: str):  # pragma: no cover - protocol completeness only
-        return success({"state": "paused"})
+        return self.pause_result
 
     def stop(self, *, correlation_id: str):  # pragma: no cover - protocol completeness only
         return success({"state": "stopped"})
 
     def seek(self, *, correlation_id: str, position_seconds: float):  # pragma: no cover
-        return success({"state": "stopped", "position_seconds": position_seconds})
+        return self.seek_result
 
     def get_status(self, *, correlation_id: str):  # pragma: no cover - protocol completeness only
-        return success({"state": "stopped"})
+        return self.status_result
 
 
 class TestLibraryPresenter(unittest.TestCase):
@@ -95,6 +106,9 @@ class TestLibraryPresenter(unittest.TestCase):
         self.assertEqual(state["selected_item_id"], "lib-open")
         self.assertEqual(state["playback_context"]["audio_path"], "/tmp/open.mp3")
         self.assertEqual(state["playback_state"], "stopped")
+        self.assertEqual(state["playback_position_seconds"], 0.0)
+        self.assertEqual(state["playback_duration_seconds"], 0.0)
+        self.assertEqual(state["playback_progress"], 0.0)
         self.assertIsNone(state["error"])
 
     def test_open_item_maps_actionable_error(self) -> None:
@@ -135,3 +149,26 @@ class TestLibraryPresenter(unittest.TestCase):
         self.assertEqual(state["status"], "error")
         self.assertEqual(state["playback_state"], "error")
         self.assertEqual(state["error"]["code"], "player.audio_missing")
+
+    def test_play_pause_seek_and_refresh_map_service_state(self) -> None:
+        service = _FakeLibraryService()
+        player = _FakePlayerService()
+        presenter = LibraryPresenter(library_service=service, player_service=player)
+
+        opened = presenter.open_item(correlation_id="corr-opened", item_id="lib-1")
+        self.assertEqual(opened["playback_state"], "stopped")
+
+        played = presenter.play(correlation_id="corr-play")
+        self.assertEqual(played["playback_state"], "playing")
+
+        paused = presenter.pause(correlation_id="corr-pause")
+        self.assertEqual(paused["playback_state"], "paused")
+
+        seeked = presenter.seek(correlation_id="corr-seek", position_seconds=10.0)
+        self.assertEqual(seeked["playback_state"], "paused")
+
+        refreshed = presenter.refresh_playback_status(correlation_id="corr-status")
+        self.assertEqual(refreshed["playback_position_seconds"], 10.0)
+        self.assertEqual(refreshed["playback_duration_seconds"], 100.0)
+        self.assertEqual(refreshed["playback_progress"], 0.1)
+        self.assertIsNone(refreshed["error"])

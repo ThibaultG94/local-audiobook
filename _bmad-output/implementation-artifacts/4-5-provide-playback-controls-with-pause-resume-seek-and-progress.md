@@ -1,6 +1,6 @@
 # Story 4.5: Provide Playback Controls with Pause Resume Seek and Progress
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,26 +34,26 @@ so that I can navigate content comfortably during listening sessions.
 
 ## Tasks / Subtasks
 
-- [ ] Wire playback controls into existing UI flow (AC: 1, 3, 4)
-  - [ ] Extend [`LibraryPresenter`](src/ui/presenters/library_presenter.py) control handlers to expose deterministic play/pause/resume/seek actions through [`PlayerService`](src/domain/services/player_service.py)
-  - [ ] Keep control routing service-only (no direct UI call to [`QtAudioPlayer`](src/adapters/playback/qt_audio_player.py))
-  - [ ] Keep UI state synchronized with service state (`idle/loading/stopped/playing/paused/error`)
-- [ ] Implement seek guardrails and status synchronization (AC: 2, 3)
-  - [ ] Validate seek targets before/through [`PlayerService.seek()`](src/domain/services/player_service.py:190)
-  - [ ] Return normalized errors for out-of-range or invalid seek payloads via [`failure()`](src/contracts/result.py:48)
-  - [ ] Preserve deterministic transitions and prevent invalid command/state combinations
-- [ ] Expose playback timing/progress for rendering (AC: 3)
-  - [ ] Surface current position and total duration through presenter-friendly payloads
-  - [ ] Update progress representation without blocking UI thread
-  - [ ] Ensure progress rendering remains correct after pause/resume/seek
-- [ ] Preserve observability and diagnostics at player stage (AC: 4)
-  - [ ] Emit stable events (`player.play_started`, `player.paused`, `player.seeked`, `player.stopped`, `player.error`) through existing logging boundary
-  - [ ] Ensure minimum payload fields (`correlation_id`, `event`, `severity`, `timestamp`) are present
-  - [ ] Keep user-facing messages actionable and English-only for MVP
-- [ ] Add and update tests for control behavior and progress correctness (AC: 1, 2, 3, 4)
-  - [ ] Unit tests for presenter↔service command flow and error mapping
-  - [ ] Unit tests for seek validation/state transitions and status payloads
-  - [ ] Integration test for reopen → initialize playback → play/pause/resume/seek/progress updates
+- [x] Wire playback controls into existing UI flow (AC: 1, 3, 4)
+  - [x] Extend [`LibraryPresenter`](src/ui/presenters/library_presenter.py) control handlers to expose deterministic play/pause/resume/seek actions through [`PlayerService`](src/domain/services/player_service.py)
+  - [x] Keep control routing service-only (no direct UI call to [`QtAudioPlayer`](src/adapters/playback/qt_audio_player.py))
+  - [x] Keep UI state synchronized with service state (`idle/loading/stopped/playing/paused/error`)
+- [x] Implement seek guardrails and status synchronization (AC: 2, 3)
+  - [x] Validate seek targets before/through [`PlayerService.seek()`](src/domain/services/player_service.py:190)
+  - [x] Return normalized errors for out-of-range or invalid seek payloads via [`failure()`](src/contracts/result.py:48)
+  - [x] Preserve deterministic transitions and prevent invalid command/state combinations
+- [x] Expose playback timing/progress for rendering (AC: 3)
+  - [x] Surface current position and total duration through presenter-friendly payloads
+  - [x] Update progress representation without blocking UI thread
+  - [x] Ensure progress rendering remains correct after pause/resume/seek
+- [x] Preserve observability and diagnostics at player stage (AC: 4)
+  - [x] Emit stable events (`player.play_started`, `player.paused`, `player.seeked`, `player.stopped`, `player.error`) through existing logging boundary
+  - [x] Ensure minimum payload fields (`correlation_id`, `event`, `severity`, `timestamp`) are present
+  - [x] Keep user-facing messages actionable and English-only for MVP
+- [x] Add and update tests for control behavior and progress correctness (AC: 1, 2, 3, 4)
+  - [x] Unit tests for presenter↔service command flow and error mapping
+  - [x] Unit tests for seek validation/state transitions and status payloads
+  - [x] Integration test for reopen → initialize playback → play/pause/resume/seek/progress updates
 
 ## Dev Notes
 
@@ -216,6 +216,9 @@ gpt-5.3-codex
 - `python -m pip index versions PyPDF2`
 - `find . -type f \( -name '*ux*.md' -o -name 'project-context.md' \) | sort`
 - `ls -1 ./src/ui/views`
+- `python -m unittest tests.unit.test_player_service tests.unit.test_library_presenter tests.unit.test_library_view tests.unit.test_qt_audio_player tests.integration.test_library_playback_integration`
+- `python -m unittest discover -s tests`
+- `python -m unittest tests.unit.test_player_service tests.unit.test_library_presenter tests.unit.test_library_view tests.unit.test_qt_audio_player tests.integration.test_library_playback_integration`
 
 ### Completion Notes List
 
@@ -224,13 +227,31 @@ gpt-5.3-codex
 - Previous story (4.4) implementation intelligence incorporated to minimize regressions and preserve architecture boundaries.
 - Story status set to `ready-for-dev` with direct sprint tracking update prepared.
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added playback control methods in presenter/view layers (`play`, `pause`, `seek`, `refresh_playback_status`) and kept strict service-boundary routing.
+- Added seek guardrails in player service for invalid payloads, finite numeric validation, and out-of-range detection using duration-aware checks.
+- Exposed deterministic timing payloads (`position_seconds`, `duration_seconds`, `progress`) from adapter/service to presenter/view state.
+- Preserved/extended player event observability (`player.play_started`, `player.paused`, `player.seeked`, `player.stopped`, `player.error`) with required event schema fields.
+- Added and updated unit/integration tests for command flow, seek validation, progress consistency, and reopen→initialize→play/pause/resume/seek/status lifecycle.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/4-5-provide-playback-controls-with-pause-resume-seek-and-progress.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/adapters/playback/qt_audio_player.py
+- src/domain/services/player_service.py
+- src/ui/presenters/library_presenter.py
+- src/ui/views/library_view.py
+- tests/unit/test_library_presenter.py
+- tests/unit/test_library_view.py
+- tests/unit/test_player_service.py
+- tests/unit/test_qt_audio_player.py
+- tests/integration/test_library_playback_integration.py
+
+### Change Log
+
+- 2026-02-14: Implemented playback controls wiring, seek guardrails, progress/timing payload flow, and test coverage for Story 4.5; set story to review.
 
 ## Story Completion Status
 
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Story 4.5 implementation completed with passing targeted unit/integration playback tests and updated diagnostics/progress handling.

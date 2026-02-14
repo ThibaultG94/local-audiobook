@@ -9,6 +9,8 @@ class _FakeBackend:
     def __init__(self) -> None:
         self.state = "stopped"
         self.fail_action: str | None = None
+        self.position_milliseconds = 0
+        self.duration_milliseconds = 0
 
     def load(self, file_path: str) -> None:
         if self.fail_action == "load":
@@ -33,16 +35,24 @@ class _FakeBackend:
     def seek(self, position_seconds: float) -> None:
         if self.fail_action == "seek":
             raise RuntimeError("seek boom")
+        self.position_milliseconds = int(float(position_seconds) * 1000)
 
     def get_state(self) -> str:
         if self.fail_action == "status":
             raise RuntimeError("status boom")
         return self.state
 
+    def get_position_milliseconds(self) -> int:
+        return self.position_milliseconds
+
+    def get_duration_milliseconds(self) -> int:
+        return self.duration_milliseconds
+
 
 class TestQtAudioPlayer(unittest.TestCase):
     def test_maps_backend_states_to_deterministic_states(self) -> None:
         backend = _FakeBackend()
+        backend.duration_milliseconds = 25000
         adapter = QtAudioPlayer(backend_factory=lambda: backend)
 
         self.assertTrue(adapter.load(file_path="runtime/library/audio/.gitkeep").ok)
@@ -62,6 +72,8 @@ class TestQtAudioPlayer(unittest.TestCase):
         status_result = adapter.get_status()
         self.assertTrue(status_result.ok)
         self.assertEqual(status_result.data["state"], "stopped")
+        self.assertEqual(status_result.data["position_seconds"], 0.0)
+        self.assertEqual(status_result.data["duration_seconds"], 25.0)
 
     def test_seek_validates_non_negative(self) -> None:
         adapter = QtAudioPlayer(backend_factory=_FakeBackend)
@@ -94,4 +106,3 @@ class TestQtAudioPlayer(unittest.TestCase):
         self.assertFalse(result.ok)
         assert result.error is not None
         self.assertEqual(result.error.code, "qt_player.load_backend_unavailable")
-

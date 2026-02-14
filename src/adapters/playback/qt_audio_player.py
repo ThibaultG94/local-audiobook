@@ -23,6 +23,10 @@ class QtBackendPort(Protocol):
 
     def get_state(self) -> str: ...
 
+    def get_position_milliseconds(self) -> int: ...
+
+    def get_duration_milliseconds(self) -> int: ...
+
 
 class _PyQtMediaBackend:
     """Thin backend wrapper around PyQt5 multimedia APIs."""
@@ -61,6 +65,12 @@ class _PyQtMediaBackend:
         if state == 2:
             return "paused"
         return "stopped"
+
+    def get_position_milliseconds(self) -> int:
+        return int(self._player.position())
+
+    def get_duration_milliseconds(self) -> int:
+        return int(self._player.duration())
 
 
 class QtAudioPlayer:
@@ -182,7 +192,26 @@ class QtAudioPlayer:
 
         normalized_state = raw_state if raw_state in _ALLOWED_STATES else "error"
         self._state = normalized_state
-        return success({"state": self._state})
+        position_seconds = 0.0
+        duration_seconds = 0.0
+        if hasattr(backend, "get_position_milliseconds"):
+            try:
+                position_seconds = max(0.0, float(backend.get_position_milliseconds()) / 1000.0)
+            except Exception:
+                position_seconds = 0.0
+        if hasattr(backend, "get_duration_milliseconds"):
+            try:
+                duration_seconds = max(0.0, float(backend.get_duration_milliseconds()) / 1000.0)
+            except Exception:
+                duration_seconds = 0.0
+
+        return success(
+            {
+                "state": self._state,
+                "position_seconds": position_seconds,
+                "duration_seconds": duration_seconds,
+            }
+        )
 
     def _ensure_backend(self) -> QtBackendPort | None:
         return self._backend
@@ -213,4 +242,3 @@ class QtAudioPlayer:
             },
             retryable=True,
         )
-
