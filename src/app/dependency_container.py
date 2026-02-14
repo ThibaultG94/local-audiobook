@@ -9,6 +9,7 @@ from typing import Any
 from src.contracts.result import Result
 from src.adapters.audio.mp3_encoder import Mp3Encoder
 from src.adapters.audio.wav_builder import WavBuilder
+from src.adapters.playback.qt_audio_player import QtAudioPlayer
 from src.adapters.tts.chatterbox_provider import ChatterboxProvider
 from src.adapters.tts.kokoro_provider import KokoroProvider
 from src.adapters.persistence.sqlite.repositories.conversion_jobs_repository import (
@@ -27,6 +28,7 @@ from src.adapters.persistence.sqlite.repositories.chunks_repository import Chunk
 from src.domain.services.audio_postprocess_service import AudioPostprocessService
 from src.domain.services.chunking_service import ChunkingService
 from src.domain.services.library_service import LibraryService
+from src.domain.services.player_service import PlayerService
 from src.domain.services.model_registry_service import ModelRegistryService
 from src.domain.services.startup_readiness_service import StartupReadinessService
 from src.domain.services.tts_orchestration_service import TtsOrchestrationService
@@ -53,6 +55,7 @@ class Services:
     tts_orchestration: TtsOrchestrationService
     audio_postprocess: AudioPostprocessService
     library: LibraryService
+    player: PlayerService
     chunking: ChunkingService
     model_registry: ModelRegistryService
     startup_readiness: StartupReadinessService
@@ -114,7 +117,10 @@ def build_library_presenter(container: AppContainer) -> Any:
     """Build library presenter through service boundaries only."""
     from src.ui.presenters.library_presenter import LibraryPresenter
 
-    return LibraryPresenter(library_service=container.services.library)
+    return LibraryPresenter(
+        library_service=container.services.library,
+        player_service=container.services.player,
+    )
 
 
 def build_library_view(container: AppContainer) -> Any:
@@ -159,6 +165,10 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         library_items_repository=repositories.library_items,
         logger=logger,
     )
+    player_service = PlayerService(
+        playback_adapter=QtAudioPlayer(),
+        logger=logger,
+    )
     services = Services(
         tts_orchestration=TtsOrchestrationService(
             primary_provider=providers.chatterbox,
@@ -173,6 +183,7 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         ),
         audio_postprocess=audio_postprocess,
         library=library_service,
+        player=player_service,
         chunking=ChunkingService(),
         model_registry=ModelRegistryService(),
         startup_readiness=StartupReadinessService(),

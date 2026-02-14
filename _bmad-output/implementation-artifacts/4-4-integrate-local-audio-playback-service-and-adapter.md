@@ -1,6 +1,6 @@
 # Story 4.4: Integrate Local Audio Playback Service and Adapter
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,29 +34,29 @@ so that playback is reliable across MP3 and WAV outputs.
 
 ## Tasks / Subtasks
 
-- [ ] Define playback service boundary and contracts (AC: 1, 2, 3)
-  - [ ] Add [`PlayerService`](src/domain/services/player_service.py) with normalized service responses `{ok, data, error}`.
-  - [ ] Add repository-free service interface for load/play/pause/stop/seek/status methods.
-  - [ ] Enforce adapter orchestration only through service (no direct UI → adapter calls).
-- [ ] Implement local playback adapter for MP3/WAV in infra/adapters layer (AC: 1, 3)
-  - [ ] Create [`QtAudioPlayer`](src/adapters/playback/qt_audio_player.py) wrapper around Qt multimedia primitives.
-  - [ ] Normalize adapter status signals/events into deterministic state payloads (`idle`, `loading`, `playing`, `paused`, `stopped`, `error`).
-  - [ ] Ensure adapter does not perform conversion logic or persistence operations.
-- [ ] Add robust path and format validation for playback initialization (AC: 1, 2)
-  - [ ] Validate resolved path is within `runtime/library/audio` bounds before adapter load.
-  - [ ] Validate extension/format compatibility (`.mp3`, `.wav`) and fail fast with structured errors.
-  - [ ] Return actionable remediation for missing/unreadable artifacts (`relink`, `reconvert`, `check permissions`).
-- [ ] Integrate playback state propagation to presentation boundary (AC: 3)
-  - [ ] Add/update presenter contract so playback state updates can be consumed without leaking adapter internals.
-  - [ ] Preserve deterministic transition rules and avoid out-of-order UI state updates.
-- [ ] Add observability and diagnostics events for playback operations (AC: 4)
-  - [ ] Emit `domain.action` events for `player.load_requested`, `player.load_failed`, `player.play_started`, `player.paused`, `player.stopped`, `player.error`.
-  - [ ] Ensure `stage=player` and UTC ISO-8601 timestamp semantics.
-  - [ ] Include `correlation_id` and severity consistently, with optional `job_id` if available.
-- [ ] Add tests across service, adapter seam, and integration flow (AC: 1, 2, 3, 4)
-  - [ ] Unit test [`PlayerService`](src/domain/services/player_service.py) success/failure and normalization behavior.
-  - [ ] Unit test adapter wrapper behavior with mocked Qt media backend.
-  - [ ] Integration test reopen-from-library to player initialization path without re-running extraction/synthesis.
+- [x] Define playback service boundary and contracts (AC: 1, 2, 3)
+  - [x] Add [`PlayerService`](src/domain/services/player_service.py) with normalized service responses `{ok, data, error}`.
+  - [x] Add repository-free service interface for load/play/pause/stop/seek/status methods.
+  - [x] Enforce adapter orchestration only through service (no direct UI → adapter calls).
+- [x] Implement local playback adapter for MP3/WAV in infra/adapters layer (AC: 1, 3)
+  - [x] Create [`QtAudioPlayer`](src/adapters/playback/qt_audio_player.py) wrapper around Qt multimedia primitives.
+  - [x] Normalize adapter status signals/events into deterministic state payloads (`idle`, `loading`, `playing`, `paused`, `stopped`, `error`).
+  - [x] Ensure adapter does not perform conversion logic or persistence operations.
+- [x] Add robust path and format validation for playback initialization (AC: 1, 2)
+  - [x] Validate resolved path is within `runtime/library/audio` bounds before adapter load.
+  - [x] Validate extension/format compatibility (`.mp3`, `.wav`) and fail fast with structured errors.
+  - [x] Return actionable remediation for missing/unreadable artifacts (`relink`, `reconvert`, `check permissions`).
+- [x] Integrate playback state propagation to presentation boundary (AC: 3)
+  - [x] Add/update presenter contract so playback state updates can be consumed without leaking adapter internals.
+  - [x] Preserve deterministic transition rules and avoid out-of-order UI state updates.
+- [x] Add observability and diagnostics events for playback operations (AC: 4)
+  - [x] Emit `domain.action` events for `player.load_requested`, `player.load_failed`, `player.play_started`, `player.paused`, `player.stopped`, `player.error`.
+  - [x] Ensure `stage=player` and UTC ISO-8601 timestamp semantics.
+  - [x] Include `correlation_id` and severity consistently, with optional `job_id` if available.
+- [x] Add tests across service, adapter seam, and integration flow (AC: 1, 2, 3, 4)
+  - [x] Unit test [`PlayerService`](src/domain/services/player_service.py) success/failure and normalization behavior.
+  - [x] Unit test adapter wrapper behavior with mocked Qt media backend.
+  - [x] Integration test reopen-from-library to player initialization path without re-running extraction/synthesis.
 
 ## Dev Notes
 
@@ -250,6 +250,8 @@ gpt-5.3-codex
 - `python -m pip index versions EbookLib`
 - `python -m pip index versions PyPDF2`
 - `rg -n "player|playback|qt_audio|QMediaPlayer" src --glob "*.py"`
+- `python -m unittest tests.unit.test_player_service tests.unit.test_qt_audio_player tests.unit.test_library_presenter tests.unit.test_library_view tests.integration.test_library_playback_integration`
+- `PYTHONPATH=src:. python -m unittest discover -s tests`
 
 ### Completion Notes List
 
@@ -257,14 +259,35 @@ gpt-5.3-codex
 - Developer guardrails added for architecture boundaries, normalized contracts, local path safety, and observability.
 - Previous story learnings (4.3) integrated to prevent regressions and service-boundary violations.
 - Latest dependency/version context added for playback-related technical decisions.
-- Story status set to `ready-for-dev`.
+- Implemented `PlayerService` with deterministic state machine, local-path and format guardrails, and normalized error mapping.
+- Implemented `QtAudioPlayer` adapter as infrastructure-only playback wrapper with deterministic state normalization and backend failure normalization.
+- Integrated library reopen flow with playback initialization through service boundaries in presenter/view and DI wiring.
+- Added player-stage JSONL observability (`player.load_requested`, `player.load_failed`, `player.play_started`, `player.paused`, `player.stopped`, `player.error`) with UTC timestamps.
+- Added unit tests for player service, adapter seam, presenter/view propagation, and integration test for reopen→initialize→controls flow.
+- Validated targeted and full test suites successfully (194 tests passing with project PYTHONPATH settings).
+- Story status set to `review`.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/4-4-integrate-local-audio-playback-service-and-adapter.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/adapters/playback/__init__.py
+- src/adapters/playback/qt_audio_player.py
+- src/domain/services/player_service.py
+- src/app/dependency_container.py
+- src/ui/presenters/library_presenter.py
+- src/ui/views/library_view.py
+- tests/unit/test_player_service.py
+- tests/unit/test_qt_audio_player.py
+- tests/unit/test_library_view.py
+- tests/unit/test_library_presenter.py
+- tests/integration/test_library_playback_integration.py
+
+## Change Log
+
+- 2026-02-14: Implemented Story 4.4 playback service/adapter integration, observability, DI wiring, UI propagation, and tests; moved status to `review`.
 
 ## Story Completion Status
 
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Story implemented with playback service/adapter integration, deterministic state propagation, diagnostics events, and passing test suite.

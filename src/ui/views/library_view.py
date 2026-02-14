@@ -22,6 +22,7 @@ class LibraryView:
             "items": [],
             "selected_item_id": "",
             "playback_context": None,
+            "playback_state": "idle",
             "error": None,
         }
 
@@ -34,4 +35,3 @@ class LibraryView:
         state = self._presenter.open_item(correlation_id=correlation_id, item_id=item_id)
         self.current_state = dict(state)
         return self.current_state
-
