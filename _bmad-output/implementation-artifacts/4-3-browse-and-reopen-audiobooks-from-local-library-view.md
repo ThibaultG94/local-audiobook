@@ -1,6 +1,6 @@
 # Story 4.3: Browse and Reopen Audiobooks from Local Library View
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,26 +34,26 @@ so that I can quickly resume listening without reconversion.
 
 ## Tasks / Subtasks
 
-- [ ] Add library browse domain flow and deterministic listing contract (AC: 1, 4)
-  - [ ] Add read methods to [`LibraryItemsRepository`](src/adapters/persistence/sqlite/repositories/library_items_repository.py) for stable ordered listing and single-item lookup by id.
-  - [ ] Define domain-level browse/read operations in [`LibraryService`](src/domain/services/library_service.py) returning normalized `{ok, data, error}` payloads.
-  - [ ] Emit structured JSONL browse events with `stage=library_browse` and `domain.action` naming.
-- [ ] Introduce UI surface for library browse and reopen actions (AC: 1, 2)
-  - [ ] Create [`LibraryPresenter`](src/ui/presenters/library_presenter.py) to orchestrate list loading, selection, and normalized UI state.
-  - [ ] Create [`LibraryView`](src/ui/views/library_view.py) to render deterministic list of local audiobooks and expose item-open actions.
-  - [ ] Wire presenter↔view boundaries without direct SQLite access from the UI layer.
-- [ ] Implement reopen flow with playback context preparation (AC: 2, 3)
-  - [ ] Add a domain method in [`LibraryService`](src/domain/services/library_service.py) to resolve selected item details and validate artifact path existence.
-  - [ ] Return normalized actionable failures for stale metadata / missing file with remediation guidance (relink or reconvert).
-  - [ ] Ensure reopen action does not trigger extraction, chunking, synthesis, or post-processing paths.
-- [ ] Integrate dependency wiring and boundaries (AC: 1, 2, 3)
-  - [ ] Register library presenter/view dependencies in [`build_container()`](src/app/dependency_container.py:104) while preserving existing service boundaries.
-  - [ ] Keep logging through existing logger boundary and avoid new ad-hoc logging mechanisms.
-- [ ] Add test coverage across repository, service, and UI interaction seams (AC: 1, 2, 3, 4)
-  - [ ] Add unit tests for repository deterministic ordering and item lookup.
-  - [ ] Add unit tests for service browse/reopen success and normalized failure contracts.
-  - [ ] Add unit tests for presenter behavior (load list, open item, error rendering signals/state mapping).
-  - [ ] Add integration coverage to confirm end-to-end reopen preparation path and logging at `stage=library_browse`.
+- [x] Add library browse domain flow and deterministic listing contract (AC: 1, 4)
+  - [x] Add read methods to [`LibraryItemsRepository`](src/adapters/persistence/sqlite/repositories/library_items_repository.py) for stable ordered listing and single-item lookup by id.
+  - [x] Define domain-level browse/read operations in [`LibraryService`](src/domain/services/library_service.py) returning normalized `{ok, data, error}` payloads.
+  - [x] Emit structured JSONL browse events with `stage=library_browse` and `domain.action` naming.
+- [x] Introduce UI surface for library browse and reopen actions (AC: 1, 2)
+  - [x] Create [`LibraryPresenter`](src/ui/presenters/library_presenter.py) to orchestrate list loading, selection, and normalized UI state.
+  - [x] Create [`LibraryView`](src/ui/views/library_view.py) to render deterministic list of local audiobooks and expose item-open actions.
+  - [x] Wire presenter↔view boundaries without direct SQLite access from the UI layer.
+- [x] Implement reopen flow with playback context preparation (AC: 2, 3)
+  - [x] Add a domain method in [`LibraryService`](src/domain/services/library_service.py) to resolve selected item details and validate artifact path existence.
+  - [x] Return normalized actionable failures for stale metadata / missing file with remediation guidance (relink or reconvert).
+  - [x] Ensure reopen action does not trigger extraction, chunking, synthesis, or post-processing paths.
+- [x] Integrate dependency wiring and boundaries (AC: 1, 2, 3)
+  - [x] Register library presenter/view dependencies in [`build_container()`](src/app/dependency_container.py:125) while preserving existing service boundaries.
+  - [x] Keep logging through existing logger boundary and avoid new ad-hoc logging mechanisms.
+- [x] Add test coverage across repository, service, and UI interaction seams (AC: 1, 2, 3, 4)
+  - [x] Add unit tests for repository deterministic ordering and item lookup.
+  - [x] Add unit tests for service browse/reopen success and normalized failure contracts.
+  - [x] Add unit tests for presenter behavior (load list, open item, error rendering signals/state mapping).
+  - [x] Add integration coverage to confirm end-to-end reopen preparation path and logging at `stage=library_browse`.
 
 ## Dev Notes
 
@@ -183,17 +183,39 @@ gpt-5.3-codex
 - `git log -n 5 --pretty=format:'%h|%s' --name-only`
 - `rg -n "library|Library|player|Player" src`
 - `rg -n "4\.3|Browse and Reopen" _bmad-output/planning-artifacts/epics.md`
+- `python -m unittest tests.unit.test_library_items_repository`
+- `python -m unittest tests.unit.test_library_items_repository tests.unit.test_library_service tests.unit.test_library_presenter tests.integration.test_library_browse_reopen_integration`
+- `PYTHONPATH=src python -m unittest`
 
 ### Completion Notes List
 
-- Story context generated with exhaustive analysis of planning artifacts, architecture constraints, prior implementation story, current codebase boundaries, and recent git implementation patterns.
-- This story is marked `ready-for-dev` with explicit implementation guardrails to prevent duplicate persistence paths, broken boundaries, and stale-artifact regressions.
+- Implemented deterministic browse reads in [`LibraryItemsRepository`](src/adapters/persistence/sqlite/repositories/library_items_repository.py) with stable ordering (`created_at DESC`, `id DESC`) and single-item lookup by id.
+- Extended [`LibraryService`](src/domain/services/library_service.py) with `browse_library()` and `reopen_library_item()` normalized contracts and actionable stale-artifact errors.
+- Added local browse observability events at `stage=library_browse`: `library.list_loaded`, `library.item_opened`, `library.item_open_failed`.
+- Added new UI boundaries [`LibraryPresenter`](src/ui/presenters/library_presenter.py) and [`LibraryView`](src/ui/views/library_view.py) without direct repository/SQLite access from UI.
+- Registered presenter/view builders in [`build_container()`](src/app/dependency_container.py:125) while preserving existing service boundaries and logger usage.
+- Added tests for repository/service/presenter and integration logging coverage; targeted and full suites pass with `PYTHONPATH=src`.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/4-3-browse-and-reopen-audiobooks-from-local-library-view.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/adapters/persistence/sqlite/repositories/library_items_repository.py
+- src/domain/services/library_service.py
+- src/app/dependency_container.py
+- src/ui/presenters/library_presenter.py
+- src/ui/views/library_view.py
+- tests/unit/test_library_items_repository.py
+- tests/unit/test_library_service.py
+- tests/unit/test_library_presenter.py
+- tests/integration/test_library_browse_reopen_integration.py
+
+## Change Log
+
+- 2026-02-14: Implemented Story 4.3 browse/reopen flow (repository reads, service APIs, presenter/view boundaries, dependency wiring, and test/integration coverage with `library_browse` JSONL events).
 
 ## Story Completion Status
 
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `in-progress`
+- Status set to: `review`
+- Completion note: Story implementation complete; all tasks/subtasks checked, acceptance criteria validated, and tests passing.

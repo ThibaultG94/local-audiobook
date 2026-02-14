@@ -8,17 +8,34 @@ from src.domain.services.library_service import LibraryService
 class _InMemoryLibraryItemsRepository:
     def __init__(self) -> None:
         self.created: list[dict[str, object]] = []
+        self.items: list[dict[str, object]] = []
 
     def create_item(self, record: dict[str, object]) -> dict[str, object]:
         payload = dict(record)
         payload.setdefault("id", "lib-1")
         self.created.append(payload)
+        self.items.append(payload)
         return payload
+
+    def list_items_ordered(self) -> list[dict[str, object]]:
+        return list(self.items)
+
+    def get_item_by_id(self, item_id: str) -> dict[str, object] | None:
+        for item in self.items:
+            if str(item.get("id") or "") == str(item_id):
+                return dict(item)
+        return None
 
 
 class _FailingLibraryItemsRepository:
     def create_item(self, record: dict[str, object]) -> dict[str, object]:
         raise RuntimeError("db down")
+
+    def list_items_ordered(self) -> list[dict[str, object]]:
+        raise RuntimeError("db down")
+
+    def get_item_by_id(self, item_id: str) -> dict[str, object] | None:
+        return None
 
 
 class _CapturingLogger:
@@ -63,6 +80,100 @@ class TestLibraryService(unittest.TestCase):
         created_events = [event for event in logger.events if event.get("event") == "library.item_created"]
         self.assertEqual(len(created_events), 1)
         self.assertEqual(created_events[0].get("stage"), "library_persistence")
+
+    def test_browse_library_returns_deterministic_items_and_event(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        repository.items = [
+            {
+                "id": "lib-2",
+                "title": "Titre 2",
+                "source_path": "/tmp/b.epub",
+                "language": "fr",
+                "format": "mp3",
+                "created_at": "2026-02-14T10:00:00+00:00",
+                "audio_path": "runtime/library/audio/.gitkeep",
+                "job_id": "job-2",
+                "source_format": "epub",
+            }
+        ]
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.browse_library(correlation_id="corr-browse-1")
+
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertEqual(result.data["count"], 1)
+        self.assertEqual(result.data["items"][0]["id"], "lib-2")
+        self.assertEqual(result.data["items"][0]["created_date"], "2026-02-14T10:00:00+00:00")
+        loaded_events = [event for event in logger.events if event.get("event") == "library.list_loaded"]
+        self.assertEqual(len(loaded_events), 1)
+        self.assertEqual(loaded_events[0].get("stage"), "library_browse")
+
+    def test_reopen_library_item_success_prepares_playback_context(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        repository.items = [
+            {
+                "id": "lib-ok",
+                "title": "Titre OK",
+                "source_path": "/tmp/source.epub",
+                "language": "fr",
+                "format": "mp3",
+                "created_at": "2026-02-14T10:00:00+00:00",
+                "audio_path": "runtime/library/audio/.gitkeep",
+                "job_id": "job-ok",
+                "source_format": "epub",
+            }
+        ]
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.reopen_library_item(correlation_id="corr-open-ok", item_id="lib-ok")
+
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertEqual(result.data["library_item"]["id"], "lib-ok")
+        self.assertIn("runtime/library/audio/.gitkeep", result.data["playback_context"]["audio_path"])
+        opened_events = [event for event in logger.events if event.get("event") == "library.item_opened"]
+        self.assertEqual(len(opened_events), 1)
+        self.assertEqual(opened_events[0].get("stage"), "library_browse")
+
+    def test_reopen_library_item_missing_record_returns_normalized_error(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.reopen_library_item(correlation_id="corr-open-missing", item_id="missing-id")
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "library_browse.item_not_found")
+        self.assertIn("remediation", result.error.details)
+
+    def test_reopen_library_item_missing_artifact_returns_actionable_error(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        repository.items = [
+            {
+                "id": "lib-missing-audio",
+                "title": "Titre Missing",
+                "source_path": "/tmp/source.epub",
+                "language": "fr",
+                "format": "mp3",
+                "created_at": "2026-02-14T10:00:00+00:00",
+                "audio_path": "runtime/library/audio/file-does-not-exist.mp3",
+                "job_id": "job-missing",
+                "source_format": "epub",
+            }
+        ]
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.reopen_library_item(correlation_id="corr-open-missing-audio", item_id="lib-missing-audio")
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "library_browse.audio_missing")
+        self.assertIn("reconvert", str(result.error.details.get("remediation", "")).lower())
 
     def test_persist_final_artifact_rejects_missing_required_fields(self) -> None:
         repository = _InMemoryLibraryItemsRepository()
@@ -122,4 +233,3 @@ class TestLibraryService(unittest.TestCase):
         failed_events = [event for event in logger.events if event.get("event") == "library.item_create_failed"]
         self.assertEqual(len(failed_events), 1)
         self.assertEqual(failed_events[0].get("stage"), "library_persistence")
-

@@ -110,6 +110,21 @@ def build_conversion_presenter(*, logger: JsonlLogger | None = None) -> Any:
     return ConversionPresenter(logger=logger)
 
 
+def build_library_presenter(container: AppContainer) -> Any:
+    """Build library presenter through service boundaries only."""
+    from src.ui.presenters.library_presenter import LibraryPresenter
+
+    return LibraryPresenter(library_service=container.services.library)
+
+
+def build_library_view(container: AppContainer) -> Any:
+    """Build library view bound to presenter without direct DB access from UI."""
+    from src.ui.views.library_view import LibraryView
+
+    presenter = build_library_presenter(container)
+    return LibraryView(presenter=presenter)
+
+
 def build_conversion_worker(container: AppContainer, model_manifest_path: str) -> Any:
     """Build conversion worker with recheck entrypoint through service boundaries."""
     from src.ui.workers.conversion_worker import ConversionWorker

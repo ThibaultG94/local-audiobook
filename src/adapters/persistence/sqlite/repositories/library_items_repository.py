@@ -104,3 +104,105 @@ class LibraryItemsRepository(BaseRepository):
             cursor.close()
 
         return normalized
+
+    def list_items_ordered(self) -> list[dict[str, Any]]:
+        """Return library items sorted deterministically for browse UIs.
+
+        Stable ordering rule: newest first using created_at DESC, then id DESC.
+        """
+        cursor = self._connection.cursor()
+        try:
+            rows = cursor.execute(
+                """
+                SELECT
+                    id,
+                    document_id,
+                    job_id,
+                    audio_path,
+                    title,
+                    source_path,
+                    source_format,
+                    format,
+                    engine,
+                    voice,
+                    language,
+                    duration_seconds,
+                    byte_size,
+                    created_at
+                FROM library_items
+                ORDER BY created_at DESC, id DESC
+                """
+            ).fetchall()
+        finally:
+            cursor.close()
+
+        items: list[dict[str, Any]] = []
+        for row in rows:
+            items.append(
+                {
+                    "id": row[0],
+                    "document_id": row[1],
+                    "job_id": row[2],
+                    "audio_path": row[3],
+                    "title": row[4],
+                    "source_path": row[5],
+                    "source_format": row[6],
+                    "format": row[7],
+                    "engine": row[8],
+                    "voice": row[9],
+                    "language": row[10],
+                    "duration_seconds": row[11],
+                    "byte_size": row[12],
+                    "created_at": row[13],
+                }
+            )
+        return items
+
+    def get_item_by_id(self, item_id: str) -> dict[str, Any] | None:
+        """Return one library item by id, or None when absent."""
+        cursor = self._connection.cursor()
+        try:
+            row = cursor.execute(
+                """
+                SELECT
+                    id,
+                    document_id,
+                    job_id,
+                    audio_path,
+                    title,
+                    source_path,
+                    source_format,
+                    format,
+                    engine,
+                    voice,
+                    language,
+                    duration_seconds,
+                    byte_size,
+                    created_at
+                FROM library_items
+                WHERE id = ?
+                """,
+                (str(item_id),),
+            ).fetchone()
+        finally:
+            cursor.close()
+
+        if row is None:
+            return None
+
+        return {
+            "id": row[0],
+            "document_id": row[1],
+            "job_id": row[2],
+            "audio_path": row[3],
+            "title": row[4],
+            "source_path": row[5],
+            "source_format": row[6],
+            "format": row[7],
+            "engine": row[8],
+            "voice": row[9],
+            "language": row[10],
+            "duration_seconds": row[11],
+            "byte_size": row[12],
+            "created_at": row[13],
+        }

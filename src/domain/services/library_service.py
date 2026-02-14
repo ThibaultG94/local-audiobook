@@ -14,6 +14,12 @@ class LibraryItemsRepositoryPort(Protocol):
     def create_item(self, record: dict[str, object]) -> dict[str, object]:
         ...
 
+    def list_items_ordered(self) -> list[dict[str, object]]:
+        ...
+
+    def get_item_by_id(self, item_id: str) -> dict[str, object] | None:
+        ...
+
 
 @runtime_checkable
 class EventLoggerPort(Protocol):
@@ -45,6 +51,123 @@ class LibraryService:
         self._library_items_repository = library_items_repository
         self._logger = logger
 
+    def browse_library(self, *, correlation_id: str) -> Result[dict[str, object]]:
+        """Load deterministic local library list for UI browse surfaces."""
+        try:
+            rows = self._library_items_repository.list_items_ordered()
+        except Exception as exc:
+            error = failure(
+                code="library_browse.list_failed",
+                message="Unable to load local library list. Retry and, if needed, check local database health.",
+                details={
+                    "category": "persistence",
+                    "exception": str(exc),
+                    "remediation": "Retry loading the library. If the issue persists, verify local SQLite integrity.",
+                },
+                retryable=True,
+            )
+            self._emit(
+                event="library.list_failed",
+                stage="library_browse",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id="",
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        items = [self._to_browse_item(item) for item in rows]
+        self._emit(
+            event="library.list_loaded",
+            stage="library_browse",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id="",
+            extra={"count": len(items)},
+        )
+        return success({"items": items, "count": len(items)})
+
+    def reopen_library_item(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]:
+        """Resolve one library item and prepare playback context without reconversion."""
+        normalized_item_id = str(item_id or "").strip()
+        if not normalized_item_id:
+            error = failure(
+                code="library_browse.invalid_item_id",
+                message="A library item must be selected before opening audio.",
+                details={
+                    "category": "input",
+                    "item_id": normalized_item_id,
+                    "remediation": "Select an item from the local library and retry.",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="library.item_open_failed",
+                stage="library_browse",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id="",
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        record = self._library_items_repository.get_item_by_id(normalized_item_id)
+        if record is None:
+            error = failure(
+                code="library_browse.item_not_found",
+                message="Selected audiobook was not found in the local library.",
+                details={
+                    "category": "not_found",
+                    "item_id": normalized_item_id,
+                    "remediation": "Refresh the library list. If still missing, reconvert the source document.",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="library.item_open_failed",
+                stage="library_browse",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id="",
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        path_result = self._validate_reopen_path(str(record.get("audio_path") or ""))
+        if not path_result.ok:
+            self._emit(
+                event="library.item_open_failed",
+                stage="library_browse",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=str(record.get("job_id") or ""),
+                extra={"error": path_result.error.to_dict() if path_result.error else {}},
+            )
+            return path_result
+
+        resolved_audio_path = str((path_result.data or {}).get("resolved_audio_path") or "")
+        library_item = self._to_browse_item(record)
+        playback_context = {
+            "library_item_id": str(record.get("id") or ""),
+            "title": str(record.get("title") or ""),
+            "audio_path": resolved_audio_path,
+            "format": str(record.get("format") or ""),
+            "language": str(record.get("language") or ""),
+        }
+        payload = {
+            "library_item": library_item,
+            "playback_context": playback_context,
+        }
+        self._emit(
+            event="library.item_opened",
+            stage="library_browse",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=str(record.get("job_id") or ""),
+            extra={"library_item_id": str(record.get("id") or "")},
+        )
+        return success(payload)
+
     def persist_final_artifact(
         self,
         *,
@@ -56,6 +179,7 @@ class LibraryService:
         if not normalized_or_error.ok:
             self._emit(
                 event="library.item_create_failed",
+                stage="library_persistence",
                 severity="ERROR",
                 correlation_id=correlation_id,
                 job_id=str(artifact.get("job_id") or ""),
@@ -79,6 +203,7 @@ class LibraryService:
             )
             self._emit(
                 event="library.item_create_failed",
+                stage="library_persistence",
                 severity="ERROR",
                 correlation_id=correlation_id,
                 job_id=str(payload.get("job_id") or ""),
@@ -88,6 +213,7 @@ class LibraryService:
 
         self._emit(
             event="library.item_created",
+            stage="library_persistence",
             severity="INFO",
             correlation_id=correlation_id,
             job_id=str(created.get("job_id") or ""),
@@ -221,6 +347,7 @@ class LibraryService:
         self,
         *,
         event: str,
+        stage: str,
         severity: str,
         correlation_id: str,
         job_id: str,
@@ -231,7 +358,7 @@ class LibraryService:
 
         self._logger.emit(
             event=event,
-            stage="library_persistence",
+            stage=stage,
             severity=severity,
             correlation_id=correlation_id,
             job_id=job_id,
@@ -241,3 +368,76 @@ class LibraryService:
             extra=extra or {},
         )
 
+    @staticmethod
+    def _to_browse_item(item: dict[str, object]) -> dict[str, object]:
+        return {
+            "id": str(item.get("id") or ""),
+            "title": str(item.get("title") or ""),
+            "source": str(item.get("source_path") or ""),
+            "language": str(item.get("language") or ""),
+            "format": str(item.get("format") or ""),
+            "created_date": str(item.get("created_at") or ""),
+            "audio_path": str(item.get("audio_path") or ""),
+            "job_id": str(item.get("job_id") or ""),
+            "source_format": str(item.get("source_format") or ""),
+        }
+
+    def _validate_reopen_path(self, audio_path: str) -> Result[dict[str, object]]:
+        normalized_audio_path = str(audio_path or "").strip()
+        if not normalized_audio_path:
+            return failure(
+                code="library_browse.audio_missing",
+                message="Audio artifact is missing for this library item.",
+                details={
+                    "category": "artifact",
+                    "audio_path": normalized_audio_path,
+                    "remediation": "Relink the audio file or reconvert the source document locally.",
+                },
+                retryable=False,
+            )
+
+        input_path = Path(normalized_audio_path)
+        expected_base = Path("runtime/library/audio").resolve()
+        try:
+            resolved_path = input_path.resolve()
+        except OSError as exc:
+            return failure(
+                code="library_browse.invalid_audio_path",
+                message="Audio path is malformed and cannot be resolved.",
+                details={
+                    "category": "input",
+                    "audio_path": normalized_audio_path,
+                    "exception": str(exc),
+                    "remediation": "Relink the audiobook file or reconvert locally.",
+                },
+                retryable=False,
+            )
+
+        if not str(resolved_path).startswith(str(expected_base)):
+            return failure(
+                code="library_browse.invalid_audio_path",
+                message="Audio path is outside local runtime bounds.",
+                details={
+                    "category": "input",
+                    "audio_path": normalized_audio_path,
+                    "resolved_path": str(resolved_path),
+                    "expected_base": str(expected_base),
+                    "remediation": "Relink the item to a file under runtime/library/audio or reconvert locally.",
+                },
+                retryable=False,
+            )
+
+        if not resolved_path.exists():
+            return failure(
+                code="library_browse.audio_missing",
+                message="Audio artifact file is unavailable on disk.",
+                details={
+                    "category": "artifact",
+                    "audio_path": normalized_audio_path,
+                    "resolved_path": str(resolved_path),
+                    "remediation": "Relink the missing artifact path or reconvert the audiobook locally.",
+                },
+                retryable=False,
+            )
+
+        return success({"resolved_audio_path": str(resolved_path)})

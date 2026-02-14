@@ -125,3 +125,95 @@ class TestLibraryItemsRepository(unittest.TestCase):
             ).fetchone()
             self.assertIsNone(exists)
             connection.close()
+
+    def test_list_items_ordered_is_deterministic_by_created_at_then_id_desc(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "runtime" / "local_audiobook.db"
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+            repository = LibraryItemsRepository(connection)
+
+            connection.executemany(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    ("doc-a", "/tmp/a.epub", "A", "epub", "2026-02-14T00:00:00+00:00", "2026-02-14T00:00:00+00:00"),
+                    ("doc-b", "/tmp/b.epub", "B", "epub", "2026-02-14T00:00:00+00:00", "2026-02-14T00:00:00+00:00"),
+                    ("doc-c", "/tmp/c.epub", "C", "epub", "2026-02-14T00:00:00+00:00", "2026-02-14T00:00:00+00:00"),
+                ],
+            )
+            connection.commit()
+
+            repository.create_item(
+                {
+                    "id": "lib-a",
+                    "job_id": "job-a",
+                    "document_id": "doc-a",
+                    "title": "A",
+                    "source_path": "/tmp/a.epub",
+                    "audio_path": "runtime/library/audio/job-a.mp3",
+                    "format": "mp3",
+                    "source_format": "epub",
+                    "engine": "chatterbox_gpu",
+                    "voice": "default",
+                    "language": "fr",
+                    "duration_seconds": 1.0,
+                    "byte_size": 100,
+                    "created_at": "2026-02-14T11:00:00+00:00",
+                }
+            )
+            repository.create_item(
+                {
+                    "id": "lib-c",
+                    "job_id": "job-c",
+                    "document_id": "doc-c",
+                    "title": "C",
+                    "source_path": "/tmp/c.epub",
+                    "audio_path": "runtime/library/audio/job-c.mp3",
+                    "format": "mp3",
+                    "source_format": "epub",
+                    "engine": "chatterbox_gpu",
+                    "voice": "default",
+                    "language": "fr",
+                    "duration_seconds": 1.0,
+                    "byte_size": 300,
+                    "created_at": "2026-02-14T11:00:00+00:00",
+                }
+            )
+            repository.create_item(
+                {
+                    "id": "lib-b",
+                    "job_id": "job-b",
+                    "document_id": "doc-b",
+                    "title": "B",
+                    "source_path": "/tmp/b.epub",
+                    "audio_path": "runtime/library/audio/job-b.mp3",
+                    "format": "mp3",
+                    "source_format": "epub",
+                    "engine": "chatterbox_gpu",
+                    "voice": "default",
+                    "language": "fr",
+                    "duration_seconds": 1.0,
+                    "byte_size": 200,
+                    "created_at": "2026-02-14T10:00:00+00:00",
+                }
+            )
+
+            first = repository.list_items_ordered()
+            second = repository.list_items_ordered()
+
+            self.assertEqual([item["id"] for item in first], ["lib-c", "lib-a", "lib-b"])
+            self.assertEqual([item["id"] for item in second], ["lib-c", "lib-a", "lib-b"])
+            connection.close()
+
+    def test_get_item_by_id_returns_none_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "runtime" / "local_audiobook.db"
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+            repository = LibraryItemsRepository(connection)
+
+            self.assertIsNone(repository.get_item_by_id("does-not-exist"))
+            connection.close()
