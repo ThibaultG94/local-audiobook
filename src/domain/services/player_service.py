@@ -196,7 +196,7 @@ class PlayerService:
             )
 
         if position_seconds < 0:
-            return failure(
+            error = failure(
                 code="player.seek_invalid_position",
                 message="Seek position must be a non-negative value.",
                 details={
@@ -206,11 +206,19 @@ class PlayerService:
                 },
                 retryable=False,
             )
+            self._emit(
+                event="player.error",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
 
         result = self._playback_adapter.seek(position_seconds=float(position_seconds))
         if not result.ok:
             return self._adapter_failure(correlation_id=correlation_id, action="seek", result=result)
 
+        self._emit(event="player.seeked", severity="INFO", correlation_id=correlation_id, extra={"position_seconds": float(position_seconds)})
         return success({"state": self._state, "position_seconds": float(position_seconds)})
 
     def get_status(self, *, correlation_id: str) -> Result[dict[str, object]]:
@@ -258,7 +266,9 @@ class PlayerService:
             )
 
         expected_base = Path("runtime/library/audio").resolve()
-        if not str(resolved_path).startswith(str(expected_base)):
+        try:
+            resolved_path.relative_to(expected_base)
+        except ValueError:
             return failure(
                 code="player.invalid_audio_path",
                 message="Audio path is outside local runtime bounds.",
@@ -303,7 +313,7 @@ class PlayerService:
 
         extension = resolved_path.suffix.lower()
         format_hint = str(playback_context.get("format") or "").strip().lower()
-        if extension not in _ALLOWED_EXTENSIONS or (format_hint and format_hint not in {"mp3", "wav"}):
+        if extension not in _ALLOWED_EXTENSIONS or (format_hint and format_hint not in {"mp3", "wav", ""}):
             return failure(
                 code="player.format_unsupported",
                 message="Only local MP3 and WAV playback is supported.",

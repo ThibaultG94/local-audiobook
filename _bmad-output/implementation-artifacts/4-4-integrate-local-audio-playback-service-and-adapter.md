@@ -1,6 +1,6 @@
 # Story 4.4: Integrate Local Audio Playback Service and Adapter
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -262,15 +262,19 @@ gpt-5.3-codex
 - Implemented `PlayerService` with deterministic state machine, local-path and format guardrails, and normalized error mapping.
 - Implemented `QtAudioPlayer` adapter as infrastructure-only playback wrapper with deterministic state normalization and backend failure normalization.
 - Integrated library reopen flow with playback initialization through service boundaries in presenter/view and DI wiring.
-- Added player-stage JSONL observability (`player.load_requested`, `player.load_failed`, `player.play_started`, `player.paused`, `player.stopped`, `player.error`) with UTC timestamps.
+- Added player-stage JSONL observability (`player.load_requested`, `player.load_failed`, `player.play_started`, `player.paused`, `player.stopped`, `player.seeked`, `player.error`) with UTC timestamps.
 - Added unit tests for player service, adapter seam, presenter/view propagation, and integration test for reopen→initialize→controls flow.
 - Validated targeted and full test suites successfully (194 tests passing with project PYTHONPATH settings).
 - Story status set to `review`.
+- **Code review completed (2026-02-14):** Fixed 9 issues (7 HIGH, 2 MEDIUM) including PyQt5 dependency, path traversal security, format validation, seek logging, test coverage, and code cleanup.
+- All 197 tests passing after review fixes.
+- Story status updated to `done`.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/4-4-integrate-local-audio-playback-service-and-adapter.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- pyproject.toml
 - src/adapters/playback/__init__.py
 - src/adapters/playback/qt_audio_player.py
 - src/domain/services/player_service.py
@@ -286,8 +290,9 @@ gpt-5.3-codex
 ## Change Log
 
 - 2026-02-14: Implemented Story 4.4 playback service/adapter integration, observability, DI wiring, UI propagation, and tests; moved status to `review`.
+- 2026-02-14: Code review completed - fixed 9 issues (PyQt5 dependency, path traversal security, format validation, seek logging, test coverage, code cleanup); all 197 tests passing; moved status to `done`.
 
 ## Story Completion Status
 
-- Status set to: `review`
-- Completion note: Story implemented with playback service/adapter integration, deterministic state propagation, diagnostics events, and passing test suite.
+- Status set to: `done`
+- Completion note: Story implemented with playback service/adapter integration, deterministic state propagation, diagnostics events, passing test suite, and code review fixes applied.

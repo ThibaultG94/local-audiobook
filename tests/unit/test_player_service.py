@@ -189,3 +189,58 @@ class TestPlayerService(unittest.TestCase):
         self.assertFalse(result.ok)
         assert result.error is not None
         self.assertEqual(result.error.code, "player.play_failed")
+
+    def test_rejects_path_traversal_attack(self) -> None:
+        adapter = _FakePlaybackAdapter()
+        service = PlayerService(playback_adapter=adapter)
+
+        result = service.initialize_playback(
+            correlation_id="corr-player-traversal",
+            playback_context={
+                "library_item_id": "lib-attack",
+                "audio_path": "runtime/library/audio/../../../etc/passwd",
+                "format": "mp3",
+            },
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "player.invalid_audio_path")
+
+    def test_rejects_absolute_path_outside_bounds(self) -> None:
+        adapter = _FakePlaybackAdapter()
+        service = PlayerService(playback_adapter=adapter)
+
+        result = service.initialize_playback(
+            correlation_id="corr-player-absolute",
+            playback_context={"library_item_id": "lib-abs", "audio_path": "/tmp/audio.mp3", "format": "mp3"},
+        )
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "player.invalid_audio_path")
+        self.assertIn("outside", str(result.error.message).lower())
+
+    def test_seek_emits_logging_events(self) -> None:
+        adapter = _FakePlaybackAdapter()
+        logger = _CapturingLogger()
+        service = PlayerService(playback_adapter=adapter, logger=logger)
+        audio_base = Path("runtime/library/audio")
+        audio_base.mkdir(parents=True, exist_ok=True)
+        audio_file = audio_base / "test-player-seek-log.mp3"
+        audio_file.write_bytes(b"ID3")
+        try:
+            init_result = service.initialize_playback(
+                correlation_id="corr-player-seek-log",
+                playback_context={"library_item_id": "lib-seek", "audio_path": str(audio_file), "format": "mp3"},
+            )
+            self.assertTrue(init_result.ok)
+
+            seek_result = service.seek(correlation_id="corr-player-seek-log", position_seconds=10.5)
+            self.assertTrue(seek_result.ok)
+
+            events = [event.get("event") for event in logger.events]
+            self.assertIn("player.seeked", events)
+        finally:
+            if audio_file.exists():
+                audio_file.unlink()

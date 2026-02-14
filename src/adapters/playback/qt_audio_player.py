@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import Callable, Protocol
 
 from src.contracts.result import Result, failure, success
 
 _ALLOWED_STATES = {"idle", "loading", "playing", "paused", "stopped", "error"}
 
 
-@runtime_checkable
 class QtBackendPort(Protocol):
     def load(self, file_path: str) -> None: ...
 
@@ -51,6 +50,7 @@ class _PyQtMediaBackend:
         self._player.stop()
 
     def seek(self, position_seconds: float) -> None:
+        # QMediaPlayer.setPosition expects milliseconds, not seconds
         self._player.setPosition(int(float(position_seconds) * 1000))
 
     def get_state(self) -> str:
