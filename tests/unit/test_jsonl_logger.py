@@ -39,6 +39,54 @@ class TestJsonlLogger(unittest.TestCase):
             self.assertEqual(first["event"], "bootstrap.started")
             self.assertEqual(second["event"], "bootstrap.completed")
 
+    def test_emit_preserves_existing_content_in_append_mode(self) -> None:
+        """Verify append-only behavior: new writes preserve existing file content."""
+        with tempfile.TemporaryDirectory() as tmp:
+            events_file = Path(tmp) / "events.jsonl"
+            
+            # Write initial content
+            logger1 = JsonlLogger(events_file)
+            logger1.emit(
+                event="initial.event",
+                stage="test",
+                correlation_id="corr-1",
+                job_id="job-1",
+                chunk_index=0,
+                engine="test",
+            )
+            
+            # Verify initial content
+            lines_after_first = events_file.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines_after_first), 1)
+            
+            # Create new logger instance and append more content
+            logger2 = JsonlLogger(events_file)
+            logger2.emit(
+                event="second.event",
+                stage="test",
+                correlation_id="corr-2",
+                job_id="job-2",
+                chunk_index=1,
+                engine="test",
+            )
+            logger2.emit(
+                event="third.event",
+                stage="test",
+                correlation_id="corr-3",
+                job_id="job-3",
+                chunk_index=2,
+                engine="test",
+            )
+            
+            # Verify all content is preserved
+            lines_final = events_file.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines_final), 3)
+            
+            events = [json.loads(line) for line in lines_final]
+            self.assertEqual(events[0]["event"], "initial.event")
+            self.assertEqual(events[1]["event"], "second.event")
+            self.assertEqual(events[2]["event"], "third.event")
+
     def test_emit_rejects_non_conformant_event_name_with_structured_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             events_file = Path(tmp) / "events.jsonl"

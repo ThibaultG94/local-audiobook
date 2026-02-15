@@ -1,6 +1,6 @@
 # Story 5.1: Define Correlated JSONL Event Schema and Logging Contract
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -226,6 +226,15 @@ gpt-5.3-codex
 - Hardened JSONL logger contract: append-only one-object-per-line persistence with structured local exceptions (`logging.invalid_event_payload`, `logging.write_failed`).
 - Added focused unit coverage for schema and logger edge cases, including malformed event names, non-UTC timestamps, append behavior, and structured write failures.
 - Revalidated bootstrap and provider logging integrations plus full regression suite (216 tests passing).
+- **Code review hardening (2026-02-15):**
+  - Added strict type validation for all required fields (correlation_id, job_id, chunk_index, engine, stage, event, severity, timestamp)
+  - Enforced severity value whitelist: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  - Improved event name pattern to reject trailing underscores and too-short names (minimum 2 chars per part)
+  - Added size limit for `extra` field (10KB max) to prevent log bloat
+  - Enhanced error messages with specific validation failure reasons
+  - Expanded test coverage from 7 to 34 unit tests for event_schema and jsonl_logger
+  - Added comprehensive missing field tests, type validation tests, severity validation tests, and append-only preservation test
+  - Full regression suite: 243 tests passing (27 new tests added)
 
 ### File List
 
@@ -244,5 +253,5 @@ gpt-5.3-codex
 
 - Story ID: `5.1`
 - Story Key: `5-1-define-correlated-jsonl-event-schema-and-logging-contract`
-- Status set to: `review`
-- Completion note: Logging schema and JSONL writer hardened with strict validation, structured local failure semantics, and passing regression suite.
+- Status set to: `done`
+- Completion note: Logging schema and JSONL writer hardened with strict validation, structured local failure semantics, comprehensive test coverage (243 tests), and code review fixes applied.
