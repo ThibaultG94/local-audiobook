@@ -205,7 +205,7 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(presented.data["status"], "failed")
         self.assertEqual(
             presented.data["message"],
-            "PDF structure appears invalid. Repair or replace the local file, then retry import.",
+            "PDF structure appears invalid. Repair or replace the local file, then correct the source file locally, then re-import.",
         )
         self.assertEqual(presented.data["severity"], "ERROR")
         self.assertFalse(presented.data["retry_enabled"])
@@ -226,7 +226,7 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(presented.data["status"], "failed")
         self.assertEqual(
             presented.data["message"],
-            "Unable to extract readable text from EPUB. Verify file contents, then re-import the local file.",
+            "Unable to extract readable text from EPUB. Verify file contents, then correct the source file locally, then re-import.",
         )
         self.assertEqual(presented.data["severity"], "ERROR")
         self.assertFalse(presented.data["retry_enabled"])
@@ -247,7 +247,7 @@ class TestExtractionOrchestration(unittest.TestCase):
         self.assertEqual(presented.data["status"], "failed")
         self.assertEqual(
             presented.data["message"],
-            "TXT contains unreadable encoding. Save the file as UTF-8 locally and try again.",
+            "TXT contains unreadable encoding. Save the file as UTF-8 locally and correct the source file locally, then re-import.",
         )
         self.assertEqual(presented.data["severity"], "ERROR")
         self.assertFalse(presented.data["retry_enabled"])
@@ -289,7 +289,7 @@ class TestExtractionOrchestration(unittest.TestCase):
         diagnostic_events = [event for event in logger.events if event.get("event") == "diagnostics.presented"]
         self.assertEqual(len(diagnostic_events), 1)
         event = diagnostic_events[0]
-        self.assertEqual(event.get("stage"), "extraction")
+        self.assertEqual(event.get("stage"), "diagnostics_ui")
         self.assertEqual(event.get("severity"), "ERROR")
         self.assertEqual(event.get("correlation_id"), "corr-diag-1")
         self.assertEqual(event.get("job_id"), "job-diag-1")

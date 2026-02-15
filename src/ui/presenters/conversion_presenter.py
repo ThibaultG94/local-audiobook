@@ -95,25 +95,31 @@ class ConversionPresenter:
         correlation_id = str(nested_details.get("correlation_id", ""))
         job_id = str(nested_details.get("job_id", ""))
 
+        # Build retry-aware remediation message (AC2: retry recommendation reflects actual retryable value)
+        if retry_enabled:
+            retry_guidance = "Retry the import operation."
+        else:
+            retry_guidance = "Correct the source file locally, then re-import."
+
         # All remediation messages are strictly local-only (AC4)
         if code == "extraction.no_text_content":
-            message = f"Unable to extract readable text from {source_format}. Verify file contents, then re-import the local file."
+            message = f"Unable to extract readable text from {source_format}. Verify file contents, then {retry_guidance.lower()}"
         elif code in {"extraction.malformed_package", "extraction.malformed_pdf"}:
-            message = f"{source_format} structure appears invalid. Repair or replace the local file, then retry import."
+            message = f"{source_format} structure appears invalid. Repair or replace the local file, then {retry_guidance.lower()}"
         elif code == "extraction.encoding_invalid":
-            message = f"{source_format} contains unreadable encoding. Save the file as UTF-8 locally and try again."
+            message = f"{source_format} contains unreadable encoding. Save the file as UTF-8 locally and {retry_guidance.lower()}"
         elif code in {"extraction.unreadable_archive", "extraction.unreadable_source"}:
-            message = f"{source_format} file could not be read. Check local file permissions and integrity, then retry."
+            message = f"{source_format} file could not be read. Check local file permissions and integrity, then {retry_guidance.lower()}"
         elif code == "extraction.extractor_unavailable":
-            message = f"No local extractor is available for {source_format}. Verify local application setup and try again."
+            message = f"No local extractor is available for {source_format}. Verify local application setup and {retry_guidance.lower()}"
         elif code == "extraction.unsupported_source_format":
             message = f"{source_format} is not supported for local extraction. Choose EPUB, PDF, TXT, or MD."
         else:
-            message = f"{source_format} extraction failed. Review the local file and retry import."
+            message = f"{source_format} extraction failed. Review the local file and {retry_guidance.lower()}"
 
         self._logger.emit(
             event="diagnostics.presented",
-            stage="extraction",
+            stage="diagnostics_ui",
             severity="ERROR",
             correlation_id=correlation_id,
             job_id=job_id,
@@ -385,7 +391,6 @@ class ConversionPresenter:
         return success(
             {
                 "code": code,
-                "message": summary,
                 "summary": summary,
                 "details": safe_details,
                 "retryable": retryable,
@@ -441,7 +446,13 @@ class ConversionPresenter:
             if not allow_internal and lowered in self._UNSAFE_DETAIL_KEYS:
                 hidden_keys.append(key)
                 continue
-            safe[key] = value
+            # Recursively sanitize nested dictionaries
+            if isinstance(value, dict):
+                sanitized_nested, nested_hidden = self._sanitize_details_for_user(value)
+                safe[key] = sanitized_nested
+                hidden_keys.extend([f"{key}.{nested_key}" for nested_key in nested_hidden])
+            else:
+                safe[key] = value
 
         return safe, sorted(hidden_keys)
 

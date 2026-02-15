@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from contracts.result import failure, success
-from ui.presenters.conversion_presenter import ConversionPresenter
-from ui.views.conversion_view import ConversionView
+from src.contracts.result import failure, success
+from src.ui.presenters.conversion_presenter import ConversionPresenter
+from src.ui.views.conversion_view import ConversionView
 
 
 class _FakeWorker:
@@ -328,3 +328,43 @@ class TestConversionView(unittest.TestCase):
         self.assertEqual(len(retry_events), 1)
         self.assertEqual(toggled_events[0]["stage"], "diagnostics_ui")
         self.assertEqual(retry_events[0]["severity"], "WARNING")
+
+    def test_diagnostics_panel_cleared_when_conversion_completes(self) -> None:
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=_FakeLogger(),
+        )
+
+        # First, trigger an error to show diagnostics panel
+        worker.emit_error(
+            {
+                "job_id": "job-clear-1",
+                "correlation_id": "corr-clear-1",
+                "error": {
+                    "code": "tts_orchestration.chunk_failed_unrecoverable",
+                    "message": "Failure",
+                    "details": {"chunk_index": 1},
+                    "retryable": False,
+                },
+            }
+        )
+        self.assertTrue(view.current_state["diagnostics"]["panel_visible"])
+        self.assertEqual(view.current_state["conversion"]["status"], "failed")
+
+        # Then, emit a completed state
+        worker.emit_state(
+            {
+                "status": "completed",
+                "progress_percent": 100,
+                "chunk_index": -1,
+                "job_id": "job-clear-1",
+                "correlation_id": "corr-clear-1",
+            }
+        )
+
+        # Diagnostics panel should be cleared
+        self.assertFalse(view.current_state["diagnostics"]["panel_visible"])
+        self.assertEqual(view.current_state["diagnostics"]["summary"], "")
+        self.assertEqual(view.current_state["conversion"]["status"], "completed")

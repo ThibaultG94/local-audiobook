@@ -101,7 +101,7 @@ class TestImportFlowIntegration(unittest.TestCase):
             diagnostics_events = [event for event in all_events if event.get("event") == "diagnostics.presented"]
             self.assertEqual(len(diagnostics_events), 1)
             diagnostics_event = diagnostics_events[0]
-            self.assertEqual(diagnostics_event["stage"], "extraction")
+            self.assertEqual(diagnostics_event["stage"], "diagnostics_ui")
             self.assertEqual(diagnostics_event["severity"], "ERROR")
             self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(diagnostics_event.keys()))
             self.assertTrue(is_valid_utc_iso_8601(diagnostics_event["timestamp"]))
@@ -265,7 +265,7 @@ class TestImportFlowIntegration(unittest.TestCase):
             diagnostics_events = [event for event in all_events if event.get("event") == "diagnostics.presented"]
             self.assertEqual(len(diagnostics_events), 1)
             diagnostics_event = diagnostics_events[0]
-            self.assertEqual(diagnostics_event["stage"], "extraction")
+            self.assertEqual(diagnostics_event["stage"], "diagnostics_ui")
             self.assertEqual(diagnostics_event["severity"], "ERROR")
             self.assertEqual(diagnostics_event["correlation_id"], "corr-pdf-diag")
             self.assertEqual(diagnostics_event["job_id"], "job-pdf-diag")
@@ -310,7 +310,7 @@ class TestImportFlowIntegration(unittest.TestCase):
             diagnostics_events = [event for event in all_events if event.get("event") == "diagnostics.presented"]
             self.assertEqual(len(diagnostics_events), 1)
             diagnostics_event = diagnostics_events[0]
-            self.assertEqual(diagnostics_event["stage"], "extraction")
+            self.assertEqual(diagnostics_event["stage"], "diagnostics_ui")
             self.assertEqual(diagnostics_event["severity"], "ERROR")
             self.assertEqual(diagnostics_event["correlation_id"], "corr-text-diag")
             self.assertEqual(diagnostics_event["job_id"], "job-text-diag")

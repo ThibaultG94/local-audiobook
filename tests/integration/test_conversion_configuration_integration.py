@@ -10,7 +10,7 @@ from src.adapters.persistence.sqlite.migration_runner import apply_migrations
 from src.adapters.persistence.sqlite.repositories.conversion_jobs_repository import ConversionJobsRepository
 from src.infrastructure.logging.event_schema import REQUIRED_EVENT_FIELDS, is_valid_utc_iso_8601
 from src.infrastructure.logging.jsonl_logger import JsonlLogger
-from src.contracts.result import success
+from src.contracts.result import failure, success
 from src.ui.presenters.conversion_presenter import ConversionPresenter
 from src.ui.views.conversion_view import ConversionView
 from src.ui.workers.conversion_worker import ConversionWorker
@@ -207,3 +207,41 @@ class TestConversionConfigurationIntegration(unittest.TestCase):
                 self.assertEqual(event["job_id"], "job-diag-int-1")
                 self.assertEqual(event["stage"], "diagnostics_ui")
                 self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
+
+    def test_extraction_diagnostics_events_follow_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+            logger = JsonlLogger(events_path)
+            presenter = ConversionPresenter(logger=logger)
+
+            # Simulate extraction failure
+            extraction_failure = failure(
+                code="extraction.no_text_content",
+                message="No readable text found",
+                details={
+                    "source_format": "pdf",
+                    "source_path": "/tmp/test.pdf",
+                    "correlation_id": "corr-extract-int-1",
+                    "job_id": "job-extract-int-1",
+                },
+                retryable=True,
+            )
+
+            result = presenter.map_extraction(extraction_failure)
+            self.assertTrue(result.ok)
+            assert result.data is not None
+            self.assertEqual(result.data["status"], "failed")
+            self.assertTrue(result.data["retry_enabled"])
+
+            events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            diagnostics_events = [event for event in events if event.get("event") == "diagnostics.presented"]
+            self.assertEqual(len(diagnostics_events), 1)
+
+            event = diagnostics_events[0]
+            self.assertEqual(event["stage"], "diagnostics_ui")
+            self.assertEqual(event["correlation_id"], "corr-extract-int-1")
+            self.assertEqual(event["job_id"], "job-extract-int-1")
+            self.assertEqual(event["chunk_index"], -1)
+            self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
+            self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))

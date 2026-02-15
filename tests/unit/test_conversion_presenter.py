@@ -291,7 +291,7 @@ class TestConversionPresenter(unittest.TestCase):
         self.assertTrue(result.ok)
         assert result.data is not None
         self.assertEqual(result.data["code"], "tts_orchestration.chunk_failed_unrecoverable")
-        self.assertIn("failed", result.data["message"].lower())
+        self.assertIn("failed", result.data["summary"].lower())
         self.assertFalse(result.data["retryable"])
 
     def test_map_conversion_error_includes_stage_engine_and_retry_guidance(self) -> None:
@@ -365,3 +365,39 @@ class TestConversionPresenter(unittest.TestCase):
         assert result.data is not None
         self.assertIn("traceback", result.data["details"])
         self.assertFalse(result.data["hidden_internal_details"])
+
+    def test_map_conversion_error_sanitizes_nested_unsafe_details_recursively(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "conversion.failed",
+                    "message": "failed",
+                    "details": {
+                        "stage": "tts",
+                        "nested_error": {
+                            "traceback": "nested sensitive trace",
+                            "exception": "nested exception",
+                            "safe_field": "this should remain",
+                        },
+                        "safe_top_level": "this should remain",
+                    },
+                    "retryable": False,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        # Top-level safe field should remain
+        self.assertIn("safe_top_level", result.data["details"])
+        # Nested dict should be present but sanitized
+        self.assertIn("nested_error", result.data["details"])
+        nested = result.data["details"]["nested_error"]
+        self.assertNotIn("traceback", nested)
+        self.assertNotIn("exception", nested)
+        self.assertIn("safe_field", nested)
+        # Hidden keys should include nested paths
+        self.assertTrue(result.data["hidden_internal_details"])
+        hidden_keys = result.data["hidden_internal_keys"]
+        self.assertIn("nested_error.exception", hidden_keys)
+        self.assertIn("nested_error.traceback", hidden_keys)

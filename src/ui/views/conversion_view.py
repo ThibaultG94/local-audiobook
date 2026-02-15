@@ -141,6 +141,11 @@ class ConversionView:
 
         conversion_state = dict(self.current_state.get("conversion", {}))
         conversion_state.update(mapped.data)
+        # Propagate correlation context from payload if not in mapped data
+        if "correlation_id" not in conversion_state and "correlation_id" in payload:
+            conversion_state["correlation_id"] = str(payload["correlation_id"])
+        if "job_id" not in conversion_state and "job_id" in payload:
+            conversion_state["job_id"] = str(payload["job_id"])
         self.current_state["conversion"] = conversion_state
 
     def _on_conversion_state(self, payload: dict[str, Any]) -> None:
@@ -152,6 +157,22 @@ class ConversionView:
         conversion_state = dict(self.current_state.get("conversion", {}))
         conversion_state.update(mapped.data)
         self.current_state["conversion"] = conversion_state
+        
+        # Clear diagnostics panel when conversion completes successfully
+        if conversion_state.get("status") == "completed":
+            self.current_state["diagnostics"] = {
+                "panel_visible": False,
+                "details_expanded": False,
+                "summary": "",
+                "remediation": [],
+                "details": {},
+                "retry_enabled": False,
+                "stage": "",
+                "engine": "",
+                "correlation_id": "",
+                "job_id": "",
+                "safe_for_display": True,
+            }
 
     def _on_conversion_error(self, payload: dict[str, Any]) -> None:
         mapped = self._presenter.map_conversion_error(payload)
@@ -166,7 +187,7 @@ class ConversionView:
         self.current_state["diagnostics"] = {
             "panel_visible": True,
             "details_expanded": False,
-            "summary": str(mapped.data.get("summary", mapped.data.get("message", "Conversion failed."))),
+            "summary": str(mapped.data.get("summary", "Conversion failed.")),
             "remediation": [str(item) for item in mapped.data.get("remediation", [])],
             "details": dict(mapped.data.get("details", {})),
             "retry_enabled": bool(mapped.data.get("retry_enabled", mapped.data.get("retryable", False))),
@@ -223,7 +244,10 @@ class ConversionView:
                 engine=engine,
                 extra=extra,
             )
-        except Exception:
+        except Exception as e:
+            # Fallback: log to stderr when structured logging fails
+            import sys
+            print(f"[DIAGNOSTICS_EVENT_FAILED] {event}: {e}", file=sys.stderr)
             return
 
     def build_configuration_options(
