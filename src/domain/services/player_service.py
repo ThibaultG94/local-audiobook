@@ -505,14 +505,17 @@ class PlayerService:
     ) -> None:
         if self._logger is None or not hasattr(self._logger, "emit"):
             return
-        self._logger.emit(
-            event=event,
-            stage="player",
-            severity=severity,
-            correlation_id=correlation_id,
-            job_id="",
-            chunk_index=-1,
-            engine="player_service",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            extra=extra,
-        )
+        try:
+            self._logger.emit(
+                event=event,
+                stage="player",
+                severity=severity,
+                correlation_id=correlation_id,
+                job_id="",
+                chunk_index=-1,
+                engine="player_service",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                extra=extra,
+            )
+        except Exception:
+            return

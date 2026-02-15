@@ -450,10 +450,16 @@ class TtsOrchestrationService:
                 chunk_index=chunk_index,
                 engine=str(attempt_trace.get("selected_engine") or started_engine),
                 extra={
-                    "code": "tts_orchestration.chunk_failed_unrecoverable",
-                    "primary_error": attempt_trace.get("primary_error", {}),
-                    "fallback_error": attempt_trace.get("fallback_error", {}),
-                    "attempted_engines": attempt_trace.get("attempted_engines", []),
+                    "error": {
+                        "code": "tts_orchestration.chunk_failed_unrecoverable",
+                        "message": "Chunk synthesis failed for all configured providers",
+                        "details": {
+                            "primary_error": attempt_trace.get("primary_error", {}),
+                            "fallback_error": attempt_trace.get("fallback_error", {}),
+                            "attempted_engines": attempt_trace.get("attempted_engines", []),
+                        },
+                        "retryable": False,
+                    }
                 },
             )
 
@@ -990,17 +996,20 @@ class TtsOrchestrationService:
         if self._logger is None or not hasattr(self._logger, "emit"):
             return
 
-        self._logger.emit(
-            event=event,
-            stage="chunking",
-            severity=severity,
-            correlation_id=correlation_id,
-            job_id=job_id,
-            chunk_index=chunk_index,
-            engine="orchestrator",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            extra=extra or {},
-        )
+        try:
+            self._logger.emit(
+                event=event,
+                stage="chunking",
+                severity=severity,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=chunk_index,
+                engine="orchestrator",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                extra=extra or {},
+            )
+        except Exception:
+            return
 
     def _emit_tts_event(
         self,
@@ -1017,17 +1026,20 @@ class TtsOrchestrationService:
         if self._logger is None or not hasattr(self._logger, "emit"):
             return
 
-        self._logger.emit(
-            event=event,
-            stage="tts_orchestration",
-            severity=severity,
-            correlation_id=correlation_id,
-            job_id=job_id,
-            chunk_index=chunk_index,
-            engine=engine,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            extra=extra or {},
-        )
+        try:
+            self._logger.emit(
+                event=event,
+                stage="tts_orchestration",
+                severity=severity,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=chunk_index,
+                engine=engine,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                extra=extra or {},
+            )
+        except Exception:
+            return
 
     def _persist_chunk_outcome(self, *, job_id: str, chunk_index: int, status: str) -> None:
         """Persist chunk-level synthesis outcome.

@@ -547,14 +547,17 @@ class ConversionWorker:
         chunk_index: int,
         extra: dict[str, Any],
     ) -> None:
-        self.logger.emit(
-            event=event,
-            stage="worker_execution",
-            severity=severity,
-            correlation_id=correlation_id,
-            job_id=job_id,
-            chunk_index=chunk_index,
-            engine=engine,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            extra=extra,
-        )
+        try:
+            self.logger.emit(
+                event=event,
+                stage="worker_execution",
+                severity=severity,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=chunk_index,
+                engine=engine,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                extra=extra,
+            )
+        except Exception:
+            return

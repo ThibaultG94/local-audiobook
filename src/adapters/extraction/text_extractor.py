@@ -93,7 +93,7 @@ class TextExtractor:
                 retryable=True,
             )
 
-        self._logger.emit(
+        self._safe_emit(
             event="extraction.started",
             stage="extraction",
             severity="INFO",
@@ -158,7 +158,7 @@ class TextExtractor:
 
         sections = len(normalized_text.split("\n"))
 
-        self._logger.emit(
+        self._safe_emit(
             event="extraction.succeeded",
             stage="extraction",
             severity="INFO",
@@ -225,7 +225,7 @@ class TextExtractor:
         details: dict[str, Any],
         retryable: bool,
     ) -> Result[dict[str, Any]]:
-        self._logger.emit(
+        self._safe_emit(
             event="extraction.failed",
             stage="extraction",
             severity="ERROR",
@@ -233,6 +233,19 @@ class TextExtractor:
             job_id=job_id,
             chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
             engine="text",
-            extra={"error_code": code, "source_format": source_format, **details},
+            extra={
+                "error": {
+                    "code": code,
+                    "message": message,
+                    "details": {"source_format": source_format, **details},
+                    "retryable": retryable,
+                }
+            },
         )
         return failure(code=code, message=message, details=details, retryable=retryable)
+
+    def _safe_emit(self, **payload: Any) -> None:
+        try:
+            self._logger.emit(**payload)
+        except Exception:
+            return

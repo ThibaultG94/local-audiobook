@@ -109,7 +109,7 @@ class AudioPostprocessService:
                 severity="ERROR",
                 correlation_id=correlation_id,
                 job_id=job_id,
-                extra=ordering_error.error.to_dict() if ordering_error.error else {},
+                extra={"error": ordering_error.error.to_dict() if ordering_error.error else {}},
             )
             return ordering_error
 
@@ -127,7 +127,7 @@ class AudioPostprocessService:
                     correlation_id=correlation_id,
                     job_id=job_id,
                     chunk_index=expected_index,
-                    extra=synthesis_payload.error.to_dict() if synthesis_payload.error else {},
+                    extra={"error": synthesis_payload.error.to_dict() if synthesis_payload.error else {}},
                 )
                 return synthesis_payload
 
@@ -142,7 +142,7 @@ class AudioPostprocessService:
                     correlation_id=correlation_id,
                     job_id=job_id,
                     chunk_index=expected_index,
-                    extra=read_result.error.to_dict() if read_result.error else {},
+                    extra={"error": read_result.error.to_dict() if read_result.error else {}},
                 )
                 return read_result
 
@@ -169,7 +169,7 @@ class AudioPostprocessService:
                     correlation_id=correlation_id,
                     job_id=job_id,
                     chunk_index=expected_index,
-                    extra=empty_chunk.error.to_dict() if empty_chunk.error else {},
+                    extra={"error": empty_chunk.error.to_dict() if empty_chunk.error else {}},
                 )
                 return empty_chunk
 
@@ -203,7 +203,7 @@ class AudioPostprocessService:
                     correlation_id=correlation_id,
                     job_id=job_id,
                     chunk_index=expected_index,
-                    extra=mismatch.error.to_dict() if mismatch.error else {},
+                    extra={"error": mismatch.error.to_dict() if mismatch.error else {}},
                 )
                 return mismatch
 
@@ -227,7 +227,7 @@ class AudioPostprocessService:
                 severity="ERROR",
                 correlation_id=correlation_id,
                 job_id=job_id,
-                extra=memory_error.error.to_dict() if memory_error.error else {},
+                extra={"error": memory_error.error.to_dict() if memory_error.error else {}},
             )
             return memory_error
 
@@ -254,7 +254,7 @@ class AudioPostprocessService:
                 severity="ERROR",
                 correlation_id=correlation_id,
                 job_id=job_id,
-                extra=render_result.error.to_dict() if render_result.error else {},
+                extra={"error": render_result.error.to_dict() if render_result.error else {}},
             )
             return render_result
 
@@ -383,15 +383,17 @@ class AudioPostprocessService:
         if self._logger is None or not hasattr(self._logger, "emit"):
             return
 
-        self._logger.emit(
-            event=event,
-            stage="postprocess",
-            severity=severity,
-            correlation_id=correlation_id,
-            job_id=job_id,
-            chunk_index=chunk_index,
-            engine="postprocess",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            extra=extra or {},
-        )
-
+        try:
+            self._logger.emit(
+                event=event,
+                stage="postprocess",
+                severity=severity,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=chunk_index,
+                engine="postprocess",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                extra=extra or {},
+            )
+        except Exception:
+            return

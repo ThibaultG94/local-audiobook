@@ -56,7 +56,7 @@ class EpubExtractor:
                 details={"source_path": normalized_source_path, "source_format": "epub", "error": str(exc)},
                 retryable=True,
             )
-        self._logger.emit(
+        self._safe_emit(
             event="extraction.started",
             stage="extraction",
             severity="INFO",
@@ -91,7 +91,7 @@ class EpubExtractor:
                     # Fallback to replace mode and log warning
                     decoded_text = content.decode("utf-8", errors="replace")
                     encoding_warnings += 1
-                    self._logger.emit(
+                    self._safe_emit(
                         event="extraction.encoding_warning",
                         stage="extraction",
                         severity="WARNING",
@@ -117,7 +117,7 @@ class EpubExtractor:
                     retryable=False,
                 )
 
-            self._logger.emit(
+            self._safe_emit(
                 event="extraction.succeeded",
                 stage="extraction",
                 severity="INFO",
@@ -179,7 +179,7 @@ class EpubExtractor:
         details: dict[str, Any],
         retryable: bool,
     ) -> Result[dict[str, Any]]:
-        self._logger.emit(
+        self._safe_emit(
             event="extraction.failed",
             stage="extraction",
             severity="ERROR",
@@ -187,6 +187,19 @@ class EpubExtractor:
             job_id=job_id,
             chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
             engine="epub",
-            extra={"error_code": code, **details},
+            extra={
+                "error": {
+                    "code": code,
+                    "message": message,
+                    "details": details,
+                    "retryable": retryable,
+                }
+            },
         )
         return failure(code=code, message=message, details=details, retryable=retryable)
+
+    def _safe_emit(self, **payload: Any) -> None:
+        try:
+            self._logger.emit(**payload)
+        except Exception:
+            return

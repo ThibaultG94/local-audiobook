@@ -65,7 +65,7 @@ class PdfExtractor:
                 retryable=True,
             )
         
-        self._logger.emit(
+        self._safe_emit(
             event="extraction.started",
             stage="extraction",
             severity="INFO",
@@ -121,7 +121,7 @@ class PdfExtractor:
                     retryable=False,
                 )
 
-            self._logger.emit(
+            self._safe_emit(
                 event="extraction.succeeded",
                 stage="extraction",
                 severity="INFO",
@@ -195,7 +195,7 @@ class PdfExtractor:
         details: dict[str, Any],
         retryable: bool,
     ) -> Result[dict[str, Any]]:
-        self._logger.emit(
+        self._safe_emit(
             event="extraction.failed",
             stage="extraction",
             severity="ERROR",
@@ -203,6 +203,19 @@ class PdfExtractor:
             job_id=job_id,
             chunk_index=CHUNK_INDEX_NOT_APPLICABLE,
             engine="pdf",
-            extra={"error_code": code, **details},
+            extra={
+                "error": {
+                    "code": code,
+                    "message": message,
+                    "details": details,
+                    "retryable": retryable,
+                }
+            },
         )
         return failure(code=code, message=message, details=details, retryable=retryable)
+
+    def _safe_emit(self, **payload: Any) -> None:
+        try:
+            self._logger.emit(**payload)
+        except Exception:
+            return

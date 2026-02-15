@@ -55,7 +55,7 @@ class ImportService:
         self._text_extractor = text_extractor
 
     def import_document(self, file_path: str, correlation_id: str | None = None) -> Result[dict[str, str]]:
-        corr = correlation_id or str(uuid4())
+        corr = str(correlation_id or "").strip() or str(uuid4())
         normalized = str(Path(file_path).resolve())
         extension = Path(normalized).suffix.lower()
 
@@ -117,7 +117,7 @@ class ImportService:
                 "source_format": extension.lstrip("."),
             }
         )
-        self._logger.emit(
+        self._safe_emit(
             event="import.accepted",
             stage="import",
             severity="INFO",
@@ -138,7 +138,7 @@ class ImportService:
         details: dict[str, Any],
         retryable: bool,
     ) -> Result[dict[str, str]]:
-        self._logger.emit(
+        self._safe_emit(
             event="import.rejected",
             stage="import",
             severity="ERROR",
@@ -146,7 +146,14 @@ class ImportService:
             job_id="",
             chunk_index=-1,
             engine="import",
-            extra={"error_code": code, **details},
+            extra={
+                "error": {
+                    "code": code,
+                    "message": message,
+                    "details": details,
+                    "retryable": retryable,
+                }
+            },
         )
         return failure(code=code, message=message, details=details, retryable=retryable)
 
@@ -297,7 +304,7 @@ class ImportService:
 
         if extraction_result.error is None:
             # Log this anomaly - extractors should always provide error when ok=False
-            self._logger.emit(
+            self._safe_emit(
                 event="extraction.contract_violation",
                 stage="extraction",
                 severity="ERROR",
@@ -323,7 +330,7 @@ class ImportService:
 
         # Validate that details is a dict before copying
         if not isinstance(extraction_result.error.details, dict):
-            self._logger.emit(
+            self._safe_emit(
                 event="extraction.contract_violation",
                 stage="extraction",
                 severity="ERROR",
@@ -352,3 +359,9 @@ class ImportService:
             details=normalized_details,
             retryable=extraction_result.error.retryable,
         )
+
+    def _safe_emit(self, **payload: Any) -> None:
+        try:
+            self._logger.emit(**payload)
+        except Exception:
+            return

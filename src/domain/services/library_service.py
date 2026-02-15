@@ -364,17 +364,20 @@ class LibraryService:
         if self._logger is None or not hasattr(self._logger, "emit"):
             return
 
-        self._logger.emit(
-            event=event,
-            stage=stage,
-            severity=severity,
-            correlation_id=correlation_id,
-            job_id=job_id,
-            chunk_index=-1,
-            engine="library_service",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            extra=extra or {},
-        )
+        try:
+            self._logger.emit(
+                event=event,
+                stage=stage,
+                severity=severity,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=-1,
+                engine="library_service",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                extra=extra or {},
+            )
+        except Exception:
+            return
 
     @staticmethod
     def _to_browse_item(item: dict[str, object]) -> dict[str, object]:
