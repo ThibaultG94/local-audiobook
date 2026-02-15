@@ -72,7 +72,7 @@ development_status:
   epic-4-retrospective: done
 
   epic-5: in-progress
-  5-1-define-correlated-jsonl-event-schema-and-logging-contract: ready-for-dev
+  5-1-define-correlated-jsonl-event-schema-and-logging-contract: review
   5-2-instrument-end-to-end-pipeline-with-correlation-context: backlog
   5-3-present-actionable-failure-diagnostics-in-conversion-ui: backlog
   5-4-provide-local-support-workflow-for-error-review-and-guided-remediation: backlog
