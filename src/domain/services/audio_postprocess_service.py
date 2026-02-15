@@ -119,6 +119,16 @@ class AudioPostprocessService:
         sample_width = 0
 
         for expected_index, artifact in enumerate(sorted(chunk_artifacts, key=lambda item: int(item["chunk_index"]))):
+            # Emit chunk assembly progress event
+            self._emit_event(
+                event="postprocess.chunk_assembling",
+                severity="INFO",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=expected_index,
+                extra={"total_chunks": len(chunk_artifacts)},
+            )
+            
             synthesis_payload = self._extract_synthesis_payload(artifact)
             if not synthesis_payload.ok:
                 self._emit_event(
@@ -208,6 +218,19 @@ class AudioPostprocessService:
                 return mismatch
 
             pcm_frames.extend(chunk_pcm)
+            
+            # Emit chunk assembled successfully
+            self._emit_event(
+                event="postprocess.chunk_assembled",
+                severity="INFO",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=expected_index,
+                extra={
+                    "chunk_pcm_bytes": len(chunk_pcm),
+                    "total_pcm_bytes": len(pcm_frames),
+                },
+            )
 
         # Memory safety check: prevent unbounded memory accumulation
         MAX_PCM_BYTES = 500 * 1024 * 1024  # 500 MB limit

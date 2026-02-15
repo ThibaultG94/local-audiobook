@@ -251,27 +251,35 @@ gpt-5.3-codex
 - Hardened correlation fallback generation at import boundary by rejecting blank correlation values and generating only at entry when missing.
 - Updated TTS chunk failure event payloads to structured `extra.error` envelopes and preserved chunk lifecycle observability (`chunk_index`, `engine`, ordered sequence).
 - Ran targeted unit/integration regression suite with `PYTHONPATH=src:.` and all selected tests passed (79 tests).
+- **Code review fixes (2026-02-15):**
+  - Fixed correlation_id propagation in import_service.extract_document to use normalized fallback UUID instead of original empty value
+  - Added correlation_id fallback generation at worker boundary entry point in conversion_worker._run_conversion
+  - Added missing event emissions for library path validation failures in library_service._validate_reopen_path
+  - Added player.load_succeeded event emission in player_service.initialize_playback for success path symmetry
+  - Added chunk-level assembly progress events (postprocess.chunk_assembling, postprocess.chunk_assembled) in audio_postprocess_service
+  - All HIGH and MEDIUM severity issues from adversarial code review resolved
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-2-instrument-end-to-end-pipeline-with-correlation-context.md
-- src/domain/services/import_service.py
+- src/domain/services/import_service.py (modified: correlation_id fallback propagation)
 - src/adapters/extraction/epub_extractor.py
 - src/adapters/extraction/pdf_extractor.py
 - src/adapters/extraction/text_extractor.py
 - src/domain/services/tts_orchestration_service.py
-- src/domain/services/audio_postprocess_service.py
-- src/domain/services/library_service.py
-- src/domain/services/player_service.py
-- src/ui/workers/conversion_worker.py
+- src/domain/services/audio_postprocess_service.py (modified: chunk assembly events)
+- src/domain/services/library_service.py (modified: path validation events)
+- src/domain/services/player_service.py (modified: load success event)
+- src/ui/workers/conversion_worker.py (modified: correlation_id fallback at boundary)
 
 ## Change Log
 
 - 2026-02-15: Implemented Story 5.2 end-to-end correlation instrumentation alignment, normalized failure envelopes, and non-blocking logging safeguards across pipeline stages.
+- 2026-02-15: Code review fixes - resolved correlation_id propagation issues, added missing event emissions for library/player/postprocess stages, ensured boundary-level fallback generation.
 
 ## Story Completion Status
 
 - Story ID: `5.2`
 - Story Key: `5-2-instrument-end-to-end-pipeline-with-correlation-context`
-- Status set to: `review`
-- Completion note: Implementation complete with end-to-end correlated event coverage, normalized error envelopes, and non-blocking logging safeguards validated by targeted tests.
+- Status set to: `done`
+- Completion note: Implementation complete with end-to-end correlated event coverage, normalized error envelopes, non-blocking logging safeguards, and code review fixes addressing correlation propagation and event emission gaps.

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from inspect import Signature, signature
 from types import MappingProxyType
 from typing import Any, Callable
+from uuid import uuid4
 
 from src.contracts.result import Result, failure, success
 
@@ -269,13 +270,16 @@ class ConversionWorker:
         correlation_id: str,
         conversion_config: dict[str, Any],
     ) -> Result[dict[str, Any]]:
+        # Generate fallback correlation_id at worker boundary entry point if missing
+        normalized_correlation_id = str(correlation_id or "").strip() or str(uuid4())
+        
         with self._conversion_lock:
             self._active_conversion_threads.add(threading.get_ident())
 
         self._emit_worker_event(
             event="worker_execution.started",
             severity="INFO",
-            correlation_id=correlation_id,
+            correlation_id=normalized_correlation_id,
             job_id=job_id,
             engine=str(conversion_config.get("engine", "")),
             chunk_index=-1,
@@ -284,7 +288,7 @@ class ConversionWorker:
         self._dispatch_state(
             {
                 "job_id": job_id,
-                "correlation_id": correlation_id,
+                "correlation_id": normalized_correlation_id,
                 "status": "running",
                 "progress_percent": 0,
                 "chunk_index": -1,
@@ -299,7 +303,7 @@ class ConversionWorker:
                 percent = int((succeeded_chunks / total_chunks) * 100)
             normalized = {
                 "job_id": job_id,
-                "correlation_id": correlation_id,
+                "correlation_id": normalized_correlation_id,
                 "status": "running",
                 "progress_percent": max(0, min(percent, 100)),
                 "chunk_index": int(progress_payload.get("chunk_index", -1) or -1),
@@ -309,7 +313,7 @@ class ConversionWorker:
             self._emit_worker_event(
                 event="worker_execution.progressed",
                 severity="INFO",
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 job_id=job_id,
                 engine=str(conversion_config.get("engine", "")),
                 chunk_index=normalized["chunk_index"],
@@ -326,7 +330,7 @@ class ConversionWorker:
             prepared = self._prepare_conversion_launch(
                 document_id=document_id,
                 job_id=job_id,
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 conversion_config=conversion_config,
             )
             if not prepared.ok:
@@ -334,7 +338,7 @@ class ConversionWorker:
                 self._emit_worker_event(
                     event="worker_execution.failed",
                     severity="ERROR",
-                    correlation_id=correlation_id,
+                    correlation_id=normalized_correlation_id,
                     job_id=job_id,
                     engine=str(conversion_config.get("engine", "")),
                     chunk_index=int(failed_payload.get("details", {}).get("chunk_index", -1) or -1),
@@ -343,7 +347,7 @@ class ConversionWorker:
                 self._dispatch_state(
                     {
                         "job_id": job_id,
-                        "correlation_id": correlation_id,
+                        "correlation_id": normalized_correlation_id,
                         "status": "failed",
                         "progress_percent": 0,
                         "chunk_index": int(failed_payload.get("details", {}).get("chunk_index", -1) or -1),
@@ -352,7 +356,7 @@ class ConversionWorker:
                 self._dispatch_error(
                     {
                         "job_id": job_id,
-                        "correlation_id": correlation_id,
+                        "correlation_id": normalized_correlation_id,
                         "error": failed_payload,
                         "status": "failed",
                     }
@@ -361,7 +365,7 @@ class ConversionWorker:
 
             orchestration_result = self._invoke_launcher(
                 job_id=job_id,
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 conversion_config=prepared.data or conversion_config,
                 progress_callback=emit_progress,
             )
@@ -376,7 +380,7 @@ class ConversionWorker:
                 self._emit_worker_event(
                     event="worker_execution.failed",
                     severity="ERROR",
-                    correlation_id=correlation_id,
+                    correlation_id=normalized_correlation_id,
                     job_id=job_id,
                     engine=str(conversion_config.get("engine", "")),
                     chunk_index=chunk_index,
@@ -385,7 +389,7 @@ class ConversionWorker:
                 self._dispatch_state(
                     {
                         "job_id": job_id,
-                        "correlation_id": correlation_id,
+                        "correlation_id": normalized_correlation_id,
                         "status": "failed",
                         "progress_percent": int(normalized_failure.get("details", {}).get("progress_percent", 0) or 0),
                         "chunk_index": chunk_index,
@@ -394,7 +398,7 @@ class ConversionWorker:
                 self._dispatch_error(
                     {
                         "job_id": job_id,
-                        "correlation_id": correlation_id,
+                        "correlation_id": normalized_correlation_id,
                         "error": normalized_failure,
                         "status": "failed",
                     }
@@ -404,7 +408,7 @@ class ConversionWorker:
             payload = orchestration_result.data or {}
             self._emit_synthetic_progress_if_missing(
                 payload=payload,
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 job_id=job_id,
                 engine=str(conversion_config.get("engine", "")),
                 emitter=emit_progress,
@@ -412,7 +416,7 @@ class ConversionWorker:
             self._emit_worker_event(
                 event="worker_execution.completed",
                 severity="INFO",
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 job_id=job_id,
                 engine=str(conversion_config.get("engine", "")),
                 chunk_index=-1,
@@ -426,7 +430,7 @@ class ConversionWorker:
             self._dispatch_state(
                 {
                     "job_id": job_id,
-                    "correlation_id": correlation_id,
+                    "correlation_id": normalized_correlation_id,
                     "status": "completed",
                     "progress_percent": 100,
                     "chunk_index": -1,
@@ -444,7 +448,7 @@ class ConversionWorker:
             self._emit_worker_event(
                 event="worker_execution.failed",
                 severity="ERROR",
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 job_id=job_id,
                 engine=str(conversion_config.get("engine", "")),
                 chunk_index=-1,
@@ -453,7 +457,7 @@ class ConversionWorker:
             self._dispatch_state(
                 {
                     "job_id": job_id,
-                    "correlation_id": correlation_id,
+                    "correlation_id": normalized_correlation_id,
                     "status": "failed",
                     "progress_percent": 0,
                     "chunk_index": -1,
@@ -462,7 +466,7 @@ class ConversionWorker:
             self._dispatch_error(
                 {
                     "job_id": job_id,
-                    "correlation_id": correlation_id,
+                    "correlation_id": normalized_correlation_id,
                     "error": error_payload,
                     "status": "failed",
                 }

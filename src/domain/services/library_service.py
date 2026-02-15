@@ -137,7 +137,11 @@ class LibraryService:
             )
             return error
 
-        path_result = self._validate_reopen_path(str(record.get("audio_path") or ""))
+        path_result = self._validate_reopen_path(
+            audio_path=str(record.get("audio_path") or ""),
+            correlation_id=correlation_id,
+            job_id=str(record.get("job_id") or ""),
+        )
         if not path_result.ok:
             self._emit(
                 event="library.item_open_failed",
@@ -406,10 +410,16 @@ class LibraryService:
             "source_format": str(item.get("source_format") or ""),
         }
 
-    def _validate_reopen_path(self, audio_path: str) -> Result[dict[str, object]]:
+    def _validate_reopen_path(
+        self,
+        *,
+        audio_path: str,
+        correlation_id: str,
+        job_id: str,
+    ) -> Result[dict[str, object]]:
         normalized_audio_path = str(audio_path or "").strip()
         if not normalized_audio_path:
-            return failure(
+            error = failure(
                 code="library_browse.audio_missing",
                 message="Audio artifact is missing for this library item.",
                 details={
@@ -419,13 +429,22 @@ class LibraryService:
                 },
                 retryable=False,
             )
+            self._emit(
+                event="library.path_validation_failed",
+                stage="library_browse",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
 
         input_path = Path(normalized_audio_path)
         expected_base = Path("runtime/library/audio").resolve()
         try:
             resolved_path = input_path.resolve()
         except OSError as exc:
-            return failure(
+            error = failure(
                 code="library_browse.invalid_audio_path",
                 message="Audio path is malformed and cannot be resolved.",
                 details={
@@ -436,9 +455,18 @@ class LibraryService:
                 },
                 retryable=False,
             )
+            self._emit(
+                event="library.path_validation_failed",
+                stage="library_browse",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
 
         if not str(resolved_path).startswith(str(expected_base)):
-            return failure(
+            error = failure(
                 code="library_browse.invalid_audio_path",
                 message="Audio path is outside local runtime bounds.",
                 details={
@@ -450,9 +478,18 @@ class LibraryService:
                 },
                 retryable=False,
             )
+            self._emit(
+                event="library.path_validation_failed",
+                stage="library_browse",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
 
         if not resolved_path.exists():
-            return failure(
+            error = failure(
                 code="library_browse.audio_missing",
                 message="Audio artifact file is unavailable on disk.",
                 details={
@@ -463,5 +500,14 @@ class LibraryService:
                 },
                 retryable=False,
             )
+            self._emit(
+                event="library.path_validation_failed",
+                stage="library_browse",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=job_id,
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
 
         return success({"resolved_audio_path": str(resolved_path)})

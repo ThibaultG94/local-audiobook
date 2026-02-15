@@ -120,6 +120,16 @@ class PlayerService:
             )
             return transition
 
+        self._emit(
+            event="player.load_succeeded",
+            severity="INFO",
+            correlation_id=correlation_id,
+            extra={
+                "library_item_id": str(playback_context.get("library_item_id") or ""),
+                "audio_path": resolved_audio_path,
+                "format": str(playback_context.get("format") or "").lower(),
+            },
+        )
         return success(
             {
                 "state": self._state,

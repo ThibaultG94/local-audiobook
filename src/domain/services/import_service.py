@@ -55,6 +55,7 @@ class ImportService:
         self._text_extractor = text_extractor
 
     def import_document(self, file_path: str, correlation_id: str | None = None) -> Result[dict[str, str]]:
+        # Generate fallback correlation_id at boundary entry point only
         corr = str(correlation_id or "").strip() or str(uuid4())
         normalized = str(Path(file_path).resolve())
         extension = Path(normalized).suffix.lower()
@@ -178,19 +179,14 @@ class ImportService:
             - correlation_id: str
             - job_id: str
         """
-        if not correlation_id or not correlation_id.strip():
-            return failure(
-                code="extraction.invalid_correlation_id",
-                message="Correlation ID must be non-empty for extraction traceability",
-                details={"correlation_id": correlation_id},
-                retryable=False,
-            )
+        # Generate fallback correlation_id at boundary entry point if missing
+        normalized_correlation_id = str(correlation_id or "").strip() or str(uuid4())
         
         if not job_id or not job_id.strip():
             return failure(
                 code="extraction.invalid_job_id",
                 message="Job ID must be non-empty for extraction traceability",
-                details={"job_id": job_id, "correlation_id": correlation_id},
+                details={"job_id": job_id, "correlation_id": normalized_correlation_id},
                 retryable=False,
             )
         
@@ -204,16 +200,16 @@ class ImportService:
                     message="No extractor configured for source format: epub",
                     source_path=source_path,
                     source_format=source_format,
-                    correlation_id=correlation_id,
+                    correlation_id=normalized_correlation_id,
                     job_id=job_id,
                     retryable=False,
                 )
-            result = self._epub_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            result = self._epub_extractor.extract(source_path, correlation_id=normalized_correlation_id, job_id=job_id)
             return self._normalize_extraction_result(
                 result,
                 source_path=source_path,
                 source_format=source_format,
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 job_id=job_id,
             )
 
@@ -224,16 +220,16 @@ class ImportService:
                     message="No extractor configured for source format: pdf",
                     source_path=source_path,
                     source_format=source_format,
-                    correlation_id=correlation_id,
+                    correlation_id=normalized_correlation_id,
                     job_id=job_id,
                     retryable=False,
                 )
-            result = self._pdf_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            result = self._pdf_extractor.extract(source_path, correlation_id=normalized_correlation_id, job_id=job_id)
             return self._normalize_extraction_result(
                 result,
                 source_path=source_path,
                 source_format=source_format,
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 job_id=job_id,
             )
 
@@ -244,16 +240,16 @@ class ImportService:
                     message=f"No extractor configured for source format: {source_format}",
                     source_path=source_path,
                     source_format=source_format,
-                    correlation_id=correlation_id,
+                    correlation_id=normalized_correlation_id,
                     job_id=job_id,
                     retryable=False,
                 )
-            result = self._text_extractor.extract(source_path, correlation_id=correlation_id, job_id=job_id)
+            result = self._text_extractor.extract(source_path, correlation_id=normalized_correlation_id, job_id=job_id)
             return self._normalize_extraction_result(
                 result,
                 source_path=source_path,
                 source_format=source_format,
-                correlation_id=correlation_id,
+                correlation_id=normalized_correlation_id,
                 job_id=job_id,
             )
 
@@ -262,7 +258,7 @@ class ImportService:
             message="Unsupported source format for extraction",
             source_path=source_path,
             source_format=source_format,
-            correlation_id=correlation_id,
+            correlation_id=normalized_correlation_id,
             job_id=job_id,
             retryable=False,
         )
