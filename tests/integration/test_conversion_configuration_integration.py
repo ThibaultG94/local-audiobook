@@ -157,7 +157,7 @@ class TestConversionConfigurationIntegration(unittest.TestCase):
                 worker.shutdown()
                 connection.close()
 
-    def test_diagnostics_ui_events_follow_schema_on_panel_and_retry_actions(self) -> None:
+    def test_support_workflow_events_follow_schema_on_view_copy_and_retry_actions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
@@ -187,26 +187,72 @@ class TestConversionConfigurationIntegration(unittest.TestCase):
                     },
                 }
             )
-            view.set_diagnostics_details_expanded(True)
+            view.open_support_details()
+            view.copy_support_details()
             view.request_retry()
 
             events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
-            diagnostics_events = [event for event in events if event.get("stage") == "diagnostics_ui"]
+            support_events = [event for event in events if event.get("stage") == "support_workflow"]
             self.assertEqual(
-                {event["event"] for event in diagnostics_events},
+                {event["event"] for event in support_events},
                 {
-                    "diagnostics_ui.panel_shown",
-                    "diagnostics_ui.details_toggled",
-                    "diagnostics_ui.retry_requested",
+                    "support_workflow.viewed",
+                    "support_workflow.copied",
                 },
             )
 
-            for event in diagnostics_events:
+            for event in support_events:
                 self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
                 self.assertEqual(event["correlation_id"], "corr-diag-int-1")
                 self.assertEqual(event["job_id"], "job-diag-int-1")
-                self.assertEqual(event["stage"], "diagnostics_ui")
+                self.assertEqual(event["stage"], "support_workflow")
+                self.assertEqual(event["severity"], "INFO")
                 self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
+
+    def test_support_workflow_retry_initiated_event_follows_schema_when_retryable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+            logger = JsonlLogger(events_path)
+            presenter = ConversionPresenter(logger=logger)
+            view = ConversionView(
+                presenter=presenter,
+                worker=_NoopWorker(),
+                logger=logger,
+            )
+
+            view._on_conversion_error(
+                {
+                    "job_id": "job-diag-int-2",
+                    "correlation_id": "corr-diag-int-2",
+                    "error": {
+                        "code": "extraction.no_text_content",
+                        "message": "No text",
+                        "details": {
+                            "stage": "extraction",
+                            "engine": "bootstrap",
+                            "chunk_index": -1,
+                            "job_id": "job-diag-int-2",
+                            "correlation_id": "corr-diag-int-2",
+                        },
+                        "retryable": True,
+                    },
+                }
+            )
+            retry_allowed = view.request_retry()
+            self.assertTrue(retry_allowed)
+
+            events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            retry_events = [event for event in events if event.get("event") == "support_workflow.retry_initiated"]
+            self.assertEqual(len(retry_events), 1)
+
+            event = retry_events[0]
+            self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
+            self.assertEqual(event["stage"], "support_workflow")
+            self.assertEqual(event["correlation_id"], "corr-diag-int-2")
+            self.assertEqual(event["job_id"], "job-diag-int-2")
+            self.assertEqual(event["severity"], "INFO")
+            self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))
 
     def test_extraction_diagnostics_events_follow_schema(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -387,15 +387,24 @@ class ConversionPresenter:
             message=message,
             retryable=retryable,
         )
+        support_workflow = self._build_support_workflow(
+            code=code,
+            message=message,
+            stage=stage,
+            details=safe_details,
+            retryable=retryable,
+        )
 
         return success(
             {
                 "code": code,
+                "message": message,
                 "summary": summary,
                 "details": safe_details,
                 "retryable": retryable,
                 "retry_enabled": retryable,
                 "remediation": remediation,
+                "support_workflow": support_workflow,
                 "stage": stage,
                 "engine": engine,
                 "correlation_id": correlation_id,
@@ -487,6 +496,90 @@ class ConversionPresenter:
             remediation.insert(0, "Verify TTS engine readiness and voice availability before retrying.")
 
         return summary, remediation
+
+    def _build_support_workflow(
+        self,
+        *,
+        code: str,
+        message: str,
+        stage: str,
+        details: dict[str, Any],
+        retryable: bool,
+    ) -> dict[str, Any]:
+        category = self._support_category_for(stage=stage)
+        guidance_by_category = {
+            "extraction": [
+                "Verify the local source file exists, is readable, and uses a supported format.",
+                "Re-import the document from local storage after correcting file issues.",
+            ],
+            "chunking": [
+                "Check local chunking settings and confirm extracted text is present.",
+                "Retry conversion after adjusting chunk size or segmentation parameters.",
+            ],
+            "engine_tts": [
+                "Run local readiness checks and confirm the selected engine and voice are available.",
+                "Retry conversion only after local model/voice availability is restored.",
+            ],
+            "export_postprocess": [
+                "Verify local output path permissions and ensure no target file is locked.",
+                "Retry conversion after confirming sufficient local disk space.",
+            ],
+            "persistence": [
+                "Check local database and runtime directory write permissions.",
+                "Retry conversion after resolving local storage integrity issues.",
+            ],
+        }
+
+        retry_prerequisites_by_category = {
+            "extraction": [
+                "Source file can be opened locally without permission errors.",
+                "Source format is supported (EPUB, PDF, TXT, or MD).",
+            ],
+            "chunking": [
+                "Extracted text is available in the current local job context.",
+                "Chunking settings were reviewed and corrected if needed.",
+            ],
+            "engine_tts": [
+                "Selected local TTS engine is ready.",
+                "Selected voice is available for the active engine.",
+            ],
+            "export_postprocess": [
+                "Output directory is writable on local filesystem.",
+                "No process is locking the expected output file.",
+            ],
+            "persistence": [
+                "Local runtime storage is writable.",
+                "Database path is available and not corrupted.",
+            ],
+        }
+
+        alternatives = [
+            "Re-import the source document from local storage.",
+            "Repair or replace local model files, then rerun readiness checks.",
+            "Correct conversion settings and start a new conversion job.",
+        ]
+
+        return {
+            "category": category,
+            "code": code,
+            "message": message,
+            "details": details,
+            "retryable": retryable,
+            "guidance": guidance_by_category.get(category, guidance_by_category["engine_tts"]),
+            "retry_prerequisites": retry_prerequisites_by_category.get(category, []) if retryable else [],
+            "non_retryable_alternatives": alternatives if not retryable else [],
+        }
+
+    @staticmethod
+    def _support_category_for(*, stage: str) -> str:
+        mapping = {
+            "extraction": "extraction",
+            "chunking": "chunking",
+            "tts": "engine_tts",
+            "postprocess": "export_postprocess",
+            "persistence": "persistence",
+        }
+        return mapping.get(stage, "engine_tts")
 
     @staticmethod
     def _engine_available(engines: list[dict[str, Any]], expected_name: str) -> bool:

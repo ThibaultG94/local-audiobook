@@ -321,6 +321,52 @@ class TestConversionPresenter(unittest.TestCase):
         self.assertEqual(result.data["correlation_id"], "corr-diag-1")
         self.assertFalse(result.data["retry_enabled"])
         self.assertGreaterEqual(len(result.data["remediation"]), 2)
+        self.assertIn("message", result.data)
+        self.assertIn("support_workflow", result.data)
+        support = result.data["support_workflow"]
+        self.assertEqual(support["code"], "tts_orchestration.chunk_failed_unrecoverable")
+        self.assertEqual(support["category"], "engine_tts")
+        self.assertFalse(support["retryable"])
+        self.assertEqual(support["message"], "Primary and fallback engines failed")
+        self.assertGreaterEqual(len(support["non_retryable_alternatives"]), 3)
+
+    def test_map_conversion_error_support_workflow_uses_category_specific_retry_prerequisites(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "chunking.segmenter_failed",
+                    "message": "Chunking failed",
+                    "details": {"stage": "chunking", "chunk_index": 5},
+                    "retryable": True,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        support = result.data["support_workflow"]
+        self.assertEqual(support["category"], "chunking")
+        self.assertTrue(support["retryable"])
+        self.assertGreaterEqual(len(support["retry_prerequisites"]), 2)
+        self.assertEqual(support["non_retryable_alternatives"], [])
+
+    def test_map_conversion_error_support_workflow_maps_export_postprocess_category(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "postprocess.output_write_failed",
+                    "message": "Write failed",
+                    "details": {"stage": "postprocess"},
+                    "retryable": True,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        support = result.data["support_workflow"]
+        self.assertEqual(support["category"], "export_postprocess")
+        self.assertGreaterEqual(len(support["guidance"]), 2)
 
     def test_map_conversion_error_hides_unsafe_internal_trace_by_default(self) -> None:
         presenter = ConversionPresenter()

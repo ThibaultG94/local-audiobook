@@ -97,6 +97,14 @@ class ConversionView:
                 "remediation": [],
                 "details": {},
                 "retry_enabled": False,
+                "retry_prerequisites": [],
+                "non_retryable_alternatives": [],
+                "support_details": {
+                    "code": "",
+                    "message": "",
+                    "details": {},
+                    "retryable": False,
+                },
                 "stage": "",
                 "engine": "",
                 "correlation_id": "",
@@ -167,6 +175,14 @@ class ConversionView:
                 "remediation": [],
                 "details": {},
                 "retry_enabled": False,
+                "retry_prerequisites": [],
+                "non_retryable_alternatives": [],
+                "support_details": {
+                    "code": "",
+                    "message": "",
+                    "details": {},
+                    "retryable": False,
+                },
                 "stage": "",
                 "engine": "",
                 "correlation_id": "",
@@ -191,6 +207,20 @@ class ConversionView:
             "remediation": [str(item) for item in mapped.data.get("remediation", [])],
             "details": dict(mapped.data.get("details", {})),
             "retry_enabled": bool(mapped.data.get("retry_enabled", mapped.data.get("retryable", False))),
+            "retry_prerequisites": [
+                str(item)
+                for item in mapped.data.get("support_workflow", {}).get("retry_prerequisites", [])
+            ],
+            "non_retryable_alternatives": [
+                str(item)
+                for item in mapped.data.get("support_workflow", {}).get("non_retryable_alternatives", [])
+            ],
+            "support_details": {
+                "code": str(mapped.data.get("code", "conversion.failed")),
+                "message": str(mapped.data.get("message", "Conversion failed.")),
+                "details": dict(mapped.data.get("details", {})),
+                "retryable": bool(mapped.data.get("retryable", False)),
+            },
             "stage": str(mapped.data.get("stage", "")),
             "engine": str(mapped.data.get("engine", "")),
             "correlation_id": str(mapped.data.get("correlation_id", payload.get("correlation_id", ""))),
@@ -225,7 +255,42 @@ class ConversionView:
             severity="INFO" if can_retry else "WARNING",
             extra={"retry_enabled": can_retry},
         )
+        if can_retry:
+            self._emit_support_event(
+                event="support_workflow.retry_initiated",
+                severity="INFO",
+                extra={
+                    "retry_enabled": True,
+                    "prerequisites": [str(item) for item in diagnostics.get("retry_prerequisites", [])],
+                },
+            )
         return can_retry
+
+    def open_support_details(self) -> dict[str, Any]:
+        diagnostics = dict(self.current_state.get("diagnostics", {}))
+        support_details = dict(diagnostics.get("support_details", {}))
+        self._emit_support_event(
+            event="support_workflow.viewed",
+            severity="INFO",
+            extra={
+                "code": str(support_details.get("code", "conversion.failed")),
+                "retryable": bool(support_details.get("retryable", False)),
+            },
+        )
+        return support_details
+
+    def copy_support_details(self) -> dict[str, Any]:
+        diagnostics = dict(self.current_state.get("diagnostics", {}))
+        support_details = dict(diagnostics.get("support_details", {}))
+        self._emit_support_event(
+            event="support_workflow.copied",
+            severity="INFO",
+            extra={
+                "code": str(support_details.get("code", "conversion.failed")),
+                "retryable": bool(support_details.get("retryable", False)),
+            },
+        )
+        return support_details
 
     def _emit_diagnostics_event(self, *, event: str, severity: str, extra: dict[str, Any]) -> None:
         diagnostics = dict(self.current_state.get("diagnostics", {}))
@@ -248,6 +313,29 @@ class ConversionView:
             # Fallback: log to stderr when structured logging fails
             import sys
             print(f"[DIAGNOSTICS_EVENT_FAILED] {event}: {e}", file=sys.stderr)
+            return
+
+    def _emit_support_event(self, *, event: str, severity: str, extra: dict[str, Any]) -> None:
+        diagnostics = dict(self.current_state.get("diagnostics", {}))
+        conversion = dict(self.current_state.get("conversion", {}))
+        correlation_id = str(diagnostics.get("correlation_id") or conversion.get("correlation_id") or "unknown_correlation")
+        job_id = str(diagnostics.get("job_id") or conversion.get("job_id") or "")
+        engine = str(diagnostics.get("engine") or "unknown_engine")
+        try:
+            self._logger.emit(
+                event=event,
+                stage="support_workflow",
+                severity=severity,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=int(self.current_state.get("error", {}).get("chunk_index", -1) or -1),
+                engine=engine,
+                extra=extra,
+            )
+        except Exception as e:
+            import sys
+
+            print(f"[SUPPORT_WORKFLOW_EVENT_FAILED] {event}: {e}", file=sys.stderr)
             return
 
     def build_configuration_options(

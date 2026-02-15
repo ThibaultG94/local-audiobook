@@ -1,6 +1,6 @@
 # Story 5.4: Provide Local Support Workflow for Error Review and Guided Remediation
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,22 +34,22 @@ so that I can resolve issues without external tools or cloud services.
 
 ## Tasks / Subtasks
 
-- [ ] Extend diagnostics-to-support mapping in presenter (AC: 1, 2)
-  - [ ] Add deterministic mapping from normalized conversion errors to support-workflow view model in [`ConversionPresenter.map_conversion_error()`](src/ui/presenters/conversion_presenter.py:357)
-  - [ ] Add/extend category-level remediation routing for `extraction`, `chunking`, `engine/tts`, `export/postprocess`, `persistence` using local-only guidance
-  - [ ] Ensure displayed fields remain normalized and explicit: `code`, `message`/summary, `details`, `retryable`
-- [ ] Add support workflow panel behaviors in conversion UI (AC: 1, 2, 3)
-  - [ ] Extend diagnostics panel state in [`conversion_view.py`](src/ui/views/conversion_view.py) to include support guidance and retry prerequisites text
-  - [ ] Surface non-retryable alternatives (re-import, model repair/check, settings correction) in deterministic order
-  - [ ] Keep all user-facing guidance strictly local-first and English-only
-- [ ] Wire traceable support interactions into logging contract (AC: 4)
-  - [ ] Emit `support_workflow.viewed`, `support_workflow.copied`, and `support_workflow.retry_initiated` events through existing logger interface
-  - [ ] Ensure event names follow `domain.action` and include required fields: `correlation_id`, `job_id`, `event`, `severity`, `timestamp`
-  - [ ] Preserve non-blocking behavior if logging fails (no UI-thread interruption)
-- [ ] Add tests for support workflow coverage (AC: 1, 2, 3, 4)
-  - [ ] Unit tests in [`test_conversion_presenter.py`](tests/unit/test_conversion_presenter.py) for category mapping, retryability guidance, and normalized fields
-  - [ ] Unit tests in [`test_conversion_view.py`](tests/unit/test_conversion_view.py) for support panel rendering/copy/retry affordances
-  - [ ] Integration tests in [`test_conversion_configuration_integration.py`](tests/integration/test_conversion_configuration_integration.py) (or dedicated diagnostics integration file) validating support events and payload contract
+- [x] Extend diagnostics-to-support mapping in presenter (AC: 1, 2)
+  - [x] Add deterministic mapping from normalized conversion errors to support-workflow view model in [`ConversionPresenter.map_conversion_error()`](src/ui/presenters/conversion_presenter.py:357)
+  - [x] Add/extend category-level remediation routing for `extraction`, `chunking`, `engine/tts`, `export/postprocess`, `persistence` using local-only guidance
+  - [x] Ensure displayed fields remain normalized and explicit: `code`, `message`/summary, `details`, `retryable`
+- [x] Add support workflow panel behaviors in conversion UI (AC: 1, 2, 3)
+  - [x] Extend diagnostics panel state in [`conversion_view.py`](src/ui/views/conversion_view.py) to include support guidance and retry prerequisites text
+  - [x] Surface non-retryable alternatives (re-import, model repair/check, settings correction) in deterministic order
+  - [x] Keep all user-facing guidance strictly local-first and English-only
+- [x] Wire traceable support interactions into logging contract (AC: 4)
+  - [x] Emit `support_workflow.viewed`, `support_workflow.copied`, and `support_workflow.retry_initiated` events through existing logger interface
+  - [x] Ensure event names follow `domain.action` and include required fields: `correlation_id`, `job_id`, `event`, `severity`, `timestamp`
+  - [x] Preserve non-blocking behavior if logging fails (no UI-thread interruption)
+- [x] Add tests for support workflow coverage (AC: 1, 2, 3, 4)
+  - [x] Unit tests in [`test_conversion_presenter.py`](tests/unit/test_conversion_presenter.py) for category mapping, retryability guidance, and normalized fields
+  - [x] Unit tests in [`test_conversion_view.py`](tests/unit/test_conversion_view.py) for support panel rendering/copy/retry affordances
+  - [x] Integration tests in [`test_conversion_configuration_integration.py`](tests/integration/test_conversion_configuration_integration.py) (or dedicated diagnostics integration file) validating support events and payload contract
 
 ## Dev Notes
 
@@ -185,21 +185,45 @@ gpt-5.3-codex
 
 ### Debug Log References
 
+- `python -m unittest -q tests.unit.test_conversion_presenter tests.unit.test_conversion_view tests.integration.test_conversion_configuration_integration`
+- `PYTHONPATH=src python -m unittest discover -q`
+
+### Implementation Plan
+
+- Extend [`ConversionPresenter.map_conversion_error()`](src/ui/presenters/conversion_presenter.py:357) with deterministic support-workflow payload generation based on normalized error fields and stage/category mapping.
+- Extend [`ConversionView._on_conversion_error()`](src/ui/views/conversion_view.py:177) diagnostics state with support details, retry prerequisites, and deterministic non-retryable alternatives.
+- Add support interaction methods in [`ConversionView.open_support_details()`](src/ui/views/conversion_view.py:247), [`ConversionView.copy_support_details()`](src/ui/views/conversion_view.py:261), and [`ConversionView.request_retry()`](src/ui/views/conversion_view.py:242) to emit non-blocking support events.
+- Validate via updated unit/integration tests and full regression execution with `PYTHONPATH=src`.
+
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
 - Story 5.4 selected from sprint tracker as next backlog item in Epic 5.
 - Story document expanded with deterministic support-workflow guardrails for error category guidance, retry prerequisites, local-only remediation, and event traceability.
 - Context continuity integrated from Story 5.3 diagnostics implementation and recent Git patterns.
+- Implemented support-workflow mapping in presenter with deterministic category routing (`extraction`, `chunking`, `engine_tts`, `export_postprocess`, `persistence`) and normalized support payload fields (`code`, `message`, `details`, `retryable`).
+- Extended conversion diagnostics state with support details, retry prerequisites, and deterministic non-retryable alternatives.
+- Added support-workflow interaction methods for view/copy/retry and emitted `support_workflow.viewed`, `support_workflow.copied`, and `support_workflow.retry_initiated` events with non-blocking logger failure handling.
+- Added and updated unit/integration tests covering category mapping, retry prerequisites, local-only alternatives, and support workflow event schema contracts.
+- Validation completed successfully with targeted and full-suite runs under local environment (`PYTHONPATH=src`).
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-4-provide-local-support-workflow-for-error-review-and-guided-remediation.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
+- src/ui/presenters/conversion_presenter.py
+- src/ui/views/conversion_view.py
+- tests/unit/test_conversion_presenter.py
+- tests/unit/test_conversion_view.py
+- tests/integration/test_conversion_configuration_integration.py
+
+### Change Log
+
+- 2026-02-15: Implemented Story 5.4 local support workflow mapping, support-panel behaviors, traceable `support_workflow.*` events, and comprehensive unit/integration coverage.
 
 ## Story Completion Status
 
 - Story ID: `5.4`
 - Story Key: `5-4-provide-local-support-workflow-for-error-review-and-guided-remediation`
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Support-workflow remediation mapping, UI interaction logging, and automated coverage are implemented and validated.

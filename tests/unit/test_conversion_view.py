@@ -282,6 +282,11 @@ class TestConversionView(unittest.TestCase):
         self.assertEqual(diagnostics["correlation_id"], "corr-diag-view-1")
         self.assertTrue(diagnostics["retry_enabled"])
         self.assertFalse(diagnostics["safe_for_display"])
+        self.assertIn("support_details", diagnostics)
+        self.assertEqual(diagnostics["support_details"]["code"], "postprocess.output_write_failed")
+        self.assertTrue(diagnostics["support_details"]["retryable"])
+        self.assertGreaterEqual(len(diagnostics["retry_prerequisites"]), 2)
+        self.assertEqual(diagnostics["non_retryable_alternatives"], [])
 
         panel_events = [payload for payload in logger.payloads if payload.get("event") == "diagnostics_ui.panel_shown"]
         self.assertEqual(len(panel_events), 1)
@@ -328,6 +333,83 @@ class TestConversionView(unittest.TestCase):
         self.assertEqual(len(retry_events), 1)
         self.assertEqual(toggled_events[0]["stage"], "diagnostics_ui")
         self.assertEqual(retry_events[0]["severity"], "WARNING")
+
+    def test_support_workflow_events_emitted_for_view_copy_and_retry(self) -> None:
+        logger = _FakeLogger()
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=logger,
+        )
+
+        worker.emit_error(
+            {
+                "job_id": "job-support-1",
+                "correlation_id": "corr-support-1",
+                "error": {
+                    "code": "extraction.no_text_content",
+                    "message": "No readable text",
+                    "details": {
+                        "stage": "extraction",
+                        "job_id": "job-support-1",
+                        "correlation_id": "corr-support-1",
+                    },
+                    "retryable": True,
+                },
+            }
+        )
+
+        viewed = view.open_support_details()
+        copied = view.copy_support_details()
+        retry_allowed = view.request_retry()
+
+        self.assertTrue(retry_allowed)
+        self.assertEqual(viewed["code"], "extraction.no_text_content")
+        self.assertEqual(copied["code"], "extraction.no_text_content")
+
+        support_events = [payload for payload in logger.payloads if payload.get("stage") == "support_workflow"]
+        self.assertEqual(
+            [event["event"] for event in support_events],
+            [
+                "support_workflow.viewed",
+                "support_workflow.copied",
+                "support_workflow.retry_initiated",
+            ],
+        )
+        for event in support_events:
+            self.assertEqual(event["correlation_id"], "corr-support-1")
+            self.assertEqual(event["job_id"], "job-support-1")
+
+    def test_support_workflow_non_retryable_alternatives_render_in_deterministic_order(self) -> None:
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=_FakeLogger(),
+        )
+
+        worker.emit_error(
+            {
+                "error": {
+                    "code": "tts_orchestration.chunk_failed_unrecoverable",
+                    "message": "Failure",
+                    "details": {"stage": "tts"},
+                    "retryable": False,
+                }
+            }
+        )
+
+        diagnostics = view.current_state["diagnostics"]
+        self.assertFalse(diagnostics["retry_enabled"])
+        self.assertEqual(
+            diagnostics["non_retryable_alternatives"],
+            [
+                "Re-import the source document from local storage.",
+                "Repair or replace local model files, then rerun readiness checks.",
+                "Correct conversion settings and start a new conversion job.",
+            ],
+        )
 
     def test_diagnostics_panel_cleared_when_conversion_completes(self) -> None:
         worker = _FakeWorker()
