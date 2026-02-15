@@ -298,3 +298,72 @@ class TestPlayerService(unittest.TestCase):
         finally:
             if audio_file.exists():
                 audio_file.unlink()
+
+    def test_seek_rejects_nan_position(self) -> None:
+        adapter = _FakePlaybackAdapter()
+        service = PlayerService(playback_adapter=adapter)
+        audio_base = Path("runtime/library/audio")
+        audio_base.mkdir(parents=True, exist_ok=True)
+        audio_file = audio_base / "test-player-seek-nan.mp3"
+        audio_file.write_bytes(b"ID3")
+        try:
+            init_result = service.initialize_playback(
+                correlation_id="corr-player-seek-nan-init",
+                playback_context={"library_item_id": "lib-seek-nan", "audio_path": str(audio_file), "format": "mp3"},
+            )
+            self.assertTrue(init_result.ok)
+
+            result = service.seek(correlation_id="corr-player-seek-nan", position_seconds=float("nan"))
+
+            self.assertFalse(result.ok)
+            assert result.error is not None
+            self.assertEqual(result.error.code, "player.seek_invalid_payload")
+        finally:
+            if audio_file.exists():
+                audio_file.unlink()
+
+    def test_seek_rejects_infinity_position(self) -> None:
+        adapter = _FakePlaybackAdapter()
+        service = PlayerService(playback_adapter=adapter)
+        audio_base = Path("runtime/library/audio")
+        audio_base.mkdir(parents=True, exist_ok=True)
+        audio_file = audio_base / "test-player-seek-inf.mp3"
+        audio_file.write_bytes(b"ID3")
+        try:
+            init_result = service.initialize_playback(
+                correlation_id="corr-player-seek-inf-init",
+                playback_context={"library_item_id": "lib-seek-inf", "audio_path": str(audio_file), "format": "mp3"},
+            )
+            self.assertTrue(init_result.ok)
+
+            result = service.seek(correlation_id="corr-player-seek-inf", position_seconds=float("inf"))
+
+            self.assertFalse(result.ok)
+            assert result.error is not None
+            self.assertEqual(result.error.code, "player.seek_invalid_payload")
+        finally:
+            if audio_file.exists():
+                audio_file.unlink()
+
+    def test_seek_at_exact_duration_boundary(self) -> None:
+        adapter = _FakePlaybackAdapter()
+        adapter.status_result = success({"state": "paused", "position_seconds": 0.0, "duration_seconds": 10.0})
+        service = PlayerService(playback_adapter=adapter)
+        audio_base = Path("runtime/library/audio")
+        audio_base.mkdir(parents=True, exist_ok=True)
+        audio_file = audio_base / "test-player-seek-boundary.mp3"
+        audio_file.write_bytes(b"ID3")
+        try:
+            init_result = service.initialize_playback(
+                correlation_id="corr-player-seek-boundary-init",
+                playback_context={"library_item_id": "lib-seek-boundary", "audio_path": str(audio_file), "format": "mp3"},
+            )
+            self.assertTrue(init_result.ok)
+
+            result = service.seek(correlation_id="corr-player-seek-boundary", position_seconds=10.0)
+
+            self.assertTrue(result.ok)
+            self.assertEqual(result.data["position_seconds"], 10.0)
+        finally:
+            if audio_file.exists():
+                audio_file.unlink()

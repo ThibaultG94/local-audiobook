@@ -48,21 +48,25 @@ class LibraryView:
         return self.current_state
 
     def play(self, *, correlation_id: str) -> dict[str, Any]:
+        """Start or resume playback of the currently loaded audio."""
         state = self._presenter.play(correlation_id=correlation_id)
         self.current_state = dict(state)
         return self.current_state
 
     def pause(self, *, correlation_id: str) -> dict[str, Any]:
+        """Pause active playback."""
         state = self._presenter.pause(correlation_id=correlation_id)
         self.current_state = dict(state)
         return self.current_state
 
     def seek(self, *, correlation_id: str, position_seconds: float) -> dict[str, Any]:
+        """Seek to a specific position in seconds within the loaded audio."""
         state = self._presenter.seek(correlation_id=correlation_id, position_seconds=position_seconds)
         self.current_state = dict(state)
         return self.current_state
 
     def refresh_playback_status(self, *, correlation_id: str) -> dict[str, Any]:
+        """Refresh playback status including position, duration, and progress."""
         state = self._presenter.refresh_playback_status(correlation_id=correlation_id)
         self.current_state = dict(state)
         return self.current_state

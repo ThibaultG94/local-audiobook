@@ -117,18 +117,22 @@ class LibraryPresenter:
         return self.state
 
     def play(self, *, correlation_id: str) -> dict[str, Any]:
+        """Start or resume playback through player service."""
         result = self._player_service.play(correlation_id=correlation_id)
         return self._update_from_player_result(result)
 
     def pause(self, *, correlation_id: str) -> dict[str, Any]:
+        """Pause active playback through player service."""
         result = self._player_service.pause(correlation_id=correlation_id)
         return self._update_from_player_result(result)
 
     def seek(self, *, correlation_id: str, position_seconds: float) -> dict[str, Any]:
+        """Seek to specific position through player service."""
         result = self._player_service.seek(correlation_id=correlation_id, position_seconds=position_seconds)
         return self._update_from_player_result(result)
 
     def refresh_playback_status(self, *, correlation_id: str) -> dict[str, Any]:
+        """Refresh playback status from player service."""
         result = self._player_service.get_status(correlation_id=correlation_id)
         return self._update_from_player_result(result)
 

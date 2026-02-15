@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import math
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Protocol
 
 from src.contracts.result import Result, failure, success
 
 _ALLOWED_STATES = {"idle", "loading", "playing", "paused", "stopped", "error"}
+_MS_PER_SECOND = 1000
 
 
 class QtBackendPort(Protocol):
@@ -55,7 +58,7 @@ class _PyQtMediaBackend:
 
     def seek(self, position_seconds: float) -> None:
         # QMediaPlayer.setPosition expects milliseconds, not seconds
-        self._player.setPosition(int(float(position_seconds) * 1000))
+        self._player.setPosition(int(float(position_seconds) * _MS_PER_SECOND))
 
     def get_state(self) -> str:
         state = int(self._player.state())
@@ -159,25 +162,53 @@ class QtAudioPlayer:
         backend = self._ensure_backend()
         if backend is None:
             return self._backend_unavailable_error("seek")
-        if float(position_seconds) < 0:
+        
+        # Validate numeric position
+        try:
+            normalized_position = float(position_seconds)
+        except (TypeError, ValueError):
+            return failure(
+                code="qt_player.seek_invalid_position",
+                message="Seek position must be a numeric value.",
+                details={
+                    "category": "input",
+                    "position_seconds": position_seconds,
+                    "remediation": "Provide a numeric position in seconds.",
+                },
+                retryable=False,
+            )
+        
+        if not math.isfinite(normalized_position):
+            return failure(
+                code="qt_player.seek_invalid_position",
+                message="Seek position must be a finite numeric value.",
+                details={
+                    "category": "input",
+                    "position_seconds": position_seconds,
+                    "remediation": "Provide a finite position (not NaN or Infinity).",
+                },
+                retryable=False,
+            )
+        
+        if normalized_position < 0:
             return failure(
                 code="qt_player.seek_invalid_position",
                 message="Seek position must be non-negative.",
                 details={
                     "category": "input",
-                    "position_seconds": float(position_seconds),
+                    "position_seconds": normalized_position,
                     "remediation": "Provide a position >= 0.",
                 },
                 retryable=False,
             )
 
         try:
-            backend.seek(float(position_seconds))
+            backend.seek(normalized_position)
         except Exception as exc:
             self._state = "error"
             return self._runtime_error("seek", exc)
 
-        return success({"state": self._state, "position_seconds": float(position_seconds)})
+        return success({"state": self._state, "position_seconds": normalized_position})
 
     def get_status(self) -> Result[dict[str, object]]:
         backend = self._ensure_backend()
@@ -196,12 +227,12 @@ class QtAudioPlayer:
         duration_seconds = 0.0
         if hasattr(backend, "get_position_milliseconds"):
             try:
-                position_seconds = max(0.0, float(backend.get_position_milliseconds()) / 1000.0)
+                position_seconds = max(0.0, float(backend.get_position_milliseconds()) / _MS_PER_SECOND)
             except Exception:
                 position_seconds = 0.0
         if hasattr(backend, "get_duration_milliseconds"):
             try:
-                duration_seconds = max(0.0, float(backend.get_duration_milliseconds()) / 1000.0)
+                duration_seconds = max(0.0, float(backend.get_duration_milliseconds()) / _MS_PER_SECOND)
             except Exception:
                 duration_seconds = 0.0
 

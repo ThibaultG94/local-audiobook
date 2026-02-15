@@ -1,6 +1,6 @@
 # Story 4.5: Provide Playback Controls with Pause Resume Seek and Progress
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -54,6 +54,12 @@ so that I can navigate content comfortably during listening sessions.
   - [x] Unit tests for presenter↔service command flow and error mapping
   - [x] Unit tests for seek validation/state transitions and status payloads
   - [x] Integration test for reopen → initialize playback → play/pause/resume/seek/progress updates
+
+### Review Follow-ups (Code Review 2026-02-15)
+
+- [ ] [HIGH][AC#3] Implement automatic progress refresh mechanism for non-blocking UI updates during playback (QTimer or periodic signal)
+- [ ] [HIGH][Architecture] Add logger injection to QtAudioPlayer for adapter-level event emission
+- [ ] [MEDIUM][Performance] Optimize seek() to avoid double get_status() calls
 
 ## Dev Notes
 
@@ -250,6 +256,7 @@ gpt-5.3-codex
 ### Change Log
 
 - 2026-02-14: Implemented playback controls wiring, seek guardrails, progress/timing payload flow, and test coverage for Story 4.5; set story to review.
+- 2026-02-15: Code review completed - Fixed 6 issues (3 MEDIUM, 2 LOW, 1 security hardening): added NaN/Infinity validation in qt_audio_player seek, replaced magic numbers with _MS_PER_SECOND constant, added docstrings to playback methods, expanded test coverage for NaN/Infinity/boundary cases; 3 HIGH issues remain as action items for future work.
 
 ## Story Completion Status
 

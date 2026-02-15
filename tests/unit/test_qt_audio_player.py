@@ -106,3 +106,23 @@ class TestQtAudioPlayer(unittest.TestCase):
         self.assertFalse(result.ok)
         assert result.error is not None
         self.assertEqual(result.error.code, "qt_player.load_backend_unavailable")
+
+    def test_seek_rejects_nan(self) -> None:
+        adapter = QtAudioPlayer(backend_factory=_FakeBackend)
+
+        result = adapter.seek(position_seconds=float("nan"))
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "qt_player.seek_invalid_position")
+        self.assertIn("finite", result.error.message.lower())
+
+    def test_seek_rejects_infinity(self) -> None:
+        adapter = QtAudioPlayer(backend_factory=_FakeBackend)
+
+        result = adapter.seek(position_seconds=float("inf"))
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "qt_player.seek_invalid_position")
+        self.assertIn("finite", result.error.message.lower())
