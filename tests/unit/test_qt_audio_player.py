@@ -5,6 +5,14 @@ import unittest
 from src.adapters.playback.qt_audio_player import QtAudioPlayer
 
 
+class _CapturingLogger:
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
+
+    def emit(self, **payload: object) -> None:
+        self.events.append(dict(payload))
+
+
 class _FakeBackend:
     def __init__(self) -> None:
         self.state = "stopped"
@@ -126,3 +134,32 @@ class TestQtAudioPlayer(unittest.TestCase):
         assert result.error is not None
         self.assertEqual(result.error.code, "qt_player.seek_invalid_position")
         self.assertIn("finite", result.error.message.lower())
+
+    def test_emits_player_events_via_injected_logger(self) -> None:
+        backend = _FakeBackend()
+        logger = _CapturingLogger()
+        adapter = QtAudioPlayer(backend_factory=lambda: backend, logger=logger)
+
+        self.assertTrue(adapter.load(file_path="runtime/library/audio/.gitkeep").ok)
+        self.assertTrue(adapter.play().ok)
+        self.assertTrue(adapter.pause().ok)
+        self.assertTrue(adapter.stop().ok)
+
+        names = [str(event.get("event") or "") for event in logger.events]
+        self.assertIn("player.loaded", names)
+        self.assertIn("player.play_started", names)
+        self.assertIn("player.paused", names)
+        self.assertIn("player.stopped", names)
+
+    def test_emits_error_event_when_backend_unavailable(self) -> None:
+        logger = _CapturingLogger()
+
+        def _raising_factory() -> _FakeBackend:
+            raise RuntimeError("backend missing")
+
+        adapter = QtAudioPlayer(backend_factory=_raising_factory, logger=logger)
+        result = adapter.play()
+
+        self.assertFalse(result.ok)
+        names = [str(event.get("event") or "") for event in logger.events]
+        self.assertIn("player.error", names)

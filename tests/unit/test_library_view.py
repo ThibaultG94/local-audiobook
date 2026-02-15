@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import unittest
 
 from src.ui.views.library_view import LibraryView
@@ -121,3 +122,25 @@ class TestLibraryView(unittest.TestCase):
 
         status_state = view.refresh_playback_status(correlation_id="corr-view-status")
         self.assertEqual(status_state["playback_duration_seconds"], 120.0)
+
+    def test_play_starts_auto_refresh_and_pause_stops_it(self) -> None:
+        class _CountingPresenter(_FakeLibraryPresenter):
+            def __init__(self) -> None:
+                self.refresh_calls = 0
+
+            def refresh_playback_status(self, *, correlation_id: str):
+                self.refresh_calls += 1
+                return super().refresh_playback_status(correlation_id=correlation_id)
+
+        presenter = _CountingPresenter()
+        view = LibraryView(presenter=presenter, auto_refresh_interval_seconds=0.05)
+
+        view.play(correlation_id="corr-view-auto-play")
+        time.sleep(0.16)
+        view.pause(correlation_id="corr-view-auto-pause")
+        calls_after_pause = presenter.refresh_calls
+        time.sleep(0.12)
+        view.shutdown()
+
+        self.assertGreaterEqual(calls_after_pause, 1)
+        self.assertEqual(calls_after_pause, presenter.refresh_calls)

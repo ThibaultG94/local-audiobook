@@ -166,7 +166,7 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         logger=logger,
     )
     player_service = PlayerService(
-        playback_adapter=QtAudioPlayer(),
+        playback_adapter=QtAudioPlayer(logger=logger),
         logger=logger,
     )
     services = Services(

@@ -57,8 +57,8 @@ so that I can navigate content comfortably during listening sessions.
 
 ### Review Follow-ups (Code Review 2026-02-15)
 
-- [ ] [HIGH][AC#3] Implement automatic progress refresh mechanism for non-blocking UI updates during playback (QTimer or periodic signal)
-- [ ] [HIGH][Architecture] Add logger injection to QtAudioPlayer for adapter-level event emission
+- [x] [HIGH][AC#3] Implement automatic progress refresh mechanism for non-blocking UI updates during playback (QTimer or periodic signal)
+- [x] [HIGH][Architecture] Add logger injection to QtAudioPlayer for adapter-level event emission
 - [ ] [MEDIUM][Performance] Optimize seek() to avoid double get_status() calls
 
 ## Dev Notes

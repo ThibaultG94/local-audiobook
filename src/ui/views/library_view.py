@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -23,8 +24,12 @@ class LibraryPresenterPort(Protocol):
 class LibraryView:
     """Hold deterministic browse state and delegate actions to presenter."""
 
-    def __init__(self, *, presenter: LibraryPresenterPort) -> None:
+    def __init__(self, *, presenter: LibraryPresenterPort, auto_refresh_interval_seconds: float = 0.5) -> None:
         self._presenter = presenter
+        self._auto_refresh_interval_seconds = max(0.05, float(auto_refresh_interval_seconds))
+        self._auto_refresh_stop_event = threading.Event()
+        self._auto_refresh_thread: threading.Thread | None = None
+        self._auto_refresh_correlation_id = ""
         self.current_state: dict[str, Any] = {
             "status": "idle",
             "items": [],
@@ -51,12 +56,17 @@ class LibraryView:
         """Start or resume playback of the currently loaded audio."""
         state = self._presenter.play(correlation_id=correlation_id)
         self.current_state = dict(state)
+        if str(self.current_state.get("playback_state") or "") == "playing":
+            self._start_auto_refresh(correlation_id=correlation_id)
+        else:
+            self._stop_auto_refresh()
         return self.current_state
 
     def pause(self, *, correlation_id: str) -> dict[str, Any]:
         """Pause active playback."""
         state = self._presenter.pause(correlation_id=correlation_id)
         self.current_state = dict(state)
+        self._stop_auto_refresh()
         return self.current_state
 
     def seek(self, *, correlation_id: str, position_seconds: float) -> dict[str, Any]:
@@ -69,4 +79,33 @@ class LibraryView:
         """Refresh playback status including position, duration, and progress."""
         state = self._presenter.refresh_playback_status(correlation_id=correlation_id)
         self.current_state = dict(state)
+        if str(self.current_state.get("playback_state") or "") != "playing":
+            self._stop_auto_refresh()
         return self.current_state
+
+    def shutdown(self) -> None:
+        """Stop background playback refresh loop."""
+        self._stop_auto_refresh()
+
+    def _start_auto_refresh(self, *, correlation_id: str) -> None:
+        self._auto_refresh_correlation_id = str(correlation_id or "")
+        if self._auto_refresh_thread is not None and self._auto_refresh_thread.is_alive():
+            return
+        self._auto_refresh_stop_event.clear()
+        self._auto_refresh_thread = threading.Thread(target=self._auto_refresh_loop, daemon=True)
+        self._auto_refresh_thread.start()
+
+    def _stop_auto_refresh(self) -> None:
+        self._auto_refresh_stop_event.set()
+        thread = self._auto_refresh_thread
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=0.2)
+        self._auto_refresh_thread = None
+
+    def _auto_refresh_loop(self) -> None:
+        while not self._auto_refresh_stop_event.wait(self._auto_refresh_interval_seconds):
+            state = self._presenter.refresh_playback_status(correlation_id=self._auto_refresh_correlation_id)
+            self.current_state = dict(state)
+            if str(self.current_state.get("playback_state") or "") != "playing":
+                self._auto_refresh_stop_event.set()
+                break
