@@ -293,3 +293,75 @@ class TestConversionPresenter(unittest.TestCase):
         self.assertEqual(result.data["code"], "tts_orchestration.chunk_failed_unrecoverable")
         self.assertIn("failed", result.data["message"].lower())
         self.assertFalse(result.data["retryable"])
+
+    def test_map_conversion_error_includes_stage_engine_and_retry_guidance(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "job_id": "job-diag-1",
+                "correlation_id": "corr-diag-1",
+                "error": {
+                    "code": "tts_orchestration.chunk_failed_unrecoverable",
+                    "message": "Primary and fallback engines failed",
+                    "details": {
+                        "engine": "chatterbox_gpu",
+                        "chunk_index": 2,
+                        "job_id": "job-diag-1",
+                        "correlation_id": "corr-diag-1",
+                    },
+                    "retryable": False,
+                },
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertEqual(result.data["stage"], "tts")
+        self.assertEqual(result.data["engine"], "chatterbox_gpu")
+        self.assertEqual(result.data["job_id"], "job-diag-1")
+        self.assertEqual(result.data["correlation_id"], "corr-diag-1")
+        self.assertFalse(result.data["retry_enabled"])
+        self.assertGreaterEqual(len(result.data["remediation"]), 2)
+
+    def test_map_conversion_error_hides_unsafe_internal_trace_by_default(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "persistence.write_failed",
+                    "message": "Write failed",
+                    "details": {
+                        "stage": "persistence",
+                        "traceback": "super sensitive internal stack",
+                        "exception": "sqlite error",
+                        "job_id": "job-2",
+                    },
+                    "retryable": True,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertNotIn("traceback", result.data["details"])
+        self.assertNotIn("exception", result.data["details"])
+        self.assertTrue(result.data["hidden_internal_details"])
+        self.assertIn("traceback", result.data["hidden_internal_keys"])
+
+    def test_map_conversion_error_allows_internal_trace_when_explicitly_safe(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "conversion.failed",
+                    "message": "failed",
+                    "details": {
+                        "safe_for_user_display": True,
+                        "traceback": "sanitized trace allowed",
+                    },
+                    "retryable": False,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertIn("traceback", result.data["details"])
+        self.assertFalse(result.data["hidden_internal_details"])

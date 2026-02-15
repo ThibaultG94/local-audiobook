@@ -90,6 +90,19 @@ class ConversionView:
                 "job_id": "",
                 "correlation_id": "",
             },
+            "diagnostics": {
+                "panel_visible": False,
+                "details_expanded": False,
+                "summary": "",
+                "remediation": [],
+                "details": {},
+                "retry_enabled": False,
+                "stage": "",
+                "engine": "",
+                "correlation_id": "",
+                "job_id": "",
+                "safe_for_display": True,
+            },
         }
         self._worker.on_readiness_refreshed(self._on_recheck_result)
         self._worker.on_conversion_progressed(self._on_conversion_progress)
@@ -99,11 +112,9 @@ class ConversionView:
     def render_initial(self, readiness_result: Result[dict[str, Any]]) -> Result[dict[str, Any]]:
         mapped = self._presenter.map_readiness(readiness_result)
         if mapped.ok and mapped.data is not None:
-            self.current_state = {
-                **mapped.data,
-                "error": None,
-                "title": "Offline readiness",
-            }
+            self.current_state.update(mapped.data)
+            self.current_state["error"] = None
+            self.current_state["title"] = "Offline readiness"
             self._logger.emit(event="readiness.displayed", stage="readiness")
         else:
             self.current_state["error"] = mapped.error.to_dict() if mapped.error else {"code": "unknown", "message": "Readiness mapping failed"}
@@ -115,11 +126,9 @@ class ConversionView:
     def _on_recheck_result(self, readiness_result: Result[dict[str, Any]]) -> None:
         mapped = self._presenter.map_readiness(readiness_result)
         if mapped.ok and mapped.data is not None:
-            self.current_state = {
-                **mapped.data,
-                "error": None,
-                "title": "Offline readiness",
-            }
+            self.current_state.update(mapped.data)
+            self.current_state["error"] = None
+            self.current_state["title"] = "Offline readiness"
             self._logger.emit(event="readiness.displayed", stage="readiness")
         else:
             self.current_state["error"] = mapped.error.to_dict() if mapped.error else {"code": "unknown", "message": "Readiness recheck mapping failed"}
@@ -154,6 +163,68 @@ class ConversionView:
         conversion_state = dict(self.current_state.get("conversion", {}))
         conversion_state["status"] = "failed"
         self.current_state["conversion"] = conversion_state
+        self.current_state["diagnostics"] = {
+            "panel_visible": True,
+            "details_expanded": False,
+            "summary": str(mapped.data.get("summary", mapped.data.get("message", "Conversion failed."))),
+            "remediation": [str(item) for item in mapped.data.get("remediation", [])],
+            "details": dict(mapped.data.get("details", {})),
+            "retry_enabled": bool(mapped.data.get("retry_enabled", mapped.data.get("retryable", False))),
+            "stage": str(mapped.data.get("stage", "")),
+            "engine": str(mapped.data.get("engine", "")),
+            "correlation_id": str(mapped.data.get("correlation_id", payload.get("correlation_id", ""))),
+            "job_id": str(mapped.data.get("job_id", payload.get("job_id", ""))),
+            "safe_for_display": not bool(mapped.data.get("hidden_internal_details", False)),
+        }
+        self._emit_diagnostics_event(
+            event="diagnostics_ui.panel_shown",
+            severity="ERROR",
+            extra={
+                "retryable": bool(mapped.data.get("retryable", False)),
+                "error_code": str(mapped.data.get("code", "conversion.failed")),
+                "details_expandable": bool(mapped.data.get("details_expandable", True)),
+            },
+        )
+
+    def set_diagnostics_details_expanded(self, expanded: bool) -> None:
+        diagnostics = dict(self.current_state.get("diagnostics", {}))
+        diagnostics["details_expanded"] = bool(expanded)
+        self.current_state["diagnostics"] = diagnostics
+        self._emit_diagnostics_event(
+            event="diagnostics_ui.details_toggled",
+            severity="INFO",
+            extra={"expanded": bool(expanded)},
+        )
+
+    def request_retry(self) -> bool:
+        diagnostics = dict(self.current_state.get("diagnostics", {}))
+        can_retry = bool(diagnostics.get("retry_enabled", False))
+        self._emit_diagnostics_event(
+            event="diagnostics_ui.retry_requested",
+            severity="INFO" if can_retry else "WARNING",
+            extra={"retry_enabled": can_retry},
+        )
+        return can_retry
+
+    def _emit_diagnostics_event(self, *, event: str, severity: str, extra: dict[str, Any]) -> None:
+        diagnostics = dict(self.current_state.get("diagnostics", {}))
+        conversion = dict(self.current_state.get("conversion", {}))
+        correlation_id = str(diagnostics.get("correlation_id") or conversion.get("correlation_id") or "unknown_correlation")
+        job_id = str(diagnostics.get("job_id") or conversion.get("job_id") or "")
+        engine = str(diagnostics.get("engine") or "unknown_engine")
+        try:
+            self._logger.emit(
+                event=event,
+                stage="diagnostics_ui",
+                severity=severity,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=int(self.current_state.get("error", {}).get("chunk_index", -1) or -1),
+                engine=engine,
+                extra=extra,
+            )
+        except Exception:
+            return
 
     def build_configuration_options(
         self,

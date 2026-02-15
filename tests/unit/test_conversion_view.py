@@ -59,9 +59,11 @@ class _FakeWorker:
 class _FakeLogger:
     def __init__(self) -> None:
         self.events: list[str] = []
+        self.payloads: list[dict[str, object]] = []
 
-    def emit(self, *, event: str, stage: str, **_: object) -> None:
+    def emit(self, *, event: str, stage: str, **kwargs: object) -> None:
         self.events.append(f"{stage}:{event}")
+        self.payloads.append({"event": event, "stage": stage, **kwargs})
 
 
 class TestConversionView(unittest.TestCase):
@@ -242,3 +244,87 @@ class TestConversionView(unittest.TestCase):
 
         self.assertEqual(view.current_state["conversion"]["status"], "failed")
         self.assertEqual(view.current_state["error"]["code"], "tts_orchestration.chunk_failed_unrecoverable")
+
+    def test_conversion_error_builds_actionable_diagnostics_panel(self) -> None:
+        logger = _FakeLogger()
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=logger,
+        )
+
+        worker.emit_error(
+            {
+                "job_id": "job-diag-view-1",
+                "correlation_id": "corr-diag-view-1",
+                "error": {
+                    "code": "postprocess.output_write_failed",
+                    "message": "Failed to write final artifact",
+                    "details": {
+                        "stage": "postprocess",
+                        "engine": "kokoro_cpu",
+                        "job_id": "job-diag-view-1",
+                        "correlation_id": "corr-diag-view-1",
+                        "traceback": "internal trace should be hidden",
+                    },
+                    "retryable": True,
+                },
+            }
+        )
+
+        diagnostics = view.current_state["diagnostics"]
+        self.assertTrue(diagnostics["panel_visible"])
+        self.assertFalse(diagnostics["details_expanded"])
+        self.assertEqual(diagnostics["stage"], "postprocess")
+        self.assertEqual(diagnostics["engine"], "kokoro_cpu")
+        self.assertEqual(diagnostics["job_id"], "job-diag-view-1")
+        self.assertEqual(diagnostics["correlation_id"], "corr-diag-view-1")
+        self.assertTrue(diagnostics["retry_enabled"])
+        self.assertFalse(diagnostics["safe_for_display"])
+
+        panel_events = [payload for payload in logger.payloads if payload.get("event") == "diagnostics_ui.panel_shown"]
+        self.assertEqual(len(panel_events), 1)
+        self.assertEqual(panel_events[0]["stage"], "diagnostics_ui")
+        self.assertEqual(panel_events[0]["correlation_id"], "corr-diag-view-1")
+        self.assertEqual(panel_events[0]["job_id"], "job-diag-view-1")
+
+    def test_diagnostics_details_toggle_and_retry_request_emit_events(self) -> None:
+        logger = _FakeLogger()
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=logger,
+        )
+
+        worker.emit_error(
+            {
+                "job_id": "job-diag-view-2",
+                "correlation_id": "corr-diag-view-2",
+                "error": {
+                    "code": "tts_orchestration.chunk_failed_unrecoverable",
+                    "message": "Failure",
+                    "details": {
+                        "engine": "chatterbox_gpu",
+                        "chunk_index": 1,
+                        "job_id": "job-diag-view-2",
+                        "correlation_id": "corr-diag-view-2",
+                    },
+                    "retryable": False,
+                },
+            }
+        )
+
+        view.set_diagnostics_details_expanded(True)
+        retry_allowed = view.request_retry()
+
+        self.assertTrue(view.current_state["diagnostics"]["details_expanded"])
+        self.assertFalse(retry_allowed)
+
+        toggled_events = [payload for payload in logger.payloads if payload.get("event") == "diagnostics_ui.details_toggled"]
+        retry_events = [payload for payload in logger.payloads if payload.get("event") == "diagnostics_ui.retry_requested"]
+        self.assertEqual(len(toggled_events), 1)
+        self.assertEqual(len(retry_events), 1)
+        self.assertEqual(toggled_events[0]["stage"], "diagnostics_ui")
+        self.assertEqual(retry_events[0]["severity"], "WARNING")

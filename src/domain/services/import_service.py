@@ -179,8 +179,14 @@ class ImportService:
             - correlation_id: str
             - job_id: str
         """
-        # Generate fallback correlation_id at boundary entry point if missing
-        normalized_correlation_id = str(correlation_id or "").strip() or str(uuid4())
+        normalized_correlation_id = str(correlation_id or "").strip()
+        if not normalized_correlation_id:
+            return failure(
+                code="extraction.invalid_correlation_id",
+                message="Correlation ID must be non-empty for extraction traceability",
+                details={"correlation_id": correlation_id, "job_id": job_id},
+                retryable=False,
+            )
         
         if not job_id or not job_id.strip():
             return failure(

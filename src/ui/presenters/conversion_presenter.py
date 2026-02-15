@@ -21,6 +21,15 @@ class ConversionPresenter:
     _SUPPORTED_OUTPUT_FORMATS = {"mp3", "wav"}
     _MIN_SPEECH_RATE = 0.5
     _MAX_SPEECH_RATE = 2.0
+    _UNSAFE_DETAIL_KEYS = {
+        "trace",
+        "traceback",
+        "stack",
+        "stacktrace",
+        "exception",
+        "internal_error",
+        "debug",
+    }
 
     def __init__(self, *, logger: EventLoggerPort | None = None) -> None:
         self._logger = logger or NoopLogger()
@@ -353,15 +362,120 @@ class ConversionPresenter:
         message = str(error.get("message", "Conversion failed."))
         details = error.get("details", {})
         retryable = bool(error.get("retryable", False))
-        english_message = message if message else "Conversion failed."
+        normalized_details = details if isinstance(details, dict) else {"details": details}
+
+        stage = self._infer_stage(code=code, details=normalized_details)
+        engine = self._infer_engine(details=normalized_details)
+        correlation_id = str(
+            payload.get("correlation_id")
+            or normalized_details.get("correlation_id")
+            or ""
+        )
+        job_id = str(payload.get("job_id") or normalized_details.get("job_id") or "")
+        chunk_index = int(normalized_details.get("chunk_index", -1) or -1)
+
+        safe_details, hidden_keys = self._sanitize_details_for_user(normalized_details)
+        summary, remediation = self._build_diagnostics_text(
+            code=code,
+            stage=stage,
+            message=message,
+            retryable=retryable,
+        )
+
         return success(
             {
                 "code": code,
-                "message": english_message,
-                "details": details if isinstance(details, dict) else {"details": details},
+                "message": summary,
+                "summary": summary,
+                "details": safe_details,
                 "retryable": retryable,
+                "retry_enabled": retryable,
+                "remediation": remediation,
+                "stage": stage,
+                "engine": engine,
+                "correlation_id": correlation_id,
+                "job_id": job_id,
+                "chunk_index": chunk_index,
+                "details_expandable": True,
+                "hidden_internal_details": bool(hidden_keys),
+                "hidden_internal_keys": hidden_keys,
             }
         )
+
+    def _infer_stage(self, *, code: str, details: dict[str, Any]) -> str:
+        raw_stage = str(details.get("stage", "")).strip().lower()
+        if raw_stage:
+            return raw_stage
+
+        if code.startswith("extraction."):
+            return "extraction"
+        if code.startswith("chunking."):
+            return "chunking"
+        if code.startswith("tts") or code.startswith("voice"):
+            return "tts"
+        if code.startswith("postprocess.") or code.startswith("audio_postprocess"):
+            return "postprocess"
+        if code.startswith("persistence.") or code.startswith("sqlite."):
+            return "persistence"
+        return "conversion"
+
+    def _infer_engine(self, *, details: dict[str, Any]) -> str:
+        for key in ("engine", "provider", "fallback_engine"):
+            value = str(details.get(key, "")).strip()
+            if value:
+                return value
+        attempted = details.get("attempted_engines")
+        if isinstance(attempted, list) and attempted:
+            candidate = str(attempted[0]).strip()
+            if candidate:
+                return candidate
+        return "unknown_engine"
+
+    def _sanitize_details_for_user(self, details: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+        safe: dict[str, Any] = {}
+        hidden_keys: list[str] = []
+        allow_internal = bool(details.get("safe_for_user_display", False))
+
+        for key, value in details.items():
+            lowered = key.lower()
+            if not allow_internal and lowered in self._UNSAFE_DETAIL_KEYS:
+                hidden_keys.append(key)
+                continue
+            safe[key] = value
+
+        return safe, sorted(hidden_keys)
+
+    def _build_diagnostics_text(self, *, code: str, stage: str, message: str, retryable: bool) -> tuple[str, list[str]]:
+        summary_by_stage = {
+            "extraction": "Extraction failed before conversion could start.",
+            "chunking": "Text segmentation failed during chunk preparation.",
+            "tts": "Speech synthesis failed during TTS generation.",
+            "postprocess": "Audio post-processing failed while assembling output.",
+            "persistence": "Saving conversion artifacts failed.",
+            "conversion": "Conversion failed.",
+        }
+        _ = message  # Incoming backend message is intentionally not shown to keep deterministic user text.
+        summary = f"{summary_by_stage.get(stage, 'Conversion failed.')} Reference code: {code}."
+
+        if retryable:
+            remediation = [
+                "Retry the conversion with the same settings.",
+                "If the failure repeats, verify input file integrity and local model availability.",
+            ]
+        else:
+            remediation = [
+                "Re-import the source document and validate its content.",
+                "Confirm engine/model setup and selected voice compatibility.",
+                "Adjust conversion settings, then launch a new conversion job.",
+            ]
+
+        # Deterministic code-specific lead guidance.
+        if code.startswith("extraction."):
+            remediation.insert(0, "Check source file readability, format support, and local permissions.")
+        elif code.startswith("tts"):
+            remediation.insert(0, "Verify TTS engine readiness and voice availability before retrying.")
+
+        return summary, remediation
 
     @staticmethod
     def _engine_available(engines: list[dict[str, Any]], expected_name: str) -> bool:

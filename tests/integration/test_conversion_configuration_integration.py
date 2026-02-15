@@ -12,6 +12,7 @@ from src.infrastructure.logging.event_schema import REQUIRED_EVENT_FIELDS, is_va
 from src.infrastructure.logging.jsonl_logger import JsonlLogger
 from src.contracts.result import success
 from src.ui.presenters.conversion_presenter import ConversionPresenter
+from src.ui.views.conversion_view import ConversionView
 from src.ui.workers.conversion_worker import ConversionWorker
 
 
@@ -22,6 +23,23 @@ class _LauncherProbe:
     def launch_conversion(self, *, job_id: str, correlation_id: str, conversion_config):
         self.config = conversion_config
         return success({"job_id": job_id, "correlation_id": correlation_id})
+
+
+class _NoopWorker:
+    def on_readiness_refreshed(self, callback):
+        self._readiness = callback
+
+    def on_conversion_progressed(self, callback):
+        self._progress = callback
+
+    def on_conversion_state_changed(self, callback):
+        self._state = callback
+
+    def on_conversion_failed(self, callback):
+        self._error = callback
+
+    def refresh_readiness(self):
+        return None
 
 
 class TestConversionConfigurationIntegration(unittest.TestCase):
@@ -138,3 +156,54 @@ class TestConversionConfigurationIntegration(unittest.TestCase):
             finally:
                 worker.shutdown()
                 connection.close()
+
+    def test_diagnostics_ui_events_follow_schema_on_panel_and_retry_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            events_path = tmp_path / "runtime" / "logs" / "events.jsonl"
+            logger = JsonlLogger(events_path)
+            presenter = ConversionPresenter(logger=logger)
+            view = ConversionView(
+                presenter=presenter,
+                worker=_NoopWorker(),
+                logger=logger,
+            )
+
+            view._on_conversion_error(
+                {
+                    "job_id": "job-diag-int-1",
+                    "correlation_id": "corr-diag-int-1",
+                    "error": {
+                        "code": "tts_orchestration.chunk_failed_unrecoverable",
+                        "message": "Chunk synthesis failed",
+                        "details": {
+                            "stage": "tts",
+                            "engine": "chatterbox_gpu",
+                            "chunk_index": 4,
+                            "job_id": "job-diag-int-1",
+                            "correlation_id": "corr-diag-int-1",
+                        },
+                        "retryable": False,
+                    },
+                }
+            )
+            view.set_diagnostics_details_expanded(True)
+            view.request_retry()
+
+            events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+            diagnostics_events = [event for event in events if event.get("stage") == "diagnostics_ui"]
+            self.assertEqual(
+                {event["event"] for event in diagnostics_events},
+                {
+                    "diagnostics_ui.panel_shown",
+                    "diagnostics_ui.details_toggled",
+                    "diagnostics_ui.retry_requested",
+                },
+            )
+
+            for event in diagnostics_events:
+                self.assertTrue(REQUIRED_EVENT_FIELDS.issubset(event.keys()))
+                self.assertEqual(event["correlation_id"], "corr-diag-int-1")
+                self.assertEqual(event["job_id"], "job-diag-int-1")
+                self.assertEqual(event["stage"], "diagnostics_ui")
+                self.assertTrue(is_valid_utc_iso_8601(event["timestamp"]))

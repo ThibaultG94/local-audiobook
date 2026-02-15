@@ -1,6 +1,6 @@
 # Story 5.3: Present Actionable Failure Diagnostics in Conversion UI
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,26 +34,26 @@ so that I can understand what failed and what to do next.
 
 ## Tasks / Subtasks
 
-- [ ] Implement diagnostics presentation mapping in presenter (AC: 1, 2)
-  - [ ] Add conversion-failure → UI-view-model mapping in `conversion_presenter.py` for summary/details/remediation blocks
-  - [ ] Ensure English-only user-facing diagnostics strings and deterministic message templates
-  - [ ] Include safe stage/engine context enrichment when available without exposing unsafe trace data
-- [ ] Add expandable diagnostics panel rendering in conversion UI (AC: 1, 3)
-  - [ ] Add/extend widgets in `conversion_view.py` for concise summary + expandable details section
-  - [ ] Surface `correlation_id` and job context in details view for support workflows
-  - [ ] Gate raw internals behind safe-display checks; hide unvetted traceback content
-- [ ] Wire retryability-aware action guidance (AC: 2)
-  - [ ] Bind retry CTA enablement to normalized `retryable` value
-  - [ ] Render non-retryable alternatives (re-import, model check, settings correction)
-  - [ ] Keep presenter/view state transitions non-blocking and signal-safe
-- [ ] Emit diagnostics UI observability events (AC: 4)
-  - [ ] Emit `diagnostics_ui.panel_shown` (or equivalent `domain.action`) with required schema fields
-  - [ ] Emit retry-intent/retry-trigger events with same correlation context
-  - [ ] Ensure payloads pass strict schema validation and UTC timestamp requirements
-- [ ] Add and update tests (AC: 1, 2, 3, 4)
-  - [ ] Unit tests for presenter mapping and retryability-driven guidance in `tests/unit/test_conversion_presenter.py`
-  - [ ] Unit tests for conversion view diagnostics panel rendering and state transitions in `tests/unit/test_conversion_view.py`
-  - [ ] Integration tests for diagnostics display + retry flow and event emissions in `tests/integration/test_conversion_configuration_integration.py` (or dedicated diagnostics integration test)
+- [x] Implement diagnostics presentation mapping in presenter (AC: 1, 2)
+  - [x] Add conversion-failure → UI-view-model mapping in `conversion_presenter.py` for summary/details/remediation blocks
+  - [x] Ensure English-only user-facing diagnostics strings and deterministic message templates
+  - [x] Include safe stage/engine context enrichment when available without exposing unsafe trace data
+- [x] Add expandable diagnostics panel rendering in conversion UI (AC: 1, 3)
+  - [x] Add/extend widgets in `conversion_view.py` for concise summary + expandable details section
+  - [x] Surface `correlation_id` and job context in details view for support workflows
+  - [x] Gate raw internals behind safe-display checks; hide unvetted traceback content
+- [x] Wire retryability-aware action guidance (AC: 2)
+  - [x] Bind retry CTA enablement to normalized `retryable` value
+  - [x] Render non-retryable alternatives (re-import, model check, settings correction)
+  - [x] Keep presenter/view state transitions non-blocking and signal-safe
+- [x] Emit diagnostics UI observability events (AC: 4)
+  - [x] Emit `diagnostics_ui.panel_shown` (or equivalent `domain.action`) with required schema fields
+  - [x] Emit retry-intent/retry-trigger events with same correlation context
+  - [x] Ensure payloads pass strict schema validation and UTC timestamp requirements
+- [x] Add and update tests (AC: 1, 2, 3, 4)
+  - [x] Unit tests for presenter mapping and retryability-driven guidance in `tests/unit/test_conversion_presenter.py`
+  - [x] Unit tests for conversion view diagnostics panel rendering and state transitions in `tests/unit/test_conversion_view.py`
+  - [x] Integration tests for diagnostics display + retry flow and event emissions in `tests/integration/test_conversion_configuration_integration.py` (or dedicated diagnostics integration test)
 
 ## Dev Notes
 
@@ -189,6 +189,8 @@ gpt-5.3-codex
 - `python -m pip index versions PyYAML`
 - `python -m pip index versions EbookLib`
 - `python -m pip index versions PyPDF2`
+- `PYTHONPATH=src python -m unittest tests.unit.test_conversion_presenter tests.unit.test_conversion_view tests.integration.test_conversion_configuration_integration`
+- `PYTHONPATH=src python -m unittest discover -s tests`
 
 ### Completion Notes List
 
@@ -196,18 +198,31 @@ gpt-5.3-codex
 - Comprehensive implementation context prepared for diagnostics UI mapping, safe detail rendering, retryability guidance, and observability events.
 - Architecture and project-structure guardrails included to prevent regressions and ensure compatibility with established logging and service boundaries.
 - Ultimate context engine analysis completed - comprehensive developer guide created.
+- Added deterministic conversion failure diagnostics mapping in presenter with stage/engine inference, retryability guidance, correlation/job context surfacing, and safe internal-detail filtering.
+- Extended conversion view state with an actionable diagnostics panel model (summary/details/remediation, expandable details state, retry CTA state) and non-blocking transitions.
+- Added diagnostics UI observability emissions (`diagnostics_ui.panel_shown`, `diagnostics_ui.details_toggled`, `diagnostics_ui.retry_requested`) with required correlation context.
+- Added/updated unit and integration coverage for diagnostics payload mapping, safe detail handling, UI panel behavior, retry flow events, and schema compliance.
+- Restored extraction correlation-id validation contract in import service to keep full regression suite green.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/5-3-present-actionable-failure-diagnostics-in-conversion-ui.md
+- src/ui/presenters/conversion_presenter.py
+- src/ui/views/conversion_view.py
+- src/domain/services/import_service.py
+- tests/unit/test_conversion_presenter.py
+- tests/unit/test_conversion_view.py
+- tests/integration/test_conversion_configuration_integration.py
+- _bmad-output/implementation-artifacts/sprint-status.yaml
 
 ## Change Log
 
 - 2026-02-15: Story context created and marked ready-for-dev with exhaustive epic/architecture/git and dependency context.
+- 2026-02-15: Implemented Story 5.3 diagnostics UI mapping/panel/events, added tests, ran full regression suite, and moved status to review.
 
 ## Story Completion Status
 
 - Story ID: `5.3`
 - Story Key: `5-3-present-actionable-failure-diagnostics-in-conversion-ui`
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Implemented actionable failure diagnostics UI and observability with passing regression suite.
