@@ -450,3 +450,65 @@ class TestConversionView(unittest.TestCase):
         self.assertFalse(view.current_state["diagnostics"]["panel_visible"])
         self.assertEqual(view.current_state["diagnostics"]["summary"], "")
         self.assertEqual(view.current_state["conversion"]["status"], "completed")
+
+    def test_emit_diagnostics_event_handles_logger_failure_gracefully(self) -> None:
+        """Verify that logger exceptions are caught and don't crash the UI thread."""
+        class _FailingLogger:
+            def emit(self, **kwargs):
+                raise RuntimeError("Logger failed intentionally")
+
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=_FailingLogger(),
+        )
+
+        # Trigger error which will attempt to emit diagnostics event
+        worker.emit_error(
+            {
+                "error": {
+                    "code": "tts_orchestration.chunk_failed",
+                    "message": "Failure",
+                    "details": {"chunk_index": 1},
+                    "retryable": False,
+                }
+            }
+        )
+
+        # Should not crash - diagnostics panel should still be visible
+        self.assertTrue(view.current_state["diagnostics"]["panel_visible"])
+        self.assertEqual(view.current_state["conversion"]["status"], "failed")
+
+    def test_emit_support_event_handles_logger_failure_gracefully(self) -> None:
+        """Verify that support workflow logger exceptions are caught and don't crash."""
+        class _FailingLogger:
+            def emit(self, **kwargs):
+                raise RuntimeError("Logger failed intentionally")
+
+        worker = _FakeWorker()
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=worker,
+            logger=_FailingLogger(),
+        )
+
+        worker.emit_error(
+            {
+                "error": {
+                    "code": "extraction.no_text_content",
+                    "message": "No text",
+                    "details": {"stage": "extraction"},
+                    "retryable": True,
+                }
+            }
+        )
+
+        # Should not crash when calling support workflow methods
+        viewed = view.open_support_details()
+        copied = view.copy_support_details()
+        retry_allowed = view.request_retry()
+
+        self.assertTrue(retry_allowed)
+        self.assertEqual(viewed["code"], "extraction.no_text_content")
+        self.assertEqual(copied["code"], "extraction.no_text_content")

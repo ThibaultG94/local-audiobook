@@ -506,6 +506,18 @@ class ConversionPresenter:
         details: dict[str, Any],
         retryable: bool,
     ) -> dict[str, Any]:
+        """Build support workflow payload with category-specific guidance.
+        
+        Args:
+            code: Error code from normalized error envelope
+            message: Error message from normalized error envelope
+            stage: Inferred pipeline stage (extraction, chunking, tts, postprocess, persistence)
+            details: Sanitized error details (already filtered for unsafe keys)
+            retryable: Whether the error is retryable
+            
+        Returns:
+            Support workflow dict with category, guidance, prerequisites, and alternatives.
+        """
         category = self._support_category_for(stage=stage)
         guidance_by_category = {
             "extraction": [
@@ -553,6 +565,10 @@ class ConversionPresenter:
             ],
         }
 
+        # Non-retryable alternatives ordered by priority:
+        # 1. Re-import (fixes source-level issues)
+        # 2. Model repair (fixes engine-level issues)
+        # 3. Settings correction (fixes configuration issues)
         alternatives = [
             "Re-import the source document from local storage.",
             "Repair or replace local model files, then rerun readiness checks.",
@@ -565,7 +581,9 @@ class ConversionPresenter:
             "message": message,
             "details": details,
             "retryable": retryable,
+            # Fallback to engine_tts guidance if category not found (defensive default)
             "guidance": guidance_by_category.get(category, guidance_by_category["engine_tts"]),
+            # Empty list if category not found or not retryable (no prerequisites needed)
             "retry_prerequisites": retry_prerequisites_by_category.get(category, []) if retryable else [],
             "non_retryable_alternatives": alternatives if not retryable else [],
         }

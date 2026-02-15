@@ -71,9 +71,9 @@ development_status:
   4-5-provide-playback-controls-with-pause-resume-seek-and-progress: done
   epic-4-retrospective: done
 
-  epic-5: in-progress
+  epic-5: done
   5-1-define-correlated-jsonl-event-schema-and-logging-contract: done
   5-2-instrument-end-to-end-pipeline-with-correlation-context: done
   5-3-present-actionable-failure-diagnostics-in-conversion-ui: done
-  5-4-provide-local-support-workflow-for-error-review-and-guided-remediation: review
+  5-4-provide-local-support-workflow-for-error-review-and-guided-remediation: done
   epic-5-retrospective: optional

@@ -447,3 +447,67 @@ class TestConversionPresenter(unittest.TestCase):
         hidden_keys = result.data["hidden_internal_keys"]
         self.assertIn("nested_error.exception", hidden_keys)
         self.assertIn("nested_error.traceback", hidden_keys)
+
+    def test_map_conversion_error_support_workflow_maps_persistence_category(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "persistence.write_failed",
+                    "message": "Write failed",
+                    "details": {"stage": "persistence"},
+                    "retryable": True,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        support = result.data["support_workflow"]
+        self.assertEqual(support["category"], "persistence")
+        self.assertTrue(support["retryable"])
+        self.assertGreaterEqual(len(support["guidance"]), 2)
+        self.assertGreaterEqual(len(support["retry_prerequisites"]), 2)
+
+    def test_map_conversion_error_support_workflow_uses_fallback_guidance_for_unknown_category(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "unknown_stage.failed",
+                    "message": "Unknown failure",
+                    "details": {"stage": "unknown_stage"},
+                    "retryable": True,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        support = result.data["support_workflow"]
+        # Should fallback to engine_tts guidance
+        self.assertEqual(support["category"], "engine_tts")
+        self.assertGreaterEqual(len(support["guidance"]), 2)
+
+    def test_map_conversion_error_support_workflow_sanitizes_details_before_inclusion(self) -> None:
+        presenter = ConversionPresenter()
+        result = presenter.map_conversion_error(
+            {
+                "error": {
+                    "code": "tts_orchestration.chunk_failed",
+                    "message": "Chunk failed",
+                    "details": {
+                        "stage": "tts",
+                        "traceback": "sensitive internal trace",
+                        "exception": "internal exception",
+                        "safe_field": "this should remain",
+                    },
+                    "retryable": False,
+                }
+            }
+        )
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        support = result.data["support_workflow"]
+        # Support workflow details should be sanitized
+        self.assertNotIn("traceback", support["details"])
+        self.assertNotIn("exception", support["details"])
+        self.assertIn("safe_field", support["details"])

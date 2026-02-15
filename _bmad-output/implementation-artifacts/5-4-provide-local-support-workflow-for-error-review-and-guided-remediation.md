@@ -12,10 +12,10 @@ so that I can resolve issues without external tools or cloud services.
 
 ## Acceptance Criteria
 
-1. **Given** a failed job with persisted error context  
-   **When** support details are opened from the diagnostics UI  
-   **Then** user can view normalized fields `code`, `message`, `details`, and `retryable`  
-   **And** remediation guidance is matched to error category extraction chunking engine export persistence.
+1. **Given** a failed job with persisted error context
+   **When** support details are opened from the diagnostics UI
+   **Then** user can view normalized fields `code`, `message`, `details`, and `retryable`
+   **And** remediation guidance is matched to error category: extraction, chunking, engine_tts, export_postprocess, persistence.
 
 2. **Given** retry decisions must be explicit  
    **When** an error is marked `retryable=true`  
@@ -206,6 +206,7 @@ gpt-5.3-codex
 - Added support-workflow interaction methods for view/copy/retry and emitted `support_workflow.viewed`, `support_workflow.copied`, and `support_workflow.retry_initiated` events with non-blocking logger failure handling.
 - Added and updated unit/integration tests covering category mapping, retry prerequisites, local-only alternatives, and support workflow event schema contracts.
 - Validation completed successfully with targeted and full-suite runs under local environment (`PYTHONPATH=src`).
+- **Code review completed (2026-02-15):** Fixed 7 issues (3 CRITICAL, 4 MEDIUM) including AC documentation typo, missing test coverage for persistence category, fallback guidance testing, duplication of correlation context extraction, exception handling validation, nested sanitization verification, and added inline documentation for support workflow logic.
 
 ### File List
 
@@ -220,10 +221,11 @@ gpt-5.3-codex
 ### Change Log
 
 - 2026-02-15: Implemented Story 5.4 local support workflow mapping, support-panel behaviors, traceable `support_workflow.*` events, and comprehensive unit/integration coverage.
+- 2026-02-15: Code review fixes applied - corrected AC1 documentation, added 3 missing unit tests (persistence category, fallback guidance, sanitization verification), refactored correlation context extraction to eliminate duplication, added 2 exception handling tests, and enhanced inline documentation for support workflow logic.
 
 ## Story Completion Status
 
 - Story ID: `5.4`
 - Story Key: `5-4-provide-local-support-workflow-for-error-review-and-guided-remediation`
-- Status set to: `review`
-- Completion note: Support-workflow remediation mapping, UI interaction logging, and automated coverage are implemented and validated.
+- Status set to: `done`
+- Completion note: Support-workflow remediation mapping, UI interaction logging, and automated coverage are implemented, validated, and code-reviewed with all critical and medium issues resolved.

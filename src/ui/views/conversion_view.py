@@ -38,20 +38,18 @@ class EventLogger(Protocol):
 class ConversionView:
     """Framework-neutral conversion view state holder.
     
-    The `current_state` dictionary contains:
+    The current_state dictionary contains:
     - status: str - "ready" or "not_ready"
     - start_enabled: bool - Whether conversion can be started
     - engine_availability: dict[str, bool] - Engine availability by engine ID
     - remediation_items: list[str] - Actionable remediation messages
-    - configuration_options: dict - Available configuration options:
-        - engines: list[dict] - Engine options with id, label, disabled, reason
-        - voices: list[dict] - Voice options with id, label, engine, language, disabled, reason
-        - languages: list[dict] - Language options with id, label, disabled, reason
-        - speech_rate: dict - Speech rate bounds with min, max, step
-        - output_formats: list[dict] - Format options with id, label, disabled, reason
+    - configuration_options: dict - Available configuration options
     - error: dict | None - Error details if state update failed
     - title: str - View title
     """
+    
+    _UNKNOWN_CORRELATION = "unknown_correlation"
+    _UNKNOWN_ENGINE = "unknown_engine"
 
     def __init__(
         self,
@@ -292,12 +290,25 @@ class ConversionView:
         )
         return support_details
 
-    def _emit_diagnostics_event(self, *, event: str, severity: str, extra: dict[str, Any]) -> None:
+    def _get_correlation_context(self) -> tuple[str, str, str]:
+        """Extract correlation context from current state for event emission.
+        
+        Returns:
+            Tuple of (correlation_id, job_id, engine) with fallback values.
+        """
         diagnostics = dict(self.current_state.get("diagnostics", {}))
         conversion = dict(self.current_state.get("conversion", {}))
-        correlation_id = str(diagnostics.get("correlation_id") or conversion.get("correlation_id") or "unknown_correlation")
+        correlation_id = str(
+            diagnostics.get("correlation_id")
+            or conversion.get("correlation_id")
+            or self._UNKNOWN_CORRELATION
+        )
         job_id = str(diagnostics.get("job_id") or conversion.get("job_id") or "")
-        engine = str(diagnostics.get("engine") or "unknown_engine")
+        engine = str(diagnostics.get("engine") or self._UNKNOWN_ENGINE)
+        return correlation_id, job_id, engine
+
+    def _emit_diagnostics_event(self, *, event: str, severity: str, extra: dict[str, Any]) -> None:
+        correlation_id, job_id, engine = self._get_correlation_context()
         try:
             self._logger.emit(
                 event=event,
@@ -316,11 +327,7 @@ class ConversionView:
             return
 
     def _emit_support_event(self, *, event: str, severity: str, extra: dict[str, Any]) -> None:
-        diagnostics = dict(self.current_state.get("diagnostics", {}))
-        conversion = dict(self.current_state.get("conversion", {}))
-        correlation_id = str(diagnostics.get("correlation_id") or conversion.get("correlation_id") or "unknown_correlation")
-        job_id = str(diagnostics.get("job_id") or conversion.get("job_id") or "")
-        engine = str(diagnostics.get("engine") or "unknown_engine")
+        correlation_id, job_id, engine = self._get_correlation_context()
         try:
             self._logger.emit(
                 event=event,
