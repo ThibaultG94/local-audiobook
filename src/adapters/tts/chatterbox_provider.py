@@ -1,4 +1,4 @@
-"""Chatterbox GPU provider adapter (local stub for startup validation)."""
+"""Chatterbox GPU provider adapter - stub for future implementation."""
 
 from __future__ import annotations
 
@@ -11,7 +11,16 @@ from adapters.tts.base_tts_provider import BaseTtsProvider
 
 
 class ChatterboxProvider(BaseTtsProvider):
-    """Local-only Chatterbox adapter with GPU acceleration."""
+    """Local-only Chatterbox adapter with GPU acceleration.
+    
+    NOTE: This is a stub implementation that generates silence.
+    The real Chatterbox TTS engine requires:
+    - Python 3.11 (not 3.13)
+    - PyTorch with ROCm support (2.8GB download)
+    - chatterbox-tts package
+    
+    See INSTALLATION.md for complete setup instructions.
+    """
 
     engine_name = "chatterbox_gpu"
 
@@ -26,8 +35,8 @@ class ChatterboxProvider(BaseTtsProvider):
     def _synthesize_audio(self, text: str, voice: str) -> bytes:
         """Synthesize audio using Chatterbox engine.
 
-        Currently returns a minimal valid WAV file as a stub.
-        TODO: Replace with actual Chatterbox TTS engine integration.
+        Currently returns a minimal valid WAV file with silence.
+        Real implementation will use Chatterbox TTS once environment is configured.
 
         Args:
             text: Text to synthesize (already validated)
@@ -37,7 +46,13 @@ class ChatterboxProvider(BaseTtsProvider):
             WAV format audio bytes
         """
         # Generate minimal valid WAV file with silence
-        # This is a stub - real implementation will call Chatterbox engine
+        # Real implementation will call Chatterbox engine:
+        #
+        # from chatterbox.tts_turbo import ChatterboxTurboTTS
+        # model = ChatterboxTurboTTS.from_pretrained(device="cuda")
+        # wav = model.generate(text, audio_prompt_path=reference_audio)
+        # return wav_to_bytes(wav, self._get_sample_rate())
+        
         sample_rate = self._get_sample_rate()
         duration_seconds = max(1, len(text) // 100)  # Rough estimate
         num_samples = sample_rate * duration_seconds
@@ -50,7 +65,6 @@ class ChatterboxProvider(BaseTtsProvider):
             wav_file.setframerate(sample_rate)
             
             # Generate silence (zeros) as placeholder audio
-            # Real implementation will generate actual speech
             silence = struct.pack('<' + 'h' * num_samples, *([0] * num_samples))
             wav_file.writeframes(silence)
         
@@ -61,7 +75,7 @@ class ChatterboxProvider(BaseTtsProvider):
         return [
             {
                 "id": "default",
-                "name": "Default Chatterbox Voice",
+                "name": "Default Chatterbox Voice (stub)",
                 "engine": self.engine_name,
                 "language": "en",
                 "supports_streaming": False,
