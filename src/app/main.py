@@ -111,5 +111,33 @@ def bootstrap(
     return container
 
 
+def main() -> int:
+    """Main entry point with PyQt5 UI launch."""
+    import sys
+    from PyQt5.QtWidgets import QApplication
+    from ui.main_window import MainWindow
+    
+    # Bootstrap the application (DB, migrations, logging, model registry)
+    container = bootstrap()
+    
+    # Extract readiness status for UI display
+    readiness_result = container.startup_readiness_result
+    if readiness_result and readiness_result.ok and readiness_result.data:
+        readiness_status = readiness_result.data
+    else:
+        readiness_status = {
+            "status": "not_ready",
+            "remediation": ["Bootstrap failed - check logs for details"],
+        }
+    
+    # Launch PyQt5 application
+    app = QApplication(sys.argv)
+    window = MainWindow(readiness_status=readiness_status)
+    window.show()
+    
+    return app.exec_()
+
+
 if __name__ == "__main__":
-    bootstrap()
+    import sys
+    sys.exit(main())
