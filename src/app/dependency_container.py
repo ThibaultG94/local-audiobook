@@ -154,7 +154,11 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
     )
     providers = Providers(
         chatterbox=ChatterboxProvider(logger=logger),
-        kokoro=KokoroProvider(logger=logger),
+        kokoro=KokoroProvider(
+            model_path="runtime/models/kokoro/kokoro-v1.0.onnx",
+            voices_path="runtime/models/kokoro/voices-v1.0.bin",
+            logger=logger,
+        ),
     )
     audio_postprocess = AudioPostprocessService(
         wav_builder=WavBuilder(),

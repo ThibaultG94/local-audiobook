@@ -2,13 +2,18 @@ models:
   - name: chatterbox_gpu_primary
     engine: chatterbox_gpu
     version: "1.0.0"
-    expected_hash: "8f434346648f6b96df89dda901c5176b10a6d83961f5ee1cb1521ad2c08a57f1"
-    expected_size: 23
+    expected_hash: "placeholder_pending_installation"
+    expected_size: 0
     local_path: runtime/models/chatterbox/chatterbox.bin
-
-  - name: kokoro_cpu_fallback
+  - name: kokoro_onnx_model
     engine: kokoro_cpu
     version: "1.0.0"
-    expected_hash: "88fd7f67016d34fd2c7ecb6523c09f95b350ad55ea4f1f9f6f58cb5ad97eafaf"
-    expected_size: 19
-    local_path: runtime/models/kokoro/kokoro.bin
+    expected_hash: "7d5df8ecf7d4b1878015a32686053fd0eebe2bc377234608764cc0ef3636a6c5"
+    expected_size: 325532387
+    local_path: runtime/models/kokoro/kokoro-v1.0.onnx
+  - name: kokoro_voices
+    engine: kokoro_cpu
+    version: "1.0.0"
+    expected_hash: "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+    expected_size: 28214398
+    local_path: runtime/models/kokoro/voices-v1.0.bin

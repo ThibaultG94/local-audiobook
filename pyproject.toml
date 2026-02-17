@@ -16,20 +16,8 @@ dependencies = [
   "pyttsx3>=2.90",
 ]
 
-# Optional dependencies for production TTS engines
-# NOTE: These require Python 3.11 and additional system setup
-# See INSTALLATION.md for complete instructions
-[project.optional-dependencies.tts-production]
-dependencies = [
-  # "torch>=2.0.0",  # Install separately with ROCm support
-  # "chatterbox-tts>=0.1.0",  # Requires torch with CUDA/ROCm
-  # "kokoro-tts>=0.1.0",  # Lightweight CPU fallback
-]
-
 [project.optional-dependencies]
-dev = [
-  "pytest>=7.0",
-]
+dev = ["pytest>=7.0"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
