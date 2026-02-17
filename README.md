@@ -1,43 +1,47 @@
-# Local Audiobook Converter
+# Local Audiobook
 
-A local application for converting ebooks and documents (EPUB, PDF, TXT, Markdown) into audio files. Listen to your books and documents when you can't read - in the car, walking, etc. All processing happens locally on your machine, without any cloud services.
+Desktop Python application (PyQt5) that converts documents into audiobooks, fully offline.
 
-## Features
+## What it does
 
-- **Local Processing**: All conversion happens on your machine, no cloud services required
-- **Multiple Format Support**: EPUB, PDF, TXT, Markdown documents
-- **Voice Selection**: Choose from multiple voices (male, female, quality, language)
-- **Library Management**: Organized audio library with metadata
-- **Simple Interface**: Intuitive and functional GUI
-- **Privacy Focused**: No data is sent to external services
+- Import and process **EPUB / PDF / TXT / MD** files
+- Generate audio with:
+  - **Chatterbox** on GPU (AMD ROCm)
+  - **Kokoro** on CPU (`kokoro-onnx`) fallback
+- Manage a local audiobook library (metadata + generated audio)
+- Run 100% locally (no cloud dependency)
 
 ## Requirements
 
-- Python 3.8+
-- PyQt5 or Tkinter for GUI
-- TTS libraries (Coqui TTS, Mozilla TTS, etc.)
+- **OS**: Linux Mint (target environment)
+- **Python**: 3.12
+- **Runtime**:
+  - AMD GPU with ROCm 7.2 (recommended), or
+  - CPU-only mode
 
-## Installation
+## Quick start
 
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the application: `python src/main.py`
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e .
+python -m src.app.main
+```
 
-## Usage
+For full GPU/CPU engine setup (ROCm 7.2, PyTorch 2.9.1, Chatterbox build-from-source, Triton ROCm, Kokoro ONNX), use [`INSTALLATION.md`](INSTALLATION.md).
 
-1. Launch the application
-2. Select documents to convert
-3. Choose voice settings
-4. Convert and save audio files
-5. Manage your library
+## Architecture (overview)
 
-## Supported Formats
+The codebase follows a **hexagonal architecture (ports and adapters)**:
 
-- EPUB (Electronic Publication)
-- PDF (Portable Document Format)
-- TXT (Plain Text)
-- Markdown (MD)
+- **Domain** (`src/domain`): business rules and ports
+- **Application** (`src/app`): dependency wiring and startup
+- **Adapters** (`src/adapters`, `src/infrastructure`): persistence, extraction, logging, TTS integrations
+- **UI** (`src/ui`): PyQt5 presenters, views, workers
+
+Core flow: input import → normalized text extraction → chunking/orchestration → TTS provider → audio assembly → library persistence.
 
 ## License
 
-This project is licensed under the MIT License.
+MIT
