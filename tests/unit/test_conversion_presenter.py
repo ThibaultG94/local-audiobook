@@ -56,6 +56,26 @@ class TestConversionPresenter(unittest.TestCase):
         self.assertTrue(result.data["engine_availability"]["kokoro_cpu"])
         self.assertEqual(result.data["remediation_items"], ["Install missing model file"])
 
+    def test_maps_degraded_state_with_start_enabled(self) -> None:
+        presenter = ConversionPresenter()
+        readiness = success(
+            {
+                "status": "degraded",
+                "engines": [
+                    {"engine": "chatterbox_gpu", "ok": False},
+                    {"engine": "kokoro_cpu", "ok": True},
+                ],
+                "remediation": ["Fix engine availability for chatterbox_gpu"],
+            }
+        )
+
+        result = presenter.map_readiness(readiness)
+        self.assertTrue(result.ok)
+        self.assertEqual(result.data["status"], "degraded")
+        self.assertTrue(result.data["start_enabled"])
+        self.assertFalse(result.data["engine_availability"]["chatterbox_gpu"])
+        self.assertTrue(result.data["engine_availability"]["kokoro_cpu"])
+
     def test_normalizes_presenter_failures_with_result_contract(self) -> None:
         presenter = ConversionPresenter()
         readiness = failure(

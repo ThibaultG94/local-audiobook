@@ -45,8 +45,8 @@ class ConversionPresenter:
             )
 
         readiness = readiness_result.data
-        source_status = readiness.get("status")
-        ui_status = "ready" if source_status == "ready" else "not_ready"
+        source_status = str(readiness.get("status", "")).strip()
+        ui_status = source_status if source_status in {"ready", "degraded"} else "not_ready"
 
         engines = readiness.get("engines", [])
         engine_summary = {
@@ -55,7 +55,7 @@ class ConversionPresenter:
         }
 
         remediation = [str(item) for item in readiness.get("remediation", [])]
-        start_enabled = ui_status == "ready"
+        start_enabled = ui_status in {"ready", "degraded"}
 
         return success(
             {

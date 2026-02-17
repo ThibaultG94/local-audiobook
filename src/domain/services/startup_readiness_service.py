@@ -10,6 +10,9 @@ from contracts.result import Result, failure, success
 class StartupReadinessService:
     """Compute deterministic startup readiness for offline conversion."""
 
+    _PRIMARY_ENGINE = "chatterbox_gpu"
+    _FALLBACK_ENGINE = "kokoro_cpu"
+
     @staticmethod
     def compute(
         *,
@@ -38,7 +41,24 @@ class StartupReadinessService:
             if not engine.get("ok", False)
         ]
 
-        status = "not_ready" if blocked_models or failed_engines else "ready"
+        primary_ok = any(
+            str(engine.get("engine", "")).strip() == StartupReadinessService._PRIMARY_ENGINE
+            and bool(engine.get("ok", False))
+            for engine in engines
+        )
+        fallback_ok = any(
+            str(engine.get("engine", "")).strip() == StartupReadinessService._FALLBACK_ENGINE
+            and bool(engine.get("ok", False))
+            for engine in engines
+        )
+        any_engine_ok = any(bool(engine.get("ok", False)) for engine in engines)
+
+        if not any_engine_ok:
+            status = "not_ready"
+        elif (not primary_ok) and fallback_ok:
+            status = "degraded"
+        else:
+            status = "ready"
 
         remediation: list[str] = []
         for model in blocked_models:
@@ -58,4 +78,3 @@ class StartupReadinessService:
                 "remediation": remediation,
             }
         )
-

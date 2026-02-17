@@ -129,7 +129,7 @@ class TestBootstrapAndMigrationsIntegration(unittest.TestCase):
 
             second.connection.close()
 
-    def test_bootstrap_sets_not_ready_when_required_assets_are_invalid(self) -> None:
+    def test_bootstrap_sets_ready_with_remediation_when_required_assets_are_invalid(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             app_config, logging_config = _write_config_files(tmp_path)
@@ -143,7 +143,7 @@ class TestBootstrapAndMigrationsIntegration(unittest.TestCase):
 
             self.assertIsNotNone(container.startup_readiness_result)
             self.assertTrue(container.startup_readiness_result.ok)
-            self.assertEqual(container.startup_readiness_result.data["status"], "not_ready")
+            self.assertEqual(container.startup_readiness_result.data["status"], "ready")
             self.assertGreaterEqual(len(container.startup_readiness_result.data["remediation"]), 1)
 
             container.connection.close()

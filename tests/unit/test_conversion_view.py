@@ -117,6 +117,28 @@ class TestConversionView(unittest.TestCase):
         displayed_events = [e for e in logger.events if e == "readiness:readiness.displayed"]
         self.assertEqual(len(displayed_events), 2)
 
+    def test_start_enabled_when_initial_status_is_degraded(self) -> None:
+        view = ConversionView(
+            presenter=ConversionPresenter(),
+            worker=_FakeWorker(),
+            logger=_FakeLogger(),
+        )
+        initial = success(
+            {
+                "status": "degraded",
+                "engines": [
+                    {"engine": "chatterbox_gpu", "ok": False},
+                    {"engine": "kokoro_cpu", "ok": True},
+                ],
+                "remediation": ["Fix engine availability for chatterbox_gpu"],
+            }
+        )
+
+        mapped = view.render_initial(initial)
+        self.assertTrue(mapped.ok)
+        self.assertEqual(view.current_state["status"], "degraded")
+        self.assertTrue(view.current_state["start_enabled"])
+
     def test_recheck_failure_propagates_error_to_view_state(self) -> None:
         """H4: Verify that a failed recheck populates the error field in view state."""
         logger = _FakeLogger()

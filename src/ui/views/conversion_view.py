@@ -39,8 +39,8 @@ class ConversionView:
     """Framework-neutral conversion view state holder.
     
     The current_state dictionary contains:
-    - status: str - "ready" or "not_ready"
-    - start_enabled: bool - Whether conversion can be started
+    - status: str - "ready", "degraded", or "not_ready"
+    - start_enabled: bool - Whether conversion can be started (ready/degraded)
     - engine_availability: dict[str, bool] - Engine availability by engine ID
     - remediation_items: list[str] - Actionable remediation messages
     - configuration_options: dict - Available configuration options
