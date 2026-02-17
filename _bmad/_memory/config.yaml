@@ -3,9 +3,8 @@
 # Version: 6.0.0-Beta.8
 # Date: 2026-02-10T19:00:44.103Z
 
-
 # Core Configuration Values
-user_name: Camarade
+user_name: Thibault
 communication_language: Français
 document_output_language: English
 output_folder: "{project-root}/_bmad-output"

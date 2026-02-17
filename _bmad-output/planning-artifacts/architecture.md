@@ -11,13 +11,13 @@ stepsCompleted:
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/project-brief.md
-workflowType: 'architecture'
+workflowType: "architecture"
 lastStep: 8
-status: 'complete'
-project_name: 'local-audiobook'
-user_name: 'Camarade'
-date: '2026-02-10T22:36:38.699Z'
-completedAt: '2026-02-11T15:49:45.455Z'
+status: "complete"
+project_name: "local-audiobook"
+user_name: "Thibault"
+date: "2026-02-10T22:36:38.699Z"
+completedAt: "2026-02-11T15:49:45.455Z"
 ---
 
 # Architecture Decision Document
@@ -315,6 +315,7 @@ Note: L’initialisation du scaffold sera la première story d’implémentation
 ### Complete Project Directory Structure
 
 local-audiobook/
+
 - README.md
 - pyproject.toml
 - requirements.lock

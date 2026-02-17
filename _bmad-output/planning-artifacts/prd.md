@@ -19,7 +19,7 @@ documentCounts:
   researchCount: 0
   brainstormingCount: 0
   projectDocsCount: 0
-workflowType: 'prd'
+workflowType: "prd"
 classification:
   projectType: desktop_app
   domain: general
@@ -29,7 +29,7 @@ classification:
 
 # Product Requirements Document - local-audiobook
 
-**Author:** Camarade
+**Author:** Thibault
 **Date:** 2026-02-10
 
 ## Success Criteria
