@@ -115,7 +115,12 @@ def main() -> int:
     """Main entry point with PyQt5 UI launch."""
     import sys
     from PyQt5.QtWidgets import QApplication
+    from adapters.extraction.epub_extractor import EpubExtractor
+    from adapters.extraction.pdf_extractor import PdfExtractor
+    from adapters.extraction.text_extractor import TextExtractor
+    from domain.services.import_service import ImportService
     from ui.main_window import MainWindow
+    from ui.views.import_view import ImportView
     
     # Bootstrap the application (DB, migrations, logging, model registry)
     container = bootstrap()
@@ -131,8 +136,17 @@ def main() -> int:
         }
     
     # Launch PyQt5 application
+    import_service = ImportService(
+        documents_repository=container.repositories.documents,
+        logger=container.logger,
+        epub_extractor=EpubExtractor(logger=container.logger),
+        pdf_extractor=PdfExtractor(logger=container.logger),
+        text_extractor=TextExtractor(logger=container.logger),
+    )
+    import_view = ImportView(import_service=import_service)
+
     app = QApplication(sys.argv)
-    window = MainWindow(readiness_status=readiness_status)
+    window = MainWindow(readiness_status=readiness_status, import_view=import_view)
     window.show()
     
     return app.exec_()
