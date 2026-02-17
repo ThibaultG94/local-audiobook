@@ -83,3 +83,5 @@ runtime/library/temp/*
 # Configuration files
 config.json
 settings.json
+
+*.whl
