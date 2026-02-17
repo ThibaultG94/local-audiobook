@@ -6,14 +6,24 @@ from typing import Any
 
 from PyQt5.QtWidgets import QMainWindow, QTabWidget, QVBoxLayout, QWidget, QLabel
 
+from ui.views.conversion_view import ConversionView
 from ui.views.import_view import ImportView
+from ui.widgets.conversion_widget import ConversionWidget
 from ui.widgets.import_widget import ImportWidget
 
 
 class MainWindow(QMainWindow):
     """Main application window with tabbed interface."""
 
-    def __init__(self, *, readiness_status: dict[str, Any], import_view: ImportView | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        readiness_status: dict[str, Any],
+        import_view: ImportView | None = None,
+        conversion_view: ConversionView | None = None,
+        conversion_worker: Any | None = None,
+        conversion_presenter: Any | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("Local Audiobook Converter")
         self.setMinimumSize(800, 600)
@@ -37,9 +47,19 @@ class MainWindow(QMainWindow):
         # Create tab widget for different views
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
-        
+
         # Add tabs for the main views
-        self.tabs.addTab(QLabel("Conversion view - to be implemented"), "Conversion")
+        if conversion_view is not None and conversion_worker is not None and conversion_presenter is not None:
+            self.tabs.addTab(
+                ConversionWidget(
+                    conversion_view=conversion_view,
+                    conversion_worker=conversion_worker,
+                    conversion_presenter=conversion_presenter,
+                ),
+                "Conversion",
+            )
+        else:
+            self.tabs.addTab(QLabel("Conversion view unavailable"), "Conversion")
         if import_view is not None:
             self.tabs.addTab(ImportWidget(import_view=import_view), "Import")
         else:

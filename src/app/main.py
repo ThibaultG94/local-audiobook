@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from adapters.persistence.sqlite.connection import create_connection
 from adapters.persistence.sqlite.migration_runner import apply_migrations
-from app.dependency_container import AppContainer, build_container, collect_engine_health
+from app.dependency_container import (
+    AppContainer,
+    build_container,
+    build_conversion_presenter,
+    build_conversion_worker,
+    collect_engine_health,
+)
 from app.settings import load_simple_yaml
+from contracts.result import Result
 
 
 _REQUIRED_PATH_KEYS = frozenset(
@@ -120,6 +128,7 @@ def main() -> int:
     from adapters.extraction.text_extractor import TextExtractor
     from domain.services.import_service import ImportService
     from ui.main_window import MainWindow
+    from ui.views.conversion_view import ConversionView
     from ui.views.import_view import ImportView
     
     # Bootstrap the application (DB, migrations, logging, model registry)
@@ -145,11 +154,64 @@ def main() -> int:
     )
     import_view = ImportView(import_service=import_service)
 
+    conversion_presenter = build_conversion_presenter(logger=container.logger)
+    conversion_worker = build_conversion_worker(container, "config/model_manifest.yaml")
+    conversion_view = ConversionView(
+        presenter=conversion_presenter,
+        worker=conversion_worker,
+        logger=container.logger,
+    )
+    conversion_view.render_initial(container.startup_readiness_result)
+
+    voices_catalog = _collect_voice_catalog(container)
+    conversion_view.build_configuration_options(
+        engine_statuses=_readiness_engines(container.startup_readiness_result),
+        voices=voices_catalog,
+    )
+
     app = QApplication(sys.argv)
-    window = MainWindow(readiness_status=readiness_status, import_view=import_view)
+    window = MainWindow(
+        readiness_status=readiness_status,
+        import_view=import_view,
+        conversion_view=conversion_view,
+        conversion_worker=conversion_worker,
+        conversion_presenter=conversion_presenter,
+    )
     window.show()
     
     return app.exec_()
+
+
+def _readiness_engines(readiness_result: Result[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    if readiness_result is None or not readiness_result.ok or readiness_result.data is None:
+        return []
+    engines = readiness_result.data.get("engines", [])
+    if isinstance(engines, list):
+        return [item for item in engines if isinstance(item, dict)]
+    return []
+
+
+def _collect_voice_catalog(container: AppContainer) -> list[dict[str, Any]]:
+    voices: list[dict[str, Any]] = []
+    provider_results = [
+        container.providers.chatterbox.list_voices(),
+        container.providers.kokoro.list_voices(),
+    ]
+    for result in provider_results:
+        if not result.ok or result.data is None:
+            continue
+        for voice in result.data:
+            if not isinstance(voice, dict):
+                continue
+            voices.append(
+                {
+                    "id": str(voice.get("id", "")),
+                    "name": str(voice.get("name", voice.get("id", ""))),
+                    "engine": str(voice.get("engine", "")),
+                    "language": str(voice.get("language", "")).upper(),
+                }
+            )
+    return voices
 
 
 if __name__ == "__main__":
