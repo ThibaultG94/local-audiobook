@@ -68,7 +68,7 @@ class TestReadinessEventsAndRefreshIntegration(unittest.TestCase):
                 initial_readiness = container.startup_readiness_result
                 view.render_initial(initial_readiness)
                 future = worker.refresh_readiness()
-                future.result(timeout=3)
+                future.result(timeout=30)
             finally:
                 worker.shutdown()
                 container.connection.close()

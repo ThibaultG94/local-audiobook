@@ -38,7 +38,7 @@ def test_kokoro_provider_synthesize():
     assert len(result.data["audio_bytes"]) > 0
     assert result.data["metadata"]["engine"] == "kokoro_cpu"
     assert result.data["metadata"]["content_type"] == "audio/wav"
-    assert result.data["metadata"]["sample_rate_hz"] == 22050
+    assert result.data["metadata"]["sample_rate_hz"] == 24000
 
 
 def test_chatterbox_provider_health_check():

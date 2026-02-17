@@ -1,10 +1,10 @@
 models:
-  - name: chatterbox_gpu_primary
+  - name: chatterbox_turbo_main
     engine: chatterbox_gpu
     version: "1.0.0"
-    expected_hash: "placeholder_pending_installation"
-    expected_size: 0
-    local_path: runtime/models/chatterbox/chatterbox.bin
+    expected_hash: "fcf1f8c1d651bb7e3acd69ee5be269b4ac10c02980b7708213d598bc9f7cdf87"
+    expected_size: 1915480052
+    local_path: /home/thibault/.cache/huggingface/hub/models--ResembleAI--chatterbox-turbo/snapshots/749d1c1a46eb10492095d68fbcf55691ccf137cd/t3_turbo_v1.safetensors
   - name: kokoro_onnx_model
     engine: kokoro_cpu
     version: "1.0.0"

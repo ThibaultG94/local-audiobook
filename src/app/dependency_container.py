@@ -153,7 +153,12 @@ def build_container(connection: sqlite3.Connection, logging_config: dict[str, An
         diagnostics_events=DiagnosticsEventsRepository(connection),
     )
     providers = Providers(
-        chatterbox=ChatterboxProvider(logger=logger),
+        chatterbox=ChatterboxProvider(
+            device="cuda",
+            exaggeration=0.5,
+            cfg_weight=0.5,
+            logger=logger,
+        ),
         kokoro=KokoroProvider(
             model_path="runtime/models/kokoro/kokoro-v1.0.onnx",
             voices_path="runtime/models/kokoro/voices-v1.0.bin",
