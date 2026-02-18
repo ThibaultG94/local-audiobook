@@ -71,17 +71,17 @@ class AppContainer:
     startup_readiness_result: Result[dict[str, Any]] | None = None
 
 
-def normalize_engine_health(result: Any) -> dict[str, Any]:
+def normalize_engine_health(result: Any, *, expected_engine: str = "unknown") -> dict[str, Any]:
     """Normalize a provider health_check Result into a flat dict."""
     if result.ok:
         data = result.data or {}
         return {
-            "engine": data.get("engine", "unknown"),
+            "engine": data.get("engine", expected_engine),
             "ok": bool(data.get("available", False)),
             "error": None,
         }
     return {
-        "engine": "unknown",
+        "engine": expected_engine,
         "ok": False,
         "error": result.error.to_dict() if result.error else {},
     }
@@ -89,8 +89,14 @@ def normalize_engine_health(result: Any) -> dict[str, Any]:
 
 def collect_engine_health(container: AppContainer) -> list[dict[str, Any]]:
     """Collect normalized health for all startup engines."""
-    chatterbox_health = normalize_engine_health(container.providers.chatterbox.health_check())
-    kokoro_health = normalize_engine_health(container.providers.kokoro.health_check())
+    chatterbox_health = normalize_engine_health(
+        container.providers.chatterbox.health_check(),
+        expected_engine=container.providers.chatterbox.engine_name,
+    )
+    kokoro_health = normalize_engine_health(
+        container.providers.kokoro.health_check(),
+        expected_engine=container.providers.kokoro.engine_name,
+    )
     return [chatterbox_health, kokoro_health]
 
 

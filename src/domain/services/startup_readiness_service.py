@@ -14,6 +14,13 @@ class StartupReadinessService:
     _FALLBACK_ENGINE = "kokoro_cpu"
 
     @staticmethod
+    def _engine_ok(engines: list[dict[str, Any]], expected_name: str) -> bool | None:
+        for engine in engines:
+            if str(engine.get("engine", "")).strip() == expected_name:
+                return bool(engine.get("ok", False))
+        return None
+
+    @staticmethod
     def compute(
         *,
         models_result: Result[dict[str, Any]],
@@ -41,21 +48,13 @@ class StartupReadinessService:
             if not engine.get("ok", False)
         ]
 
-        primary_ok = any(
-            str(engine.get("engine", "")).strip() == StartupReadinessService._PRIMARY_ENGINE
-            and bool(engine.get("ok", False))
-            for engine in engines
-        )
-        fallback_ok = any(
-            str(engine.get("engine", "")).strip() == StartupReadinessService._FALLBACK_ENGINE
-            and bool(engine.get("ok", False))
-            for engine in engines
-        )
+        primary_ok = StartupReadinessService._engine_ok(engines, StartupReadinessService._PRIMARY_ENGINE)
+        fallback_ok = StartupReadinessService._engine_ok(engines, StartupReadinessService._FALLBACK_ENGINE)
         any_engine_ok = any(bool(engine.get("ok", False)) for engine in engines)
 
         if not any_engine_ok:
             status = "not_ready"
-        elif (not primary_ok) and fallback_ok:
+        elif primary_ok is False and fallback_ok is True:
             status = "degraded"
         else:
             status = "ready"
