@@ -1,4 +1,4 @@
-<!-- --- -->
+---
 stepsCompleted:
   - step-01-validate-prerequisites
   - step-02-design-epics
@@ -7,7 +7,6 @@ stepsCompleted:
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
-  - _bmad-output/project-brief.md
 ---
 
 # local-audiobook - Epic Breakdown
@@ -20,812 +19,535 @@ This document provides the complete epic and story breakdown for local-audiobook
 
 ### Functional Requirements
 
-FR1: User can import source files in EPUB format  
-FR2: User can import source files in PDF format  
-FR3: User can import source files in TXT format  
-FR4: User can import source files in Markdown format  
-FR5: System can extract textual content from imported EPUB files  
-FR6: System can extract textual content from imported PDF files  
-FR7: System can extract textual content from imported TXT and Markdown files  
-FR8: System can report extraction failures with actionable error feedback  
-FR9: User can start a document-to-audio conversion from extracted text  
-FR10: User can select output format as MP3 or WAV  
-FR11: System can segment long texts into conversion chunks  
-FR12: System can process chunks and assemble a final continuous audio file  
-FR13: System can continue conversion by switching to fallback engine when primary engine is unavailable  
-FR14: System can preserve conversion state and logs when a chunk fails  
-FR15: User can select TTS engine between Chatterbox and Kokoro  
-FR16: User can select a voice profile available for the chosen engine  
-FR17: User can select language for synthesis with FR and EN available in MVP  
-FR18: User can adjust basic speech rate for output generation  
-FR19: User can play generated audio inside the application  
-FR20: User can pause and resume playback  
-FR21: User can seek to a specific playback position  
-FR22: User can view playback progress and current time  
-FR23: System can store generated audio files in a local library  
-FR24: System can persist basic metadata for each generated audiobook  
-FR25: User can browse locally stored audiobooks in the library view  
-FR26: User can reopen a selected library item for playback  
-FR27: System can operate without internet access after model bootstrap is completed  
-FR28: System can inform user when required local model assets are missing  
-FR29: System can record local logs for extraction, conversion, fallback, and export events  
-FR30: User can access diagnostic information for failed conversions  
-FR31: User can launch batch conversion jobs across multiple documents post MVP  
-FR32: User can search library items with advanced filters post MVP  
-FR33: User can use advanced expressivity and emotion controls post MVP  
-FR34: User can use voice cloning from a reference sample post MVP  
-FR35: User can run the application on additional desktop operating systems post MVP
+FR1: User can import source files in EPUB format
+FR2: User can import source files in PDF format
+FR3: User can import source files in TXT format
+FR4: User can import source files in Markdown format
+FR5: System can extract textual content from imported EPUB files
+FR6: System can extract textual content from imported PDF files
+FR7: System can extract textual content from imported TXT and Markdown files
+FR8: System can report extraction failures with actionable error feedback
+FR9: User can start a document-to-audio conversion from extracted text
+FR10: User can select output format as MP3 or WAV
+FR11: System can segment long texts into conversion chunks
+FR12: System can process chunks and assemble a final continuous audio file
+FR13: System can continue conversion by switching to fallback engine when primary engine is unavailable
+FR14: System can preserve conversion state and logs when a chunk fails
+FR15: User can select TTS engine between Chatterbox and Kokoro
+FR16: User can select a voice profile available for the chosen engine
+FR17: User can select language for synthesis with FR and EN available in MVP
+FR18: User can adjust basic speech rate for output generation
+FR19: User can play generated audio inside the application
+FR20: User can pause and resume playback
+FR21: User can seek to a specific playback position
+FR22: User can view playback progress and current time
+FR23: System can store generated audio files in a local library
+FR24: System can persist basic metadata for each generated audiobook
+FR25: User can browse locally stored audiobooks in the library view
+FR26: User can reopen a selected library item for playback
+FR27: System can operate without internet access after model bootstrap is completed
+FR28: System can inform user when required local model assets are missing
+FR29: System can record local logs for extraction, conversion, fallback, and export events
+FR30: User can access diagnostic information for failed conversions
+FR31: User can launch batch conversion jobs across multiple documents
+FR32: User can search library items with advanced filters
+FR33: User can use advanced expressivity and emotion controls
+FR34: User can use voice cloning from a reference sample
+FR35: User can run the application on additional desktop operating systems
 
 ### NonFunctional Requirements
 
-NFR1: UI interactions non blocking during conversion and playback  
-NFR2: Stable long-document processing via chunking without pipeline interruption  
-NFR3: Conversion time measurable per 10k words and traceable per engine  
-NFR4: Controlled resume on chunk error with state preservation  
-NFR5: Coherent final audio generation without concatenation corruption  
-NFR6: Sufficient local logging for extraction conversion export diagnostics  
-NFR7: No text or audio transmission to third-party services during execution  
-NFR8: Local artifact storage with standard system permissions  
-NFR9: Full offline operation after model bootstrap  
-NFR10: MVP compatibility with Linux Mint and AMD RX 7900 XT via ROCm  
-NFR11: CPU fallback operational via Kokoro when Chatterbox GPU is unavailable  
-NFR12: Input support EPUB PDF TXT MD and output support MP3 WAV  
-NFR13: Modular architecture separating extraction orchestration TTS post-processing library  
-NFR14: Structured logs correlatable by document and pipeline stage  
-NFR15: Clear engine voice language configuration without modifying application code
+NFR1: UI interactions non bloquantes pendant conversion et lecture
+NFR2: Traitement stable des longs documents via chunking sans arrêt du pipeline
+NFR3: Temps de conversion mesurable par 10k mots et traçable par moteur
+NFR4: Reprise contrôlée sur erreur de chunk avec conservation d’état
+NFR5: Génération audio finale cohérente sans corruption de concaténation
+NFR6: Journalisation locale suffisante pour diagnostiquer extraction conversion export
+NFR7: Aucune transmission de contenu texte ou audio vers des services tiers en exécution
+NFR8: Stockage local des artefacts avec permissions système standard
+NFR9: Fonctionnement offline complet après bootstrap modèles
+NFR10: MVP compatible Linux Mint avec GPU AMD RX 7900 XT via ROCm
+NFR11: Fallback CPU opérationnel via Kokoro quand Chatterbox GPU indisponible
+NFR12: Support des formats entrée EPUB PDF TXT MD et sortie MP3 WAV
+NFR13: Architecture modulaire séparant extraction orchestration TTS post-traitement bibliothèque
+NFR14: Logs structurés corrélables par document et étape pipeline
+NFR15: Configuration claire des moteurs voix langues sans modifier le code applicatif
 
 ### Additional Requirements
 
-- Starter template requirement: custom Python scaffold without third-party starter, with deterministic structure and explicit module boundaries; this must be treated as Epic 1 Story 1 implementation prerequisite.
-- Project scaffolding and packaging requirement: pyproject-based workflow, separated unit and integration tests, and explicit package-oriented Python layout.
-- Persistence requirement: SQLite as single source of truth for jobs, chunks, library, metadata, progress, and diagnostic states.
-- Migration requirement: schema versioning with incremental SQL migrations from initial release.
-- TTS contract requirement: unified `tts_provider` contract exposing `synthesize_chunk`, `list_voices`, and `health_check`.
-- Fallback architecture requirement: deterministic fallback is orchestrated in `tts_orchestration_service`, never inside engine adapters.
-- Conversion resilience requirement: phrase-first chunking with target character limits and resume from last non-validated chunk.
-- Job lifecycle requirement: service-validated transitions over `queued`, `running`, `paused`, `failed`, `completed` with atomic persistence updates.
-- Result and error normalization requirement: service responses as `{ok, data, error}` and errors as `{code, message, details, retryable}`.
-- Observability requirement: JSONL logging with strict fields `correlation_id`, `job_id`, `chunk_index`, `engine`, `stage`, `event`, `severity`, `timestamp`.
-- Threading requirement: dedicated conversion worker thread with Qt signals and slots for progress and error propagation to UI.
-- Model governance requirement: `model_registry_service` with local manifest, installed missing invalid states, and integrity validation at startup before conversion.
-- File structure requirement: implementation must follow the complete project directory structure defined in architecture including `src`, `tests`, `migrations`, `config`, and `runtime` boundaries.
-- Extraction adapter requirement: EPUB via `ebooklib`, PDF via `PyPDF2`, and native TXT Markdown parsing.
-- Runtime storage requirement: logs in `runtime/logs`, audio artifacts in `runtime/library/audio`, temporary files in `runtime/library/temp`.
-- Platform requirement: MVP targets Linux Mint only with AMD ROCm primary path and Kokoro CPU fallback.
-- UI language requirement: MVP interface language is English only.
-- Security boundary requirement: no authentication in local MVP, no network API exposure, and no cloud data transfer after bootstrap.
-- Out-of-scope enforcement requirement: batch multi-documents, advanced library search, advanced expressivity and emotion, voice cloning, Windows macOS portability, and auto-update remain excluded from MVP stories.
+- Starter template explicitly selected in architecture: custom Python scaffold (no external starter template); initialization is manual with deterministic project layout.
+- Epic 1 Story 1 implication: scaffold/bootstrap and foundational wiring must be treated as implementation prerequisite.
+- Infrastructure/deployment constraints: Linux Mint MVP target, offline-first execution after model bootstrap, no cloud dependency in runtime.
+- Persistence architecture: SQLite as single source of truth for documents, jobs, chunks, library metadata, diagnostics.
+- Migration requirement: incremental SQL schema versioning from initial release.
+- Integration contract requirement: unified TTS provider contract with synthesis, voice inventory, and health checks.
+- Fallback policy requirement: deterministic fallback handled in orchestration service, not in engine adapters.
+- Resilience requirement: phrase-first chunking with resume from last non-validated chunk.
+- Job state governance: validated transitions (queued/running/paused/failed/completed) and atomic persistence updates.
+- Error/result standardization: service responses must follow normalized result and structured error envelopes.
+- Observability requirement: local JSONL logging with strict correlation and pipeline fields.
+- Concurrency requirement: dedicated conversion worker thread with Qt signals/slots to keep UI responsive.
+- Model governance requirement: local model registry with installed/missing/invalid states and startup integrity checks.
+- Security requirement: no runtime network API exposure, no post-bootstrap cloud transfer, local permissions model.
+- Project structure requirement: implementation must respect documented boundaries (`src`, `tests`, `migrations`, `config`, `runtime`).
 
 ### FR Coverage Map
 
-FR1: Epic 2 - Import EPUB source file  
-FR2: Epic 2 - Import PDF source file  
-FR3: Epic 2 - Import TXT source file  
-FR4: Epic 2 - Import Markdown source file  
-FR5: Epic 2 - Extract text from EPUB  
-FR6: Epic 2 - Extract text from PDF  
-FR7: Epic 2 - Extract text from TXT and Markdown  
-FR8: Epic 2 - Provide actionable extraction error feedback  
-FR9: Epic 3 - Start document-to-audio conversion  
-FR10: Epic 3 - Select MP3 or WAV output format  
-FR11: Epic 3 - Segment long text into chunks  
-FR12: Epic 3 - Process chunks and assemble continuous final audio  
-FR13: Epic 3 - Fallback to secondary engine when primary unavailable  
-FR14: Epic 3 - Preserve state and logs on chunk failure  
-FR15: Epic 3 - Select TTS engine Chatterbox or Kokoro  
-FR16: Epic 3 - Select voice profile per engine  
-FR17: Epic 3 - Select synthesis language FR or EN  
-FR18: Epic 3 - Adjust basic speech rate  
-FR19: Epic 4 - Play generated audio in application  
-FR20: Epic 4 - Pause and resume playback  
-FR21: Epic 4 - Seek playback position  
-FR22: Epic 4 - View playback progress and current time  
-FR23: Epic 4 - Store generated audio in local library  
-FR24: Epic 4 - Persist audiobook metadata  
-FR25: Epic 4 - Browse local library items  
-FR26: Epic 4 - Reopen library item for playback  
-FR27: Epic 1 - Operate fully offline after model bootstrap  
-FR28: Epic 1 - Inform user about missing local model assets  
-FR29: Epic 5 - Record local logs for extraction conversion fallback export events  
-FR30: Epic 5 - Provide diagnostic information for failed conversions  
+FR1: Epic 2 - Import EPUB source file
+FR2: Epic 2 - Import PDF source file
+FR3: Epic 2 - Import TXT source file
+FR4: Epic 2 - Import Markdown source file
+FR5: Epic 2 - Extract text from EPUB files
+FR6: Epic 2 - Extract text from PDF files
+FR7: Epic 2 - Extract text from TXT/MD files
+FR8: Epic 2 - Surface actionable extraction errors
+FR9: Epic 3 - Start document-to-audio conversion
+FR10: Epic 3 - Select MP3 or WAV output
+FR11: Epic 3 - Chunk long text reliably
+FR12: Epic 3 - Assemble chunk outputs into final audio
+FR13: Epic 3 - Fallback to secondary engine on primary failure
+FR14: Epic 3 - Preserve state/logs on chunk failure
+FR15: Epic 3 - Select TTS engine
+FR16: Epic 3 - Select voice profile
+FR17: Epic 3 - Select synthesis language (FR/EN)
+FR18: Epic 3 - Adjust basic speech rate
+FR19: Epic 4 - Play generated audio in app
+FR20: Epic 4 - Pause/resume playback
+FR21: Epic 4 - Seek playback position
+FR22: Epic 4 - Display playback progress/time
+FR23: Epic 4 - Store generated audio in local library
+FR24: Epic 4 - Persist audiobook metadata
+FR25: Epic 4 - Browse local library items
+FR26: Epic 4 - Reopen selected library item for playback
+FR27: Epic 1 - Operate fully offline after model bootstrap
+FR28: Epic 1 - Inform user of missing local model assets
+FR29: Epic 5 - Record local diagnostic logs across pipeline
+FR30: Epic 5 - Expose diagnostics for failed conversions
 
-Out of scope for this MVP epic mapping iteration: FR31, FR32, FR33, FR34, FR35.
+Out of scope for MVP mapping: FR31, FR32, FR33, FR34, FR35.
 
 ## Epic List
 
 ### Epic 1: Local Setup and Offline Readiness
-Enable users to run the application confidently in a fully local mode by validating model availability and offline conversion readiness before processing.
+
+Enable users to run the application in a fully local mode by validating model availability and offline conversion readiness before processing.
 **FRs covered:** FR27, FR28
 
 ### Epic 2: Multi-Format Import and Text Extraction
-Enable users to bring documents from supported formats and obtain clean extractable text with actionable error guidance when extraction fails.
+
+Enable users to import EPUB/PDF/TXT/MD documents and obtain clean extractable text with actionable error guidance.
 **FRs covered:** FR1, FR2, FR3, FR4, FR5, FR6, FR7, FR8
 
 ### Epic 3: Resilient Conversion to Audio
-Enable users to configure engine voice language and output format, then complete robust long-document conversion through chunking deterministic fallback and resumable processing.
+
+Enable users to configure engine/voice/language/output and complete robust long-document conversion through chunking, deterministic fallback, and resume-friendly processing.
 **FRs covered:** FR9, FR10, FR11, FR12, FR13, FR14, FR15, FR16, FR17, FR18
 
 ### Epic 4: Local Library and Integrated Playback
-Enable users to manage and consume generated audiobooks by storing metadata browsing local content and controlling playback directly in the application.
+
+Enable users to store, browse, and replay generated audiobooks with in-app playback controls.
 **FRs covered:** FR19, FR20, FR21, FR22, FR23, FR24, FR25, FR26
 
 ### Epic 5: Diagnostics and Failure Transparency
-Enable users and operators to understand failures and troubleshoot confidently through structured local observability and accessible diagnostics.
+
+Enable users/operators to understand and troubleshoot failures through structured local observability and actionable diagnostics.
 **FRs covered:** FR29, FR30
 
-<!-- Repeat for each epic in epics_list (N = 1, 2, 3...) -->
+### Epic 6: Runtime Fixes & Polish
+
+Stabilize runtime behavior after integration by fixing conversion crashes, introducing degraded readiness behavior, completing Library UI functionality, and finalizing documentation and completion reporting.
+**FRs covered:** Hardening epic (cross-cutting, no new PRD FR IDs)
 
 ## Epic 1: Local Setup and Offline Readiness
 
-Enable users to run the application confidently in a fully local mode by validating model availability and offline conversion readiness before processing.
+Enable users to run the application in a fully local mode by validating model availability and offline conversion readiness before processing.
 
-### Story 1.1: Initialize Local Application Foundation and Persistent Job Store
+### Story 1.1: Initialize Local Runtime, SQLite, and Baseline Migrations
 
-As a privacy-first desktop user,
-I want the application to initialize with local persistence and baseline schema migrations,
-So that conversion jobs and offline readiness state are reliably stored on my machine.
+As a desktop user,
+I want the application to initialize local persistence and runtime folders at startup,
+So that conversion state and artifacts are reliably stored on my machine.
 
 **Acceptance Criteria:**
 
-**Given** a fresh Linux Mint installation target and an empty runtime directory
-**When** the app bootstrap is executed through `main.py` and SQLite connection setup in `connection.py`
-**Then** a local SQLite database file is created and reachable through repository boundaries only
-**And** no network dependency is required for this initialization path.
+**Given** a fresh environment with no existing runtime database
+**When** the app starts through `src/app/main.py`
+**Then** runtime directories and the SQLite database are initialized locally
+**And** no network call is required for initialization.
 
-**Given** dependency wiring is required for service boundary enforcement
-**When** the application bootstrap initializes service composition in `dependency_container.py`
-**Then** core services repositories providers and logging are resolved through the container
-**And** UI layers consume dependencies via container wiring rather than direct infrastructure instantiation.
-
-**Given** the initial migration file `0001_initial_schema.sql`
-**When** migrations are applied at startup
-**Then** required MVP tables for documents jobs chunks library and diagnostics are created in `snake_case`
-**And** migration state is persisted to prevent re-applying the same migration.
-
-**Given** job state management in `tts_orchestration_service.py` will rely on persistence
-**When** the persistence layer writes or updates job state
-**Then** only allowed states `queued running paused failed completed` are accepted by service validation
-**And** invalid transitions return normalized errors through `result.py` and `errors.py`.
-
-**Given** observability is required from first executable increment
-**When** startup and migration events occur
-**Then** JSONL log events are emitted by `jsonl_logger.py` with fields `correlation_id job_id chunk_index engine stage event severity timestamp`
-**And** events follow `domain.action` naming and UTC ISO-8601 timestamp formatting.
+**Given** migration scripts are present in `migrations/`
+**When** startup migration execution runs
+**Then** required MVP tables are created with deterministic ordering
+**And** migration status is persisted to prevent duplicate re-application.
 
 ### Story 1.2: Validate Model Assets and Engine Health at Startup
 
-As a desktop user preparing offline conversion,
-I want the application to validate required local model assets and engine health during bootstrap,
-So that I know conversion can start reliably without internet access.
+As a user preparing conversion,
+I want startup checks to validate model assets and engine health,
+So that I know whether conversion can run fully offline.
 
 **Acceptance Criteria:**
 
-**Given** a local model manifest in `model_manifest.yaml` and registry logic in `model_registry_service.py`
-**When** bootstrap validation runs at startup
-**Then** each required model is classified with status `installed` `missing` or `invalid`
-**And** integrity checks include expected version hash and size.
+**Given** model manifest and registry service configuration
+**When** startup readiness checks execute
+**Then** each required model is classified as installed, missing, or invalid
+**And** integrity failures include actionable remediation details.
 
-**Given** TTS providers implementing `tts_provider.py`
-**When** health validation is executed through `health_check` on each configured engine
-**Then** readiness signals include per-engine availability for Chatterbox GPU and Kokoro CPU fallback
-**And** provider-level failures are returned as normalized errors in `errors.py`.
+**Given** both TTS providers are wired in dependency injection
+**When** health checks execute for Chatterbox and Kokoro
+**Then** per-engine availability is returned in a normalized result envelope
+**And** provider errors are normalized with code, message, details, and retryable fields.
 
-**Given** offline operation is mandatory for MVP FR27 and FR28
-**When** one or more required assets are `missing` or `invalid`
-**Then** conversion readiness is set to `not_ready`
-**And** the service returns actionable remediation details without attempting any cloud call.
+### Story 1.3: Surface Readiness State in Conversion UI
 
-**Given** startup diagnostics are required for supportability
-**When** registry and health checks complete
-**Then** JSONL events are emitted via `jsonl_logger.py` for stages `model_registry` and `engine_health`
-**And** events include `correlation_id stage event severity` and ISO-8601 UTC `timestamp`.
-
-### Story 1.3: Surface Offline Readiness Status and Actionable Remediation in UI
-
-As a desktop user before launching conversion,
-I want to see clear offline readiness and remediation guidance in the UI,
-So that I can fix missing prerequisites and start conversion confidently.
+As a user before conversion,
+I want clear readiness status and prerequisites in the conversion interface,
+So that I can fix setup issues before launching work.
 
 **Acceptance Criteria:**
 
-**Given** startup readiness output from `model_registry_service.py` and provider health checks from `tts_provider.py`
-**When** the user opens the conversion entry view in `conversion_view.py`
-**Then** the UI shows a deterministic readiness state `ready` or `not_ready`
-**And** the active engine availability for Chatterbox GPU and Kokoro CPU is visible.
+**Given** readiness results are available from startup services
+**When** the conversion screen is loaded
+**Then** readiness state is displayed as ready or not_ready
+**And** missing prerequisites are shown with actionable steps.
 
-**Given** one or more assets are `missing` or `invalid`
-**When** readiness is rendered in `conversion_presenter.py`
-**Then** the user receives actionable remediation messages naming the missing asset and required action
-**And** conversion start controls are disabled until status becomes `ready`.
-
-**Given** conversion execution runs on `conversion_worker.py` with Qt signals
-**When** readiness changes after a recheck action
-**Then** UI status updates through signals without blocking the main UI thread
-**And** failures are propagated as normalized errors using `result.py`.
-
-**Given** observability is required for support diagnostics
-**When** readiness checks are displayed or rechecked
-**Then** JSONL events are emitted by `jsonl_logger.py` using `domain.action` names for `readiness.checked` and `readiness.displayed`
-**And** event payload contains `correlation_id stage event severity` and UTC ISO-8601 `timestamp`.
+**Given** readiness is not_ready
+**When** the user tries to launch conversion
+**Then** conversion action is blocked
+**And** the UI explains what must be fixed locally.
 
 ## Epic 2: Multi-Format Import and Text Extraction
 
-Enable users to bring documents from supported formats and obtain clean extractable text with actionable error guidance when extraction fails.
+Enable users to import EPUB/PDF/TXT/MD documents and obtain clean extractable text with actionable error guidance.
 
-### Story 2.1: Import Local Multi-Format Documents with Input Validation
+### Story 2.1: Import EPUB/PDF/TXT/MD with Validation
 
-As a desktop user,
-I want to import local EPUB PDF TXT and Markdown files through a single flow,
-So that I can start extraction from a supported document without manual preprocessing.
-
-**Acceptance Criteria:**
-
-**Given** the import screen in `import_view.py`
-**When** I select a local file with extension `.epub`, `.pdf`, `.txt`, or `.md`
-**Then** the file is accepted and forwarded to `import_service.py`
-**And** unsupported extensions are rejected with a normalized error from `errors.py`.
-
-**Given** file metadata validation in `import_service.py`
-**When** the selected file is unreadable, empty, or missing
-**Then** the service returns `{ok, data, error}`
-**And** the error includes `{code, message, details, retryable}` with actionable remediation.
-
-**Given** accepted inputs must be traceable for downstream extraction
-**When** an import succeeds
-**Then** a document record is persisted via `document_repository.py`
-**And** fields use `snake_case` conventions and ISO-8601 UTC timestamps.
-
-**Given** observability requirements for import failures
-**When** import is accepted or rejected
-**Then** JSONL events are emitted via `jsonl_logger.py` using `domain.action` names such as `import.accepted` and `import.rejected`
-**And** each event includes `correlation_id`, `stage`, `event`, `severity`, and `timestamp`.
-
-### Story 2.2: Extract Clean Text from EPUB with Actionable Failure Handling
-
-As a user importing an EPUB,
-I want the system to extract readable text content reliably,
-So that I can proceed to conversion without manual copy cleanup.
+As a user,
+I want to import supported document formats through one flow,
+So that I can start conversion without manual preprocessing.
 
 **Acceptance Criteria:**
 
-**Given** an imported `.epub` document accepted by `import_service.py`
-**When** extraction is executed through `epub_extractor.py`
-**Then** textual content is returned in reading order with basic cleanup of empty structural nodes
-**And** extraction output is normalized for downstream chunking inputs.
+**Given** the import workflow is opened in the UI
+**When** I choose a `.epub`, `.pdf`, `.txt`, or `.md` file
+**Then** the file is accepted and forwarded to import service validation
+**And** unsupported extensions are rejected with actionable errors.
 
-**Given** malformed EPUB structure or unreadable package resources
-**When** extraction fails
-**Then** the service returns standardized output with `ok=false`
-**And** the error follows `{code, message, details, retryable}`.
+**Given** an unreadable or missing selected file
+**When** import validation executes
+**Then** the service returns a normalized failure result
+**And** error details include clear local remediation guidance.
 
-**Given** extracted content must be auditable for troubleshooting
-**When** extraction completes or fails
-**Then** events are logged via `jsonl_logger.py` with `stage=extraction` and `engine=epub`
-**And** each event includes `correlation_id`, `job_id`, `event`, `severity`, and ISO-8601 UTC `timestamp`.
+### Story 2.2: Extract Text from EPUB and PDF
 
-**Given** the UI must provide immediate feedback
-**When** EPUB extraction succeeds or fails
-**Then** status and actionable message are surfaced through `conversion_presenter.py`
-**And** user-facing text is in English for MVP consistency.
-
-### Story 2.3: Extract Text from PDF with Degraded-Case Handling
-
-As a user importing a PDF,
-I want the system to extract usable text and flag degraded cases clearly,
-So that I can decide whether to proceed or correct the source document.
+As a user importing EPUB or PDF documents,
+I want extraction to produce deterministic text output,
+So that conversion receives stable input.
 
 **Acceptance Criteria:**
 
-**Given** an imported `.pdf` accepted by `import_service.py`
-**When** extraction runs through `pdf_extractor.py`
-**Then** text is returned page by page in deterministic order
-**And** blank or non-text pages are handled without crashing the extraction flow.
+**Given** an imported EPUB file
+**When** extraction is executed via EPUB adapter
+**Then** readable text content is returned in deterministic order
+**And** malformed content failures are reported in normalized form.
 
-**Given** scanned-image PDFs or partially corrupted structures
-**When** extraction quality is insufficient or parsing fails
-**Then** the service returns normalized failure
-**And** error payload includes `code`, `message`, `details`, and `retryable`.
+**Given** an imported PDF file
+**When** extraction is executed via PDF adapter
+**Then** pages are processed deterministically with graceful handling of blank/non-text pages
+**And** extraction failures include actionable error context.
 
-**Given** the product requires local observability
-**When** PDF extraction starts, completes, or fails
-**Then** JSONL events are emitted through `jsonl_logger.py` with `stage=extraction` and `engine=pdf`
-**And** each event carries `correlation_id`, `job_id`, `chunk_index` when relevant, `event`, `severity`, and UTC ISO-8601 `timestamp`.
+### Story 2.3: Extract and Normalize TXT/MD with Unified Error Feedback
 
-**Given** users need clear feedback for remediation
-**When** extraction result is rendered in `conversion_presenter.py`
-**Then** success and failure messages are explicit and actionable in English
-**And** downstream conversion controls remain blocked on extraction failure.
-
-### Story 2.4: Extract and Normalize TXT and Markdown Inputs
-
-As a user importing TXT or Markdown documents,
-I want the system to parse and normalize text encoding consistently,
-So that extracted content is ready for reliable chunking and synthesis.
+As a user importing TXT or Markdown,
+I want normalized text extraction and consistent extraction error reporting,
+So that downstream chunking remains reliable.
 
 **Acceptance Criteria:**
 
-**Given** an imported `.txt` or `.md` file accepted by `import_service.py`
-**When** extraction runs through `text_extractor.py`
-**Then** UTF-8 content is parsed successfully and normalized line breaks are produced
-**And** Markdown structural markers are converted into clean reading text suitable for TTS input.
+**Given** a TXT or Markdown document
+**When** extraction runs in the text extractor
+**Then** output is normalized for encoding and line-break consistency
+**And** markdown markers are transformed into TTS-friendly plain text.
 
-**Given** files with encoding anomalies or unreadable byte sequences
-**When** normalization fails
-**Then** the service returns standardized output
-**And** errors include `code`, `message`, `details`, and `retryable`.
-
-**Given** very large TXT or Markdown inputs
-**When** extraction completes
-**Then** output remains deterministic and does not block the UI thread
-**And** extracted payload is ready for downstream chunking without extra manual preprocessing.
-
-**Given** observability and user feedback requirements
-**When** extraction succeeds or fails
-**Then** JSONL events are emitted via `jsonl_logger.py` with `stage=extraction` and `engine=text`
-**And** presenter feedback in `conversion_presenter.py` remains actionable and English-only in MVP.
-
-### Story 2.5: Provide Unified Extraction Error Feedback and Diagnostics
-
-As a user performing document import and extraction,
-I want extraction failures to be reported consistently with clear remediation guidance,
-So that I can quickly resolve issues and retry successfully.
-
-**Acceptance Criteria:**
-
-**Given** extraction outcomes from `epub_extractor.py`, `pdf_extractor.py`, and `text_extractor.py`
-**When** any extractor returns a failure
-**Then** the failure is mapped into a unified response format `{ok, data, error}`
-**And** error payload includes `code`, `message`, `details`, and `retryable`.
-
-**Given** UI error rendering in `conversion_presenter.py`
-**When** a normalized extraction error is received
-**Then** users see actionable English messages with next-step remediation
-**And** retry controls are enabled only when `retryable=true`.
-
-**Given** traceability requirements for diagnostics FR29 and FR30
-**When** extraction errors are raised and displayed
-**Then** JSONL events are logged by `jsonl_logger.py` with `stage=extraction` and stable `domain.action` names such as `extraction.failed` and `diagnostics.presented`
-**And** each log includes `correlation_id`, `job_id`, `engine`, `event`, `severity`, and ISO-8601 UTC `timestamp`.
-
-**Given** MVP scope excludes cloud dependencies
-**When** remediation guidance is generated
-**Then** all guidance remains local-only and references local corrective actions
-**And** no network call is attempted in the error-handling path.
+**Given** any extractor fails
+**When** failure is presented to UI
+**Then** presenter displays a unified actionable message
+**And** diagnostics are logged with extraction stage metadata.
 
 ## Epic 3: Resilient Conversion to Audio
 
-Enable users to configure engine voice language and output format, then complete robust long-document conversion through chunking deterministic fallback and resumable processing.
+Enable users to configure engine/voice/language/output and complete robust long-document conversion through chunking, deterministic fallback, and resume-friendly processing.
 
-Implementation sequencing note: `Story 3.6` may need to be implemented before or in parallel with `Story 3.5` so configured UI parameters can launch through the QThread execution path without blocking. Story order here reflects requirement grouping, not a mandatory sprint execution order.
+### Story 3.1: Expose Unified Provider Contract for Chatterbox and Kokoro
 
-### Story 3.1: Implement Unified TTS Provider Contract and Engine Adapters
-
-As a user starting audio conversion,
-I want both TTS engines to expose a unified contract,
-So that the application can switch engines predictably without changing user workflow.
+As a user selecting synthesis options,
+I want both engines to follow one provider contract,
+So that engine switching is predictable and maintainable.
 
 **Acceptance Criteria:**
 
-**Given** both engines are configured locally
-**When** the provider layer is initialized
-**Then** a single contract exposes `synthesize_chunk`, `list_voices`, and `health_check`
-**And** both engine adapters conform to identical input output semantics.
+**Given** engine adapters are initialized
+**When** provider capabilities are queried
+**Then** both adapters expose consistent methods for synthesize, voice list, and health check
+**And** outputs follow normalized result format.
 
-**Given** engine capability discovery is required for voice selection
-**When** available voices are requested
-**Then** the response is normalized in a consistent structure
-**And** failures return normalized errors with `code`, `message`, `details`, and `retryable`.
+**Given** provider-specific errors occur
+**When** failures propagate to orchestration
+**Then** error categories remain deterministic for fallback handling
+**And** implementation details are not leaked across layer boundaries.
 
-**Given** synthesis is executed on a text chunk
-**When** a provider succeeds
-**Then** audio chunk output and metadata are returned in standardized result format
-**And** provider-specific internals are not leaked beyond the adapter boundary.
-
-**Given** an adapter fails during health check or synthesis
-**When** the failure is propagated upward
-**Then** orchestration receives deterministic error categories for fallback handling
-**And** logging emits structured events with correlation fields and UTC timestamps.
-
-### Story 3.2: Segment Long Text with Phrase-First Chunking Rules
+### Story 3.2: Implement Chunking, Orchestration, and Deterministic Fallback
 
 As a user converting long documents,
-I want text to be split into stable phrase-first chunks,
-So that synthesis remains reliable and resumable across large inputs.
+I want chunk processing with deterministic fallback,
+So that conversion can complete despite primary engine failures.
 
 **Acceptance Criteria:**
 
-**Given** extracted text is available from import and extraction services
-**When** chunking runs in `chunking_service.py`
-**Then** chunk boundaries prioritize sentence phrase integrity before max character threshold
-**And** produced chunks are deterministic for the same input.
+**Given** extracted text is available
+**When** chunking service processes text
+**Then** chunks are produced in deterministic order with phrase-first rules
+**And** chunk metadata is persisted for resume support.
 
-**Given** chunk metadata is needed for orchestration and resume
-**When** chunk generation completes
-**Then** each chunk gets persisted index ordering and content hash via `chunk_repository.py`
-**And** chunk records are linked to the conversion job in SQLite.
+**Given** Chatterbox fails for a chunk
+**When** orchestration evaluates fallback policy
+**Then** it switches deterministically to Kokoro in service layer
+**And** adapters do not contain fallback policy logic.
 
-**Given** invalid or empty extracted text
-**When** chunking is requested
-**Then** the service returns normalized failure in `result.py`
-**And** errors follow `errors.py` with actionable details and retryability flag.
+### Story 3.3: Persist Conversion State and Resume from Failed Chunk
 
-**Given** observability requirements for conversion pipeline
-**When** chunking starts and ends
-**Then** JSONL events are emitted by `jsonl_logger.py` with `stage=chunking` and `domain.action` events
-**And** payload includes `correlation_id`, `job_id`, `event`, `severity`, and ISO-8601 UTC `timestamp`.
+As a user running long conversions,
+I want failed jobs to resume from the last failed point,
+So that I do not restart the entire process.
 
-### Story 3.3: Orchestrate Deterministic Conversion with Engine Fallback
+**Acceptance Criteria:**
+
+**Given** a running conversion job
+**When** state transitions are requested
+**Then** only allowed states are accepted by orchestration rules
+**And** invalid transitions return normalized errors.
+
+**Given** a chunk failure followed by retry
+**When** resume execution starts
+**Then** processing continues from last non-validated chunk
+**And** previously successful chunks are not recomputed.
+
+### Story 3.4: Configure Conversion Parameters in UI and Launch Worker Execution
 
 As a user launching conversion,
-I want the system to orchestrate chunk synthesis with deterministic fallback,
-So that conversion can continue when the primary engine fails.
+I want to configure engine, voice, language, speech rate, and output format,
+So that generated audio matches my preferences while UI stays responsive.
 
 **Acceptance Criteria:**
 
-**Given** chunk records are available and providers implement unified contract
-**When** conversion runs in `tts_orchestration_service.py`
-**Then** chunks are synthesized in persisted index order
-**And** orchestration emits normalized results `{ok, data, error}` for each processing stage.
+**Given** provider configuration options are available
+**When** conversion settings are rendered in conversion view
+**Then** user can choose engine, voice, FR/EN language, speech rate, and MP3/WAV output
+**And** invalid values are blocked with actionable messages.
 
-**Given** primary engine failure on a chunk
-**When** fallback rules are evaluated
-**Then** fallback from Chatterbox to Kokoro is decided only in orchestration service
-**And** provider adapters remain free of fallback policy logic.
-
-**Given** engine and chunk processing events must be diagnosable
-**When** orchestration processes each chunk
-**Then** JSONL logs include `correlation_id`, `job_id`, `chunk_index`, `engine`, `stage`, `event`, `severity`, `timestamp`
-**And** events use `domain.action` naming for start success fail fallback paths.
-
-**Given** fallback cannot recover a chunk
-**When** both providers fail for the same chunk
-**Then** orchestration returns normalized error payload with deterministic code and retryability
-**And** job state transition is delegated to validated service state handling.
-
-### Story 3.4: Persist Job Lifecycle and Resume Conversion from Last Failed Chunk
-
-As a user converting long documents,
-I want conversion state to persist with controlled transitions and resume capability,
-So that failures do not force restarting from the beginning.
-
-**Acceptance Criteria:**
-
-**Given** a conversion job is created and tracked in persistence
-**When** state changes are requested during execution
-**Then** only `queued`, `running`, `paused`, `failed`, `completed` transitions accepted by service rules are applied
-**And** invalid transitions are rejected with normalized error payload.
-
-**Given** chunk progress is persisted during synthesis
-**When** a chunk fails and the job is retried
-**Then** orchestration resumes from the last non validated chunk
-**And** already successful chunks are not reprocessed unless explicitly requested.
-
-**Given** resume behavior must remain deterministic
-**When** retry is executed for the same job inputs
-**Then** the same chunk order and state progression are preserved
-**And** logs indicate resume start point and retry decision path.
-
-**Given** operators need troubleshooting visibility
-**When** job transitions and resume events occur
-**Then** JSONL events include `correlation_id`, `job_id`, `chunk_index` when applicable, `stage`, `event`, `severity`, `timestamp`
-**And** events use stable domain action naming for transition and resume paths.
-
-### Story 3.5: Configure Conversion Parameters and Output Format in UI
-
-As a user preparing conversion,
-I want to select engine voice language speech rate and output format,
-So that generated audio matches my preferences and playback context.
-
-**Acceptance Criteria:**
-
-**Given** available engines and voices are exposed by `tts_provider.py`
-**When** I open conversion controls in `conversion_view.py`
-**Then** I can select engine Chatterbox or Kokoro and a compatible voice
-**And** unavailable options are visibly disabled with explanatory guidance.
-
-**Given** MVP language scope and parameter constraints
-**When** I configure synthesis options via `conversion_presenter.py`
-**Then** selectable languages are limited to FR and EN
-**And** speech rate accepts only validated bounds with normalized error feedback on invalid input.
-
-**Given** output generation supports MP3 and WAV
-**When** I choose output format before launch
-**Then** selected format is persisted with job configuration
-**And** orchestration receives normalized settings payload for synthesis and post-processing.
-
-**Given** parameter and format choices must be auditable
-**When** configuration is saved or rejected
-**Then** JSONL events are emitted by `jsonl_logger.py` with `stage=configuration` and stable `domain.action` events
-**And** payload includes `correlation_id`, `job_id`, `event`, `severity`, and ISO-8601 UTC `timestamp`.
-
-### Story 3.6: Execute Conversion in Dedicated Worker with Non-Blocking UI Signals
-
-As a user running long conversion tasks,
-I want conversion to run in a dedicated worker thread with live progress feedback,
-So that the interface stays responsive while processing continues.
-
-**Acceptance Criteria:**
-
-**Given** conversion starts from the UI
-**When** execution is launched through `conversion_worker.py`
-**Then** processing runs in a dedicated QThread separate from the UI thread
-**And** no blocking operation is performed on the main event loop.
-
-**Given** orchestration emits chunk progress and state updates
-**When** worker signals are propagated to `conversion_presenter.py` and `conversion_view.py`
-**Then** progress percentage and status are updated incrementally
-**And** users can observe running paused failed completed states in near real time.
-
-**Given** runtime errors occur in worker execution
-**When** exceptions or normalized failures are received from `tts_orchestration_service.py`
-**Then** errors are relayed through Qt signals with normalized payload structure
-**And** UI messaging remains actionable and English-only for MVP.
-
-**Given** observability requirements for async execution
-**When** worker starts emits progress fails or completes
-**Then** JSONL events are written by `jsonl_logger.py` with `stage=worker_execution` and `domain.action` events
-**And** each event includes `correlation_id`, `job_id`, `chunk_index` when applicable, `event`, `severity`, and ISO-8601 UTC `timestamp`.
+**Given** conversion is started from the UI
+**When** conversion worker executes in QThread
+**Then** progress and status are emitted via Qt signals
+**And** the main UI thread remains responsive.
 
 ## Epic 4: Local Library and Integrated Playback
 
-Enable users to manage and consume generated audiobooks by storing metadata browsing local content and controlling playback directly in the application.
+Enable users to store, browse, and replay generated audiobooks with in-app playback controls.
 
-Implementation sequencing note: `Story 4.1` must be implemented before `Story 4.2` and `Story 4.3` because audio assembly output is required before library persistence and browsing. This story also depends directly on Epic 3 conversion outputs.
+### Story 4.1: Assemble Final Audio and Persist Library Metadata
 
-### Story 4.1: Assemble Synthesized Chunks into Final Audio Output
-
-As a user completing document conversion,
-I want synthesized chunks to be assembled into a single final audio file,
-So that I can listen to a continuous audiobook in my selected format.
+As a user completing conversion,
+I want synthesized chunks assembled and indexed in my local library,
+So that finished audiobooks are available for later listening.
 
 **Acceptance Criteria:**
 
-**Given** synthesized chunk artifacts are available from orchestration
-**When** post-processing runs in `audio_postprocess_service.py`
-**Then** chunks are assembled in persisted order without loss or duplication
-**And** continuity between chunk boundaries is preserved for listener experience.
+**Given** chunk audio artifacts are available
+**When** post-processing runs
+**Then** chunks are assembled in deterministic order into valid MP3 or WAV
+**And** assembly/encoding failures return normalized errors.
 
-**Given** output format is selected as WAV
-**When** final rendering executes through `wav_builder.py`
-**Then** a valid WAV file is produced at target path
-**And** metadata needed for library indexing is returned in normalized response format.
+**Given** final audio exists
+**When** library persistence executes
+**Then** metadata and file paths are stored in SQLite according to schema rules
+**And** writes are transactional to avoid partial library state.
 
-**Given** output format is selected as MP3
-**When** encoding executes through `mp3_encoder.py`
-**Then** a valid MP3 file is produced at target path
-**And** failures return normalized error payload with retryability semantics.
+### Story 4.2: Implement Library View Listing and Selection
 
-**Given** assembly and encoding are observable pipeline stages
-**When** post-processing starts succeeds or fails
-**Then** JSONL events are emitted through `jsonl_logger.py` with stable `domain.action` events
-**And** event payload includes `correlation_id`, `job_id`, `stage`, `event`, `severity`, and UTC ISO-8601 `timestamp`.
-
-### Story 4.2: Persist Final Audio Artifacts and Library Metadata
-
-As a user who completed conversion,
-I want final audio files and metadata to be saved in my local library,
-So that I can reliably find and replay generated audiobooks later.
+As a user with converted audiobooks,
+I want to browse and select library items,
+So that I can quickly reopen previously generated content.
 
 **Acceptance Criteria:**
 
-**Given** a final MP3 or WAV output is generated by `audio_postprocess_service.py`
-**When** persistence runs through `library_service.py`
-**Then** the audio file path is stored under local runtime library conventions
-**And** library metadata is written to SQLite as source of truth.
+**Given** library records are present
+**When** library view loads
+**Then** it displays title, format, size, import date, and conversion status
+**And** ordering remains deterministic across refreshes.
 
-**Given** metadata persistence uses `library_repository.py`
-**When** a new audiobook record is created
-**Then** required fields include title source format engine voice language duration and created timestamp
-**And** all persisted fields follow `snake_case` naming and ISO-8601 UTC time format.
+**Given** a user selects a document in library view
+**When** selection is confirmed
+**Then** the selected item is available for conversion or playback context
+**And** no direct repository access is performed from UI layer.
 
-**Given** persistence can fail due to disk or database errors
-**When** write operations fail
-**Then** the service returns normalized `{ok, data, error}` with structured error object
-**And** partial writes are avoided using transactional behavior.
+### Story 4.3: Integrate Player Controls (Play/Pause/Resume/Seek/Progress)
 
-**Given** observability is required for library integrity
-**When** library item creation succeeds or fails
-**Then** JSONL events are emitted via `jsonl_logger.py` with `stage=library_persistence`
-**And** events include `correlation_id`, `job_id`, `event`, `severity`, and UTC ISO-8601 `timestamp`.
-
-### Story 4.3: Browse and Reopen Audiobooks from Local Library View
-
-As a user with previously converted audiobooks,
-I want to browse my local library and reopen an item,
-So that I can quickly resume listening without reconversion.
+As a user listening in-app,
+I want reliable playback controls and progress display,
+So that I can navigate audio comfortably.
 
 **Acceptance Criteria:**
 
-**Given** library records exist in SQLite
-**When** `library_view.py` loads through `library_presenter.py`
-**Then** audiobooks are listed with core metadata title source language format created date
-**And** listing order is deterministic and stable across refresh.
+**Given** a valid local audio item is selected
+**When** playback starts through player service
+**Then** audio plays via adapter with stable state updates
+**And** missing/unreadable files produce normalized user-facing errors.
 
-**Given** a user selects a library item
-**When** open action is triggered from library UI
-**Then** selected item details and audio path are resolved via `library_service.py`
-**And** playback context is prepared without re-running extraction or synthesis.
-
-**Given** missing file path or stale metadata can occur
-**When** reopen is requested and audio artifact is unavailable
-**Then** user receives actionable normalized error feedback
-**And** diagnostics include remediation guidance to relink or reconvert locally.
-
-**Given** library usage events are needed for troubleshooting
-**When** list load item open or open failure happens
-**Then** JSONL events are emitted with `stage=library_browse`
-**And** payload includes `correlation_id`, `event`, `severity`, and UTC ISO-8601 `timestamp`.
-
-### Story 4.4: Integrate Local Audio Playback Service and Adapter
-
-As a user opening a generated audiobook,
-I want the app to load and play local audio through a dedicated playback service,
-So that playback is reliable across MP3 and WAV outputs.
-
-**Acceptance Criteria:**
-
-**Given** a library item is selected from `library_view.py`
-**When** playback initialization is requested in `player_service.py`
-**Then** the service resolves local file path and format compatibility
-**And** delegates playback operations to `qt_audio_player.py` without bypassing service boundaries.
-
-**Given** the selected audio file is missing unreadable or unsupported
-**When** load is attempted
-**Then** playback initialization fails with normalized output from `result.py`
-**And** error payload format follows `errors.py` with actionable remediation details.
-
-**Given** playback adapter emits runtime status updates
-**When** playback starts stops or errors
-**Then** status transitions are propagated back through `player_service.py` in deterministic form
-**And** UI consumers receive stable state values suitable for presenter rendering.
-
-**Given** playback operations must be diagnosable
-**When** load play stop or error events occur
-**Then** JSONL events are emitted by `jsonl_logger.py` with `stage=player`
-**And** payload includes `correlation_id`, `event`, `severity`, and ISO-8601 UTC `timestamp`.
-
-### Story 4.5: Provide Playback Controls with Pause Resume Seek and Progress
-
-As a user listening to an audiobook,
-I want intuitive playback controls and real-time progress,
-So that I can navigate content comfortably during listening sessions.
-
-**Acceptance Criteria:**
-
-**Given** playback is initialized through `player_service.py`
-**When** I interact with controls in `player_view.py`
-**Then** play pause and resume commands are executed successfully
-**And** control state remains synchronized with actual player status.
-
-**Given** active playback is running
-**When** I seek to a target position
-**Then** playback jumps to requested timestamp within valid bounds
-**And** out-of-range seek attempts return actionable normalized errors.
-
-**Given** users need temporal awareness
-**When** audio is playing or paused
-**Then** current time and total duration are displayed and updated consistently
-**And** progress bar reflects true playback position without UI blocking.
-
-**Given** playback failures or state changes occur
-**When** events are emitted from `qt_audio_player.py`
-**Then** presenter and view update deterministically with user-facing English feedback
-**And** JSONL logs include `correlation_id`, `event`, `severity`, and UTC ISO-8601 `timestamp`.
+**Given** active playback
+**When** user pauses, resumes, or seeks
+**Then** commands are applied within valid bounds
+**And** UI progress/time remain synchronized with player state.
 
 ## Epic 5: Diagnostics and Failure Transparency
 
-Enable users and operators to understand failures and troubleshoot confidently through structured local observability and accessible diagnostics.
+Enable users/operators to understand and troubleshoot failures through structured local observability and actionable diagnostics.
 
-Implementation sequencing note: a minimal JSONL logging skeleton in `jsonl_logger.py` and `event_schema.py` is expected from `Story 1.1` to satisfy earlier epic acceptance criteria. `Story 5.1` and `Story 5.2` should be treated as hardening and completion of observability coverage, not first introduction of logging.
-
-### Story 5.1: Define Correlated JSONL Event Schema and Logging Contract
-
-As a user and support operator,
-I want all pipeline events to follow a consistent JSONL schema,
-So that failures and performance issues can be diagnosed reliably.
-
-**Acceptance Criteria:**
-
-**Given** logging schema definitions in `event_schema.py`
-**When** a pipeline event is emitted
-**Then** payload enforces required fields `correlation_id`, `job_id`, `chunk_index`, `engine`, `stage`, `event`, `severity`, `timestamp`
-**And** optional fields are explicitly nullable with stable typing.
-
-**Given** logger implementation in `jsonl_logger.py`
-**When** events are written to JSONL
-**Then** one valid JSON object is persisted per line in append-only mode
-**And** timestamps are ISO-8601 UTC.
-
-**Given** naming consistency rules
-**When** event names are produced by services
-**Then** event names follow `domain.action`
-**And** non-conformant events are rejected with normalized error output.
-
-**Given** local diagnostics must work offline
-**When** logging runs during conversion and playback flows
-**Then** no network call is performed for log shipping
-**And** logging failures are surfaced as structured local errors without crashing the UI thread.
-
-### Story 5.2: Instrument End-to-End Pipeline with Correlation Context
+### Story 5.1: Define and Enforce JSONL Event Schema
 
 As a support-minded user,
-I want every pipeline stage to emit correlated events,
-So that I can trace a failed conversion from import to playback diagnostics.
+I want all pipeline logs to follow one correlated schema,
+So that failures are diagnosable end-to-end.
 
 **Acceptance Criteria:**
 
-**Given** a conversion job is launched
-**When** stages execute across import extraction chunking synthesis postprocess library and player
-**Then** each stage emits JSONL events with a shared `correlation_id` and job-scoped context
-**And** stage-specific fields include `stage`, `event`, `severity`, and UTC `timestamp`.
+**Given** logging infrastructure is initialized
+**When** services emit runtime events
+**Then** each JSONL event includes required correlation and stage fields
+**And** timestamps are ISO-8601 UTC.
 
-**Given** chunk-level processing occurs in orchestration
-**When** chunk events are emitted
-**Then** payload includes `chunk_index` and active `engine`
-**And** event sequences remain ordered enough to reconstruct chunk lifecycle.
+**Given** an invalid event payload is produced
+**When** schema validation is applied
+**Then** invalid events are rejected or normalized deterministically
+**And** logging failures do not crash the UI thread.
 
-**Given** failures can happen at any stage
-**When** an error is raised
-**Then** the emitted event carries normalized error envelope fields `code`, `message`, `details`, `retryable`
-**And** error and success events share the same schema contract.
+### Story 5.2: Instrument End-to-End Pipeline and Diagnostics UI
 
-**Given** instrumentation must not degrade UX
-**When** event writing is active during long conversions
-**Then** UI responsiveness is preserved and worker flow remains non-blocking
-**And** logging backpressure failures are handled locally with structured fallback behavior.
-
-### Story 5.3: Present Actionable Failure Diagnostics in Conversion UI
-
-As a user facing a failed conversion,
-I want clear diagnostics in the interface,
-So that I can understand what failed and what to do next.
+As a user facing runtime issues,
+I want diagnostics to show meaningful stage-aware failure information,
+So that I can retry or remediate confidently.
 
 **Acceptance Criteria:**
 
-**Given** orchestration returns normalized errors with `code`, `message`, `details`, `retryable`
-**When** failure state is rendered by `conversion_presenter.py`
-**Then** UI shows concise error summary plus expandable details
-**And** remediation guidance is actionable and English-only.
+**Given** a conversion job runs from import to playback
+**When** each pipeline stage executes
+**Then** correlated events are emitted for start/success/failure paths
+**And** chunk-level events include engine and chunk_index when relevant.
 
-**Given** failure can occur at extraction chunking tts postprocess or persistence stages
-**When** diagnostics are displayed
-**Then** stage and engine context are visible to user when available
-**And** retry recommendation reflects actual `retryable` value.
+**Given** a conversion failure is returned to presenter
+**When** diagnostics panel is opened
+**Then** the UI displays normalized error code/message/details/retryable
+**And** remediation guidance is actionable and local-only.
 
-**Given** a user requests deeper diagnostics from the failure panel
-**When** details are opened
-**Then** related `correlation_id` and job context are surfaced for local support troubleshooting
-**And** no raw internal trace is shown unless marked safe for user display.
+## Epic 6: Runtime Fixes & Polish
 
-**Given** diagnostics display must be observable
-**When** failure panel is shown or user triggers retry
-**Then** JSONL events are emitted with `stage=diagnostics_ui` and domain action naming
-**And** payload includes `correlation_id`, `job_id`, `event`, `severity`, and UTC ISO-8601 `timestamp`.
+Stabilize runtime behavior after integration by fixing conversion crashes, introducing degraded readiness behavior, completing Library UI functionality, and finalizing documentation and completion reporting.
 
-### Story 5.4: Provide Local Support Workflow for Error Review and Guided Remediation
+### Story 6.1: Debug and Fix Conversion Pipeline Runtime Failure
 
-As a user troubleshooting repeated conversion failures,
-I want a local support workflow that explains error codes and next steps,
-So that I can resolve issues without external tools or cloud services.
+As a user launching conversion,
+I want conversion to complete end-to-end without worker crashes,
+So that imported documents reliably produce playable audio.
 
 **Acceptance Criteria:**
 
-**Given** a failed job with persisted error context
-**When** support details are opened from the diagnostics UI
-**Then** user can view normalized fields `code`, `message`, `details`, and `retryable`
-**And** remediation guidance is matched to error category extraction chunking engine export persistence.
+**Given** the conversion worker catches runtime exceptions
+**When** an unhandled conversion failure occurs
+**Then** full traceback is captured and logged with `traceback.format_exc()`
+**And** diagnostics include enough context to identify root cause.
 
-**Given** retry decisions must be explicit
-**When** an error is marked `retryable=true`
-**Then** UI presents retry action with clear prerequisites
-**And** non-retryable failures present alternative guidance such as re-import, model repair, or settings correction.
+**Given** conversion is triggered from UI on a small TXT then PDF sample
+**When** pipeline executes through worker and orchestration
+**Then** end-to-end output is produced as WAV or MP3 without `worker_execution.unhandled_exception`
+**And** existing tests remain green with new regression tests added.
 
-**Given** support workflow is local-first MVP
-**When** guidance is displayed
-**Then** all recommendations reference local actions only
-**And** no external API call or cloud submission path is used.
+**Given** both engines are available in target environment
+**When** synthesis is executed with Chatterbox and with Kokoro
+**Then** each engine produces valid audio output
+**And** voice availability presented to UI matches real provider availability.
 
-**Given** support interactions must be traceable
-**When** diagnostics are viewed copied or retry is initiated
-**Then** JSONL events are emitted with `stage=support_workflow` and `domain.action` naming
-**And** payload includes `correlation_id`, `job_id`, `event`, `severity`, and UTC ISO-8601 `timestamp`.
+### Story 6.2: Implement Degraded Readiness Mode
+
+As a user with partial engine availability,
+I want the app to run in degraded mode when fallback works,
+So that I can still convert documents even if primary engine is down.
+
+**Acceptance Criteria:**
+
+**Given** startup checks detect primary engine unavailable and fallback engine healthy
+**When** readiness status is computed
+**Then** readiness is `degraded` instead of `not_ready`
+**And** conversion remains enabled with auto-selection of the working engine.
+
+**Given** all engines are unavailable
+**When** readiness is recomputed
+**Then** status is `not_ready`
+**And** UI displays remediation steps per failed engine.
+
+### Story 6.3: Complete Library View with Select and Delete Actions
+
+As a user managing imported documents,
+I want a functional Library tab with selection and deletion,
+So that I can control which documents are converted and retained.
+
+**Acceptance Criteria:**
+
+**Given** documents are present in local persistence
+**When** library tab is opened
+**Then** list shows title, format, size, import date, and conversion status
+**And** data refresh remains deterministic.
+
+**Given** a user selects a document
+**When** conversion action is initiated from library context
+**Then** selected document is forwarded through presenter/service boundaries
+**And** UI does not access repositories directly.
+
+**Given** a user confirms deletion
+**When** delete operation executes
+**Then** document and related local references are removed safely
+**And** failures are surfaced with normalized actionable errors.
+
+### Story 6.4: Update Project Documentation for Current Stack
+
+As a contributor onboarding the project,
+I want accurate setup and architecture documentation,
+So that I can install and run the application reliably.
+
+**Acceptance Criteria:**
+
+**Given** project docs are outdated
+**When** `README.md` and `INSTALLATION.md` are revised
+**Then** they describe current Python 3.12, ROCm 7.2, and venv setup with copy-pastable commands
+**And** outdated references (Python 3.11, ROCm 6.1, Coqui TTS) are removed.
+
+**Given** architecture context is required for contributors
+**When** documentation update is complete
+**Then** a concise architecture overview and directory structure are included
+**And** instructions align with current implementation boundaries.
+
+### Story 6.5: Produce BMAD Completion Report Covering All Epics
+
+As a product owner,
+I want a completion report summarizing delivery and decisions,
+So that project status and future work are explicit and auditable.
+
+**Acceptance Criteria:**
+
+**Given** epics and implementation artifacts exist
+**When** `_bmad-output/completion-report.md` is finalized
+**Then** it covers Epics 1 through 6 with factual references
+**And** architecture decisions include justifications.
+
+**Given** quality tracking is required
+**When** report is generated
+**Then** test coverage summary and known issues/future work are included
+**And** statements are traceable to source files and current project state.
