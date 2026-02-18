@@ -1,6 +1,6 @@
 # Story 6.2: Implement Degraded Readiness Mode
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -168,6 +168,7 @@ gpt-5.3-codex
 - Preserved deterministic remediation behavior while keeping strict `not_ready` when no engine is available.
 - Updated engine health normalization to preserve provider engine identity on failed checks, ensuring stable fallback/degraded mapping.
 - Added targeted regression tests for dependency container readiness normalization and executed full story test matrix successfully.
+- **Code review fixes applied:** Added comprehensive edge case tests (both engines up, primary missing, empty engines list), enhanced test coverage for `normalize_engine_health`, and added docstrings to public container functions.
 
 ### File List
 
@@ -175,10 +176,12 @@ gpt-5.3-codex
 - src/domain/services/startup_readiness_service.py
 - src/app/dependency_container.py
 - tests/unit/test_dependency_container_readiness.py
+- tests/unit/test_startup_readiness_service.py
 
 ### Change Log
 
 - 2026-02-18: Implemented degraded readiness hardening, preserved deterministic remediation behavior, and added regression coverage for failed-engine identity normalization.
+- 2026-02-18: Applied code review fixes - added edge case tests for readiness logic (both engines up, primary missing, empty engines), enhanced normalize_engine_health test coverage, and added comprehensive docstrings to dependency_container public functions.
 
 ## Story Completion Status
 

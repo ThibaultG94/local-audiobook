@@ -72,7 +72,21 @@ class AppContainer:
 
 
 def normalize_engine_health(result: Any, *, expected_engine: str = "unknown") -> dict[str, Any]:
-    """Normalize a provider health_check Result into a flat dict."""
+    """Normalize a provider health_check Result into a flat dict.
+    
+    Args:
+        result: Result envelope from provider.health_check()
+        expected_engine: Fallback engine identifier if payload doesn't contain one
+        
+    Returns:
+        Normalized dict with keys: engine (str), ok (bool), error (dict|None)
+        
+    Behavior:
+        - If result.ok: extracts engine from payload (or uses expected_engine),
+          sets ok=available, error=None
+        - If result.error: uses expected_engine, ok=False, error=normalized dict
+        - Engine name priority: payload["engine"] > expected_engine parameter
+    """
     if result.ok:
         data = result.data or {}
         return {
@@ -88,7 +102,19 @@ def normalize_engine_health(result: Any, *, expected_engine: str = "unknown") ->
 
 
 def collect_engine_health(container: AppContainer) -> list[dict[str, Any]]:
-    """Collect normalized health for all startup engines."""
+    """Collect normalized health for all startup engines.
+    
+    Args:
+        container: Application dependency container with initialized providers
+        
+    Returns:
+        List of normalized engine health dicts, one per configured provider.
+        Each dict contains: engine (str), ok (bool), error (dict|None)
+        
+    Note:
+        Uses provider.engine_name as expected_engine fallback to ensure
+        consistent engine identification even if health_check payload is incomplete.
+    """
     chatterbox_health = normalize_engine_health(
         container.providers.chatterbox.health_check(),
         expected_engine=container.providers.chatterbox.engine_name,
