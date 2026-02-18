@@ -71,7 +71,7 @@ PY
 pytest tests/ -q
 ```
 
-Expected: **270 passed**.
+Expected: **294 passed** (with 1 warning).
 
 ### 7.3 Model manifest readiness
 

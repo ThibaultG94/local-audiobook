@@ -1,6 +1,6 @@
 # Story 6.4: Update Project Documentation for Current Stack
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -178,21 +178,33 @@ gpt-5.3-codex
 - Updated `INSTALLATION.md` wording to ROCm 7.2-specific guidance and added explicit run command via `python -m src.app.main`.
 - Verified no stale references remain in scoped docs (`README.md`, `INSTALLATION.md`) for Python 3.11 / ROCm 6.1 / Coqui.
 - Executed regression suite in project venv: `.venv/bin/python -m pytest tests/ -q` with `294 passed, 1 warning`.
+- **Code review fixes applied:**
+  - Fixed `pyproject.toml` to require Python >=3.12 (was >=3.10)
+  - Enhanced README architecture overview with explicit mention of `src/contracts/` and clearer boundaries
+  - Expanded repository structure section with detailed subdirectory breakdown
+  - Added dev dependencies installation instructions to README
+  - Corrected expected test count in INSTALLATION.md (294 passed, not 270)
+  - Replaced `PASSE_2_RAPPORT.md` with historical note redirecting to current docs
+  - Updated `project-brief.md` to remove Coqui TTS reference
 
 ### File List
 
 - README.md
 - INSTALLATION.md
+- pyproject.toml
+- PASSE_2_RAPPORT.md
+- \_bmad-output/project-brief.md
 - \_bmad-output/implementation-artifacts/6-4-update-project-documentation-for-current-stack.md
 - \_bmad-output/implementation-artifacts/sprint-status.yaml
 
 ## Change Log
 
 - 2026-02-18: Refreshed contributor documentation for current stack (Python 3.12, ROCm 7.2, venv flow), aligned architecture + repository structure guidance, and validated via full regression test run.
+- 2026-02-18: Applied code review fixes - corrected pyproject.toml Python requirement, enhanced architecture overview, expanded repository structure, fixed test count, cleaned stale references from PASSE_2_RAPPORT.md and project-brief.md.
 
 ## Story Completion Status
 
 - Story ID: `6.4`
 - Story Key: `6-4-update-project-documentation-for-current-stack`
-- Status set to: `review`
-- Completion note: Documentation updated and validated against current stack and implementation boundaries.
+- Status set to: `done`
+- Completion note: Documentation updated and validated against current stack and implementation boundaries. Code review fixes applied to ensure full AC compliance.

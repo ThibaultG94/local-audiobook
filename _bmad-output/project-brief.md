@@ -2,6 +2,7 @@ stepsCompleted: [1, 2, 3]
 inputDocuments: []
 date: 2026-02-10
 author: Thibault
+
 ---
 
 # Product Brief: Local Audiobook Converter
@@ -105,7 +106,7 @@ Une application de conversion locale qui permet de convertir des documents textu
 - **Mémoire modèle** : prévoir ~6GB VRAM minimum pour Chatterbox.
 - **Offline après setup** : aucune connexion Internet requise après téléchargement initial des modèles.
 - **Langue MVP** : interface en anglais uniquement.
-- **Décision technique validée** : Coqui TTS remplacé par Chatterbox TTS.
+- **Décision technique validée** : Chatterbox TTS (GPU) et Kokoro ONNX (CPU fallback) retenus comme moteurs TTS.
 
 ## Success Metrics
 
