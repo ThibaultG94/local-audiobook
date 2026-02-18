@@ -46,6 +46,11 @@ class LibraryItemsRepository(BaseRepository):
         audio_path = str(record["audio_path"])
         self._validate_audio_path(audio_path)
         
+        # Validate byte_size is non-negative
+        byte_size = int(record.get("byte_size") or 0)
+        if byte_size < 0:
+            raise ValueError(f"byte_size must be non-negative, got: {byte_size}")
+        
         normalized = {
             "id": str(record.get("id") or uuid4()),
             "document_id": str(record["document_id"]),
@@ -59,7 +64,7 @@ class LibraryItemsRepository(BaseRepository):
             "voice": str(record.get("voice") or ""),
             "language": str(record.get("language") or ""),
             "duration_seconds": float(record.get("duration_seconds") or 0.0),
-            "byte_size": int(record.get("byte_size") or 0),
+            "byte_size": byte_size,
             "created_at": str(record["created_at"]),
         }
 
@@ -238,6 +243,9 @@ class LibraryItemsRepository(BaseRepository):
     def _validate_audio_path(audio_path: str) -> None:
         """Validate audio path is under runtime/library/audio to prevent path traversal.
         
+        Uses Path.is_relative_to() for secure path validation that prevents
+        symlink attacks and path traversal vulnerabilities.
+        
         Raises:
             ValueError: If path is invalid or outside expected bounds
         """
@@ -246,14 +254,16 @@ class LibraryItemsRepository(BaseRepository):
         
         try:
             input_path = Path(audio_path)
-            resolved_path = input_path.resolve()
-            expected_base = Path("runtime/library/audio").resolve()
+            resolved_path = input_path.resolve(strict=False)
+            expected_base = Path("runtime/library/audio").resolve(strict=False)
             
-            if not str(resolved_path).startswith(str(expected_base)):
+            # Use is_relative_to() for secure path validation (Python 3.9+)
+            # This prevents symlink attacks and sophisticated path traversal
+            if not resolved_path.is_relative_to(expected_base):
                 raise ValueError(
                     f"audio_path must be under runtime/library/audio/, got: {audio_path}"
                 )
-        except (OSError, RuntimeError) as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             raise ValueError(f"Invalid audio_path: {audio_path}") from exc
 
     @staticmethod

@@ -417,6 +417,13 @@ class TestLibraryService(unittest.TestCase):
         self.assertEqual(result.error.code, "library_management.item_not_found")
 
     def test_delete_library_item_rejects_path_outside_runtime_bounds(self) -> None:
+        """Test that delete rejects paths outside runtime bounds.
+        
+        NOTE: With the new transaction ordering (DB delete first, then artifact cleanup),
+        the delete operation succeeds even if artifact cleanup fails. This is by design
+        to prevent orphaned metadata. The artifact cleanup failure is logged but doesn't
+        fail the overall operation.
+        """
         repository = _InMemoryLibraryItemsRepository()
         repository.items = [
             {
@@ -427,6 +434,7 @@ class TestLibraryService(unittest.TestCase):
                 "source_format": "epub",
                 "language": "fr",
                 "format": "mp3",
+                "byte_size": 100,
                 "audio_path": "../../../etc/passwd",
                 "created_at": "2026-02-14T10:00:00+00:00",
             }
@@ -436,10 +444,13 @@ class TestLibraryService(unittest.TestCase):
 
         result = service.delete_library_item(correlation_id="corr-delete-unsafe", item_id="lib-delete-unsafe")
 
-        self.assertFalse(result.ok)
-        assert result.error is not None
-        self.assertEqual(result.error.code, "library_management.artifact_cleanup_failed")
-        self.assertIn("runtime/library/audio", str(result.error.details.get("remediation", "")))
+        # With new transaction ordering: DB delete succeeds, artifact cleanup is best-effort
+        # So the operation succeeds overall, but artifact_deleted=False
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertEqual(result.data["deleted_item_id"], "lib-delete-unsafe")
+        # Artifact should NOT be deleted due to path validation failure
+        self.assertFalse(result.data.get("artifact_deleted", True))
 
     def test_delete_library_item_maps_repository_failure(self) -> None:
         repository = _FailingDeleteLibraryItemsRepository()

@@ -1,6 +1,6 @@
 # Story 6.3: Complete Library View with Select and Delete Actions
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -215,6 +215,23 @@ gpt-5.3-codex
 - Added safe library delete flow with normalized errors (`invalid_item_id`, `item_not_found`, `delete_failed`, `artifact_cleanup_failed`) and bounded artifact cleanup under `runtime/library/audio`.
 - Added delete lifecycle and conversion-preparation observability events at stage `library_management` (`library.item_prepared_for_convert`, `library.item_deleted`, `library.item_delete_failed`, `library.item_artifact_deleted`).
 - Added/extended unit and integration tests for deterministic browse fields, selection state transitions, repository delete behavior, safe artifact cleanup, and browse-select-delete integration.
+
+### Code Review Fixes Applied (2026-02-18)
+
+**Security & Data Integrity:**
+
+- Fixed path traversal vulnerability by replacing `str.startswith()` with `Path.is_relative_to()` for secure path validation
+- Fixed transaction ordering in delete: now deletes DB metadata first (transactional), then cleans up artifact (best-effort) to prevent orphaned metadata
+- Added byte_size validation to reject negative values at repository boundary
+- Enhanced observability: delete events now include title, audio_path, and byte_size for complete audit trail
+
+**Reliability & UX:**
+
+- Added mandatory confirmation parameter to delete operations to prevent accidental data loss (AC3 compliance)
+- Fixed memory leak: increased auto-refresh thread timeout from 0.2s to 2.0s with retry logic and proper cleanup
+- Documented timeout constant with clear rationale
+
+**Total fixes:** 10 issues resolved (8 High, 2 Medium)
 
 ### File List
 

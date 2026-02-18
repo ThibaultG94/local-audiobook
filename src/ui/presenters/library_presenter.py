@@ -16,6 +16,8 @@ class LibraryServicePort(Protocol):
     def prepare_item_for_conversion(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]: ...
 
     def delete_library_item(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]: ...
+    
+    def check_item_in_use(self, *, item_id: str) -> bool: ...
 
 
 @runtime_checkable
@@ -154,8 +156,37 @@ class LibraryPresenter:
         }
         return self.state
 
-    def delete_selected(self, *, correlation_id: str) -> dict[str, Any]:
+    def delete_selected(self, *, correlation_id: str, confirmed: bool = False) -> dict[str, Any]:
+        """Delete selected library item with mandatory confirmation.
+        
+        Args:
+            correlation_id: Correlation ID for logging
+            confirmed: MUST be True to proceed with deletion (prevents accidental deletes)
+        
+        Returns:
+            Updated state dict with deletion result or confirmation request
+        """
         selected_item_id = str(self.state.get("selected_item_id") or "")
+        
+        # CRITICAL: Require explicit confirmation for destructive operation
+        if not confirmed:
+            self.state = {
+                **self.state,
+                "status": "confirmation_required",
+                "error": {
+                    "code": "library_management.confirmation_required",
+                    "message": "Deletion requires confirmation to prevent accidental data loss.",
+                    "details": {
+                        "category": "confirmation",
+                        "selected_item_id": selected_item_id,
+                        "remediation": "Call delete_selected with confirmed=True to proceed.",
+                    },
+                    "retryable": False,
+                    "remediation": "Confirm deletion to proceed.",
+                },
+            }
+            return self.state
+        
         result = self._library_service.delete_library_item(
             correlation_id=correlation_id,
             item_id=selected_item_id,

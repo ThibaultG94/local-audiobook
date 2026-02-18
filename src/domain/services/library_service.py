@@ -248,7 +248,12 @@ class LibraryService:
         return success(payload)
 
     def delete_library_item(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]:
-        """Delete one library item and cleanup local artifact references safely."""
+        """Delete one library item and cleanup local artifact references safely.
+        
+        CRITICAL: Deletes metadata from DB FIRST (transactional), then cleans up
+        artifact file (best-effort). This prevents orphaned metadata pointing to
+        non-existent files if artifact cleanup fails.
+        """
         normalized_item_id = str(item_id or "").strip()
         if not normalized_item_id:
             error = failure(
@@ -293,22 +298,13 @@ class LibraryService:
             )
             return error
 
-        artifact_cleanup = self._cleanup_artifact_for_delete(
-            audio_path=str(record.get("audio_path") or ""),
-            correlation_id=correlation_id,
-            job_id=str(record.get("job_id") or ""),
-        )
-        if not artifact_cleanup.ok:
-            self._emit(
-                event="library.item_delete_failed",
-                stage="library_management",
-                severity="ERROR",
-                correlation_id=correlation_id,
-                job_id=str(record.get("job_id") or ""),
-                extra={"error": artifact_cleanup.error.to_dict() if artifact_cleanup.error else {}},
-            )
-            return artifact_cleanup
+        # Store artifact path and metadata for cleanup and logging BEFORE deletion
+        audio_path = str(record.get("audio_path") or "")
+        title = str(record.get("title") or "")
+        byte_size = int(record.get("byte_size") or 0)
+        job_id = str(record.get("job_id") or "")
 
+        # STEP 1: Delete from DB first (transactional, can rollback)
         try:
             deleted = self._library_items_repository.delete_item_by_id(normalized_item_id)
         except Exception as exc:
@@ -329,7 +325,7 @@ class LibraryService:
                 stage="library_management",
                 severity="ERROR",
                 correlation_id=correlation_id,
-                job_id=str(record.get("job_id") or ""),
+                job_id=job_id,
                 extra={
                     "error": error.error.to_dict() if error.error else {},
                     "exception_type": type(exc).__name__,
@@ -353,24 +349,41 @@ class LibraryService:
                 stage="library_management",
                 severity="ERROR",
                 correlation_id=correlation_id,
-                job_id=str(record.get("job_id") or ""),
+                job_id=job_id,
                 extra={"error": error.error.to_dict() if error.error else {}},
             )
             return error
 
+        # STEP 2: Cleanup artifact file (best-effort, non-critical if fails)
+        # If this fails, metadata is already deleted, so we don't fail the operation
+        artifact_cleanup = self._cleanup_artifact_for_delete(
+            audio_path=audio_path,
+            correlation_id=correlation_id,
+            job_id=job_id,
+        )
+        
+        artifact_deleted = bool((artifact_cleanup.data or {}).get("artifact_deleted", False))
+        
+        # Log successful deletion with full audit trail
         self._emit(
             event="library.item_deleted",
             stage="library_management",
             severity="INFO",
             correlation_id=correlation_id,
-            job_id=str(record.get("job_id") or ""),
-            extra={"library_item_id": normalized_item_id},
+            job_id=job_id,
+            extra={
+                "library_item_id": normalized_item_id,
+                "title": title,
+                "audio_path": audio_path,
+                "byte_size": byte_size,
+                "artifact_deleted": artifact_deleted,
+            },
         )
         return success(
             {
                 "deleted_item_id": normalized_item_id,
                 "deleted_item": self._to_browse_item(deleted),
-                "artifact_deleted": bool((artifact_cleanup.data or {}).get("artifact_deleted", False)),
+                "artifact_deleted": artifact_deleted,
             }
         )
 
@@ -622,9 +635,9 @@ class LibraryService:
             return success({"artifact_deleted": False, "reason": "missing_path"})
 
         input_path = Path(normalized_audio_path)
-        expected_base = Path("runtime/library/audio").resolve()
+        expected_base = Path("runtime/library/audio").resolve(strict=False)
         try:
-            resolved_path = input_path.resolve()
+            resolved_path = input_path.resolve(strict=False)
         except OSError as exc:
             return failure(
                 code="library_management.artifact_cleanup_failed",
@@ -638,16 +651,30 @@ class LibraryService:
                 retryable=False,
             )
 
-        if not str(resolved_path).startswith(str(expected_base)):
+        # Use is_relative_to() for secure path validation (Python 3.9+)
+        try:
+            if not resolved_path.is_relative_to(expected_base):
+                return failure(
+                    code="library_management.artifact_cleanup_failed",
+                    message="Refusing to delete artifact outside runtime/library/audio bounds.",
+                    details={
+                        "category": "artifact",
+                        "audio_path": normalized_audio_path,
+                        "resolved_path": str(resolved_path),
+                        "expected_base": str(expected_base),
+                        "remediation": "Move the artifact under runtime/library/audio or correct the metadata path before retrying.",
+                    },
+                    retryable=False,
+                )
+        except (ValueError, AttributeError):
+            # Fallback for edge cases or if is_relative_to fails
             return failure(
                 code="library_management.artifact_cleanup_failed",
-                message="Refusing to delete artifact outside runtime/library/audio bounds.",
+                message="Unable to validate artifact path safety.",
                 details={
                     "category": "artifact",
                     "audio_path": normalized_audio_path,
-                    "resolved_path": str(resolved_path),
-                    "expected_base": str(expected_base),
-                    "remediation": "Move the artifact under runtime/library/audio or correct the metadata path before retrying.",
+                    "remediation": "Verify artifact path under runtime/library/audio and retry deletion.",
                 },
                 retryable=False,
             )
@@ -711,9 +738,9 @@ class LibraryService:
             return error
 
         input_path = Path(normalized_audio_path)
-        expected_base = Path("runtime/library/audio").resolve()
+        expected_base = Path("runtime/library/audio").resolve(strict=False)
         try:
-            resolved_path = input_path.resolve()
+            resolved_path = input_path.resolve(strict=False)
         except OSError as exc:
             error = failure(
                 code="library_browse.invalid_audio_path",
@@ -736,16 +763,39 @@ class LibraryService:
             )
             return error
 
-        if not str(resolved_path).startswith(str(expected_base)):
+        # Use is_relative_to() for secure path validation (Python 3.9+)
+        try:
+            if not resolved_path.is_relative_to(expected_base):
+                error = failure(
+                    code="library_browse.invalid_audio_path",
+                    message="Audio path is outside local runtime bounds.",
+                    details={
+                        "category": "input",
+                        "audio_path": normalized_audio_path,
+                        "resolved_path": str(resolved_path),
+                        "expected_base": str(expected_base),
+                        "remediation": "Relink the item to a file under runtime/library/audio or reconvert locally.",
+                    },
+                    retryable=False,
+                )
+                self._emit(
+                    event="library.path_validation_failed",
+                    stage="library_browse",
+                    severity="ERROR",
+                    correlation_id=correlation_id,
+                    job_id=job_id,
+                    extra={"error": error.error.to_dict() if error.error else {}},
+                )
+                return error
+        except (ValueError, AttributeError):
+            # Fallback for edge cases
             error = failure(
                 code="library_browse.invalid_audio_path",
-                message="Audio path is outside local runtime bounds.",
+                message="Unable to validate audio path safety.",
                 details={
                     "category": "input",
                     "audio_path": normalized_audio_path,
-                    "resolved_path": str(resolved_path),
-                    "expected_base": str(expected_base),
-                    "remediation": "Relink the item to a file under runtime/library/audio or reconvert locally.",
+                    "remediation": "Relink the audiobook file or reconvert locally.",
                 },
                 retryable=False,
             )

@@ -216,7 +216,13 @@ class TestLibraryPresenter(unittest.TestCase):
         self.assertEqual(converted["status"], "ready")
         self.assertEqual(converted["conversion_context"]["library_item_id"], "lib-1")
 
-        deleted = presenter.delete_selected(correlation_id="corr-delete-selected")
+        # Test confirmation requirement
+        unconfirmed = presenter.delete_selected(correlation_id="corr-delete-unconfirmed", confirmed=False)
+        self.assertEqual(unconfirmed["status"], "confirmation_required")
+        self.assertEqual(unconfirmed["error"]["code"], "library_management.confirmation_required")
+
+        # Test confirmed deletion
+        deleted = presenter.delete_selected(correlation_id="corr-delete-selected", confirmed=True)
         self.assertEqual(deleted["status"], "ready")
         self.assertEqual(deleted["selected_item_id"], "")
         self.assertEqual(len(deleted["items"]), 0)
@@ -233,7 +239,7 @@ class TestLibraryPresenter(unittest.TestCase):
         presenter = LibraryPresenter(library_service=service, player_service=player)
         presenter.select_item(item_id="lib-1")
 
-        state = presenter.delete_selected(correlation_id="corr-delete-selected-fail")
+        state = presenter.delete_selected(correlation_id="corr-delete-selected-fail", confirmed=True)
 
         self.assertEqual(state["status"], "error")
         self.assertEqual(state["error"]["code"], "library_management.delete_failed")

@@ -63,7 +63,20 @@ class _FakeLibraryPresenter:
             "error": None,
         }
 
-    def delete_selected(self, *, correlation_id: str):
+    def delete_selected(self, *, correlation_id: str, confirmed: bool = False):
+        if not confirmed:
+            return {
+                "status": "confirmation_required",
+                "items": [{"id": "lib-1", "title": "Book"}],
+                "selected_item_id": "lib-1",
+                "conversion_context": None,
+                "playback_context": None,
+                "playback_state": "idle",
+                "playback_position_seconds": 0.0,
+                "playback_duration_seconds": 0.0,
+                "playback_progress": 0.0,
+                "error": {"code": "library_management.confirmation_required"},
+            }
         return {
             "status": "ready",
             "items": [],
@@ -202,6 +215,11 @@ class TestLibraryView(unittest.TestCase):
         converted = view.convert_selected(correlation_id="corr-view-convert")
         self.assertEqual(converted["conversion_context"]["library_item_id"], "lib-1")
 
-        deleted = view.delete_selected(correlation_id="corr-view-delete")
+        # Test unconfirmed delete
+        unconfirmed = view.delete_selected(correlation_id="corr-view-delete-unconfirmed", confirmed=False)
+        self.assertEqual(unconfirmed["status"], "confirmation_required")
+
+        # Test confirmed delete
+        deleted = view.delete_selected(correlation_id="corr-view-delete", confirmed=True)
         self.assertEqual(deleted["selected_item_id"], "")
         self.assertEqual(len(deleted["items"]), 0)
