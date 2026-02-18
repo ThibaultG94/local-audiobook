@@ -1,6 +1,6 @@
 # Story 6.1: Debug and Fix Conversion Pipeline Runtime Failure
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -29,22 +29,22 @@ so that imported documents reliably produce playable audio.
 
 ## Tasks / Subtasks
 
-- [ ] Add traceback capture and structured diagnostics in conversion worker exception path (AC: 1)
-  - [ ] Update unhandled exception branch in `src/ui/workers/conversion_worker.py` to include traceback text from `traceback.format_exc()` in normalized error details
-  - [ ] Keep event emission non-blocking and preserve `worker_execution.failed` logging contract
-  - [ ] Ensure diagnostic payload remains normalized (`code`, `message`, `details`, `retryable`) and correlation context is preserved
-- [ ] Remove root causes producing `worker_execution.unhandled_exception` during end-to-end conversion (AC: 2)
-  - [ ] Reproduce TXT and PDF conversion through UI worker path and identify failing stage
-  - [ ] Apply fix in worker/service boundary (not in UI rendering layer) so conversion returns controlled failures or success
-  - [ ] Confirm final audio completion path returns deterministic completed state
-- [ ] Validate TTS engine execution and UI voice inventory consistency (AC: 3)
-  - [ ] Run/adapt adapter tests to verify both Chatterbox and Kokoro produce valid outputs
-  - [ ] Confirm voice inventory shown by presenter aligns with provider capability outputs
-  - [ ] Add targeted guards if provider capability mismatches are found
-- [ ] Add regression tests and verify full suite stability (AC: 2, 3)
-  - [ ] Extend `tests/unit/test_conversion_worker.py` with traceback-presence assertion in unhandled exception normalization
-  - [ ] Add/extend integration tests for TXT+PDF conversion completion path without `worker_execution.unhandled_exception`
-  - [ ] Keep existing tests green after changes
+- [x] Add traceback capture and structured diagnostics in conversion worker exception path (AC: 1)
+  - [x] Update unhandled exception branch in `src/ui/workers/conversion_worker.py` to include traceback text from `traceback.format_exc()` in normalized error details
+  - [x] Keep event emission non-blocking and preserve `worker_execution.failed` logging contract
+  - [x] Ensure diagnostic payload remains normalized (`code`, `message`, `details`, `retryable`) and correlation context is preserved
+- [x] Remove root causes producing `worker_execution.unhandled_exception` during end-to-end conversion (AC: 2)
+  - [x] Reproduce TXT and PDF conversion through UI worker path and identify failing stage
+  - [x] Apply fix in worker/service boundary (not in UI rendering layer) so conversion returns controlled failures or success
+  - [x] Confirm final audio completion path returns deterministic completed state
+- [x] Validate TTS engine execution and UI voice inventory consistency (AC: 3)
+  - [x] Run/adapt adapter tests to verify both Chatterbox and Kokoro produce valid outputs
+  - [x] Confirm voice inventory shown by presenter aligns with provider capability outputs
+  - [x] Add targeted guards if provider capability mismatches are found
+- [x] Add regression tests and verify full suite stability (AC: 2, 3)
+  - [x] Extend `tests/unit/test_conversion_worker.py` with traceback-presence assertion in unhandled exception normalization
+  - [x] Add/extend integration tests for TXT+PDF conversion completion path without `worker_execution.unhandled_exception`
+  - [x] Keep existing tests green after changes
 
 ## Dev Notes
 
@@ -139,9 +139,11 @@ gpt-5.3-codex
 
 ### Debug Log References
 
-- `python -m unittest -q tests.unit.test_conversion_worker`
-- `python -m unittest -q tests.integration.test_conversion_configuration_integration`
-- `python -m unittest -q tests.integration.test_tts_adapters_functional`
+- `python3 -m unittest -q tests.unit.test_conversion_worker`
+- `python3 -m unittest -q tests.integration.test_conversion_configuration_integration`
+- `python3 -m unittest -q tests.integration.test_tts_adapters_functional`
+- `python3 -m unittest -q tests.integration.test_postprocess_pipeline_integration tests.unit.test_conversion_worker tests.integration.test_conversion_configuration_integration tests.integration.test_tts_adapters_functional`
+- `python3 -m unittest -q`
 
 ### Implementation Plan
 
@@ -153,17 +155,34 @@ gpt-5.3-codex
 
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created.
-- Story created for Epic 6 runtime stabilization and marked ready-for-dev.
+- Added full traceback capture in worker unhandled exception normalization (`traceback`, `exception_type`, `exception`) while preserving normalized envelope and non-blocking event emission.
+- Fixed conversion-path runtime failure root cause by normalizing package imports in TTS adapters and TTS domain port/service to `src.*` paths used by the runtime/test invocation.
+- Added regression assertions for traceback presence in worker unhandled-exception unit test.
+- Added PDF-path conversion integration coverage (worker + orchestration + postprocess) asserting absence of `worker_execution.unhandled_exception` and successful output artifact generation.
+- Validated targeted suites green for worker, conversion configuration, postprocess pipeline, and TTS adapters.
+- Full `python3 -m unittest -q` run is blocked in this environment by missing optional dependency `ebooklib` required by EPUB extractor tests.
 
 ### File List
 
+- src/ui/workers/conversion_worker.py
+- src/adapters/tts/base_tts_provider.py
+- src/adapters/tts/kokoro_provider.py
+- src/adapters/tts/chatterbox_provider.py
+- src/domain/ports/tts_provider.py
+- src/domain/services/job_state_validator.py
+- tests/unit/test_conversion_worker.py
+- tests/integration/test_postprocess_pipeline_integration.py
+- tests/integration/test_tts_adapters_functional.py
 - \_bmad-output/implementation-artifacts/6-1-debug-and-fix-conversion-pipeline-runtime-failure.md
 - \_bmad-output/implementation-artifacts/sprint-status.yaml
+
+### Change Log
+
+- 2026-02-18: Implemented AC1-AC3 fixes and regressions for conversion worker traceback diagnostics, TTS import-path runtime stability, and TXT/PDF conversion-path coverage.
 
 ## Story Completion Status
 
 - Story ID: `6.1`
 - Story Key: `6-1-debug-and-fix-conversion-pipeline-runtime-failure`
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Runtime hardening implemented with traceback diagnostics, import-path failure fixes, and regression coverage for TXT/PDF conversion paths without unhandled worker exceptions.

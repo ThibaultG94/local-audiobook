@@ -242,8 +242,12 @@ class TestConversionWorker(unittest.TestCase):
             self.assertFalse(result.ok)
             assert result.error is not None
             self.assertEqual(result.error.code, "worker_execution.unhandled_exception")
+            self.assertIn("traceback", result.error.details)
+            self.assertIn("launcher exploded", result.error.details.get("traceback", ""))
+            self.assertEqual(result.error.details.get("exception_type"), "RuntimeError")
             self.assertTrue(errors)
             self.assertEqual(errors[0]["error"]["code"], "worker_execution.unhandled_exception")
+            self.assertIn("traceback", errors[0]["error"].get("details", {}))
             self.assertIn("worker_execution:worker_execution.failed", logger.events)
         finally:
             worker.shutdown()

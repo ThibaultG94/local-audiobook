@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts.result import Result, failure, success
+from src.contracts.result import Result, failure, success
 
 ALLOWED_STATES = {"queued", "running", "paused", "failed", "completed"}
 

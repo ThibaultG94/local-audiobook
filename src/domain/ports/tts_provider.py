@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Protocol, TypedDict
 
-from contracts.result import Result
+from src.contracts.result import Result
 
 
 class TtsVoice(TypedDict):

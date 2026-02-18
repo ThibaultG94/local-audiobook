@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import traceback
 from collections.abc import Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -441,7 +442,11 @@ class ConversionWorker:
             normalized = failure(
                 code="worker_execution.unhandled_exception",
                 message="Conversion worker execution failed unexpectedly",
-                details={"exception": str(exc)},
+                details={
+                    "exception": str(exc),
+                    "exception_type": type(exc).__name__,
+                    "traceback": traceback.format_exc(),
+                },
                 retryable=True,
             )
             error_payload = normalized.error.to_dict() if normalized.error else {}

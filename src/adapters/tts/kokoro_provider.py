@@ -13,8 +13,8 @@ try:
 except ImportError:
     KOKORO_AVAILABLE = False
 
-from domain.ports.tts_provider import TtsVoice
-from adapters.tts.base_tts_provider import BaseTtsProvider
+from src.domain.ports.tts_provider import TtsVoice
+from src.adapters.tts.base_tts_provider import BaseTtsProvider
 
 # Kokoro voice catalog
 KOKORO_VOICES = {

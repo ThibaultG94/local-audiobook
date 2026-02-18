@@ -1,7 +1,7 @@
 """Integration test for TTS adapters with real synthesis."""
 
-from adapters.tts.kokoro_provider import KokoroProvider
-from adapters.tts.chatterbox_provider import ChatterboxProvider
+from src.adapters.tts.kokoro_provider import KokoroProvider
+from src.adapters.tts.chatterbox_provider import ChatterboxProvider
 
 
 def test_kokoro_provider_health_check():

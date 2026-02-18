@@ -5,9 +5,9 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import Any
 
-from contracts.result import Result, failure, success
-from domain.ports.tts_provider import ProviderLogger, TtsProvider, TtsSynthesisData, TtsVoice
-from infrastructure.logging.event_schema import utc_now_iso
+from src.contracts.result import Result, failure, success
+from src.domain.ports.tts_provider import ProviderLogger, TtsProvider, TtsSynthesisData, TtsVoice
+from src.infrastructure.logging.event_schema import utc_now_iso
 
 
 class BaseTtsProvider(TtsProvider):
