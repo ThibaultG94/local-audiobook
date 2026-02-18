@@ -1,156 +1,121 @@
-# BMAD V6 Completion Report — Local Audiobook
+# BMAD V6 Completion Report — local-audiobook
 
-Date: 2026-02-17
+Date: 2026-02-18
 
 ## 1) Executive Summary
 
-The project delivered a local-first desktop audiobook conversion pipeline with five completed epics and 23 completed stories, including retrospective closure for each epic ([`sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml:42), [`epics.md`](_bmad-output/planning-artifacts/epics.md:134)).
+This report closes BMAD delivery with a factual, file-traceable summary across Epics 1–6.
 
-At product level, the implemented flow is: import → extraction → chunking/orchestration → TTS synthesis → audio assembly → local library persistence ([`README.md`](/README.md:43), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:443)).
+- Epics 1–5 are marked `done` and Epic 6 is in final hardening/review flow in sprint tracking ([`development_status`](_bmad-output/implementation-artifacts/sprint-status.yaml:42), [`epic-6`](_bmad-output/implementation-artifacts/sprint-status.yaml:81)).
+- Delivered product scope is a local-first desktop pipeline: import → extraction → chunking/orchestration → TTS synthesis → audio assembly → local library/playback ([`README.md`](README.md:51), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:443)).
+- MVP boundaries remain explicit: Linux Mint target, offline-first after model bootstrap, no cloud runtime dependency ([`README.md`](README.md:16), [`README.md`](README.md:71), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:170)).
 
-Current stack in repository:
+## 2) Epic-by-Epic Delivery Traceability (Epics 1–6)
 
-- Python desktop app with PyQt5 UI ([`pyproject.toml`](/pyproject.toml:10), [`pyproject.toml`](/pyproject.toml:15))
-- Local persistence with SQLite migrations ([`0001_initial_schema.sql`](migrations/0001_initial_schema.sql), [`migration_runner.py`](src/adapters/persistence/sqlite/migration_runner.py))
-- Extraction adapters for EPUB/PDF/TXT/MD ([`epub_extractor.py`](src/adapters/extraction/epub_extractor.py), [`pdf_extractor.py`](src/adapters/extraction/pdf_extractor.py:15), [`text_extractor.py`](src/adapters/extraction/text_extractor.py))
-- Dual TTS engines through adapters: Chatterbox + Kokoro ([`chatterbox_provider.py`](src/adapters/tts/chatterbox_provider.py:22), [`kokoro_provider.py`](src/adapters/tts/kokoro_provider.py:34))
-- Structured JSONL observability ([`jsonl_logger.py`](src/infrastructure/logging/jsonl_logger.py:31), [`event_schema.py`](src/infrastructure/logging/event_schema.py:10))
+| Epic                                        | Scope delivered                                                                                                    | Story evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Sprint evidence                                                                                                                                                            |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Epic 1 — Local Setup & Offline Readiness    | Startup/bootstrap foundation, model readiness checks, readiness surfaced in UI                                     | [`1-1-initialize-local-application-foundation-and-persistent-job-store.md`](_bmad-output/implementation-artifacts/1-1-initialize-local-application-foundation-and-persistent-job-store.md), [`1-2-validate-model-assets-and-engine-health-at-startup.md`](_bmad-output/implementation-artifacts/1-2-validate-model-assets-and-engine-health-at-startup.md), [`1-3-surface-offline-readiness-status-and-actionable-remediation-in-ui.md`](_bmad-output/implementation-artifacts/1-3-surface-offline-readiness-status-and-actionable-remediation-in-ui.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | [`epic-1: done`](_bmad-output/implementation-artifacts/sprint-status.yaml:43)                                                                                              |
+| Epic 2 — Multi-Format Import & Extraction   | Import/validation and extraction flows for EPUB/PDF/TXT/MD plus unified extraction diagnostics                     | [`2-1-import-local-multi-format-documents-with-input-validation.md`](_bmad-output/implementation-artifacts/2-1-import-local-multi-format-documents-with-input-validation.md), [`2-2-extract-clean-text-from-epub-with-actionable-failure-handling.md`](_bmad-output/implementation-artifacts/2-2-extract-clean-text-from-epub-with-actionable-failure-handling.md), [`2-3-extract-text-from-pdf-with-degraded-case-handling.md`](_bmad-output/implementation-artifacts/2-3-extract-text-from-pdf-with-degraded-case-handling.md), [`2-4-extract-and-normalize-txt-and-markdown-inputs.md`](_bmad-output/implementation-artifacts/2-4-extract-and-normalize-txt-and-markdown-inputs.md), [`2-5-provide-unified-extraction-error-feedback-and-diagnostics.md`](_bmad-output/implementation-artifacts/2-5-provide-unified-extraction-error-feedback-and-diagnostics.md)                                                                                                                                                                                                                                       | [`epic-2: done`](_bmad-output/implementation-artifacts/sprint-status.yaml:49)                                                                                              |
+| Epic 3 — Resilient Conversion               | Unified provider contract, deterministic orchestration/fallback, persistence/resume, conversion worker threading   | [`3-1-implement-unified-tts-provider-contract-and-engine-adapters.md`](_bmad-output/implementation-artifacts/3-1-implement-unified-tts-provider-contract-and-engine-adapters.md), [`3-2-segment-long-text-with-phrase-first-chunking-rules.md`](_bmad-output/implementation-artifacts/3-2-segment-long-text-with-phrase-first-chunking-rules.md), [`3-3-orchestrate-deterministic-conversion-with-engine-fallback.md`](_bmad-output/implementation-artifacts/3-3-orchestrate-deterministic-conversion-with-engine-fallback.md), [`3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk.md`](_bmad-output/implementation-artifacts/3-4-persist-job-lifecycle-and-resume-conversion-from-last-failed-chunk.md), [`3-5-configure-conversion-parameters-and-output-format-in-ui.md`](_bmad-output/implementation-artifacts/3-5-configure-conversion-parameters-and-output-format-in-ui.md), [`3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals.md`](_bmad-output/implementation-artifacts/3-6-execute-conversion-in-dedicated-worker-with-non-blocking-ui-signals.md) | [`epic-3: done`](_bmad-output/implementation-artifacts/sprint-status.yaml:57)                                                                                              |
+| Epic 4 — Library & Playback                 | Final audio assembly, persistence of library metadata/artifacts, browse/reopen, integrated playback controls       | [`4-1-assemble-synthesized-chunks-into-final-audio-output.md`](_bmad-output/implementation-artifacts/4-1-assemble-synthesized-chunks-into-final-audio-output.md), [`4-2-persist-final-audio-artifacts-and-library-metadata.md`](_bmad-output/implementation-artifacts/4-2-persist-final-audio-artifacts-and-library-metadata.md), [`4-3-browse-and-reopen-audiobooks-from-local-library-view.md`](_bmad-output/implementation-artifacts/4-3-browse-and-reopen-audiobooks-from-local-library-view.md), [`4-4-integrate-local-audio-playback-service-and-adapter.md`](_bmad-output/implementation-artifacts/4-4-integrate-local-audio-playback-service-and-adapter.md), [`4-5-provide-playback-controls-with-pause-resume-seek-and-progress.md`](_bmad-output/implementation-artifacts/4-5-provide-playback-controls-with-pause-resume-seek-and-progress.md)                                                                                                                                                                                                                                                 | [`epic-4: done`](_bmad-output/implementation-artifacts/sprint-status.yaml:66)                                                                                              |
+| Epic 5 — Diagnostics & Failure Transparency | Correlated JSONL schema + instrumentation and user-facing diagnostics/support workflow                             | [`5-1-define-correlated-jsonl-event-schema-and-logging-contract.md`](_bmad-output/implementation-artifacts/5-1-define-correlated-jsonl-event-schema-and-logging-contract.md), [`5-2-instrument-end-to-end-pipeline-with-correlation-context.md`](_bmad-output/implementation-artifacts/5-2-instrument-end-to-end-pipeline-with-correlation-context.md), [`5-3-present-actionable-failure-diagnostics-in-conversion-ui.md`](_bmad-output/implementation-artifacts/5-3-present-actionable-failure-diagnostics-in-conversion-ui.md), [`5-4-provide-local-support-workflow-for-error-review-and-guided-remediation.md`](_bmad-output/implementation-artifacts/5-4-provide-local-support-workflow-for-error-review-and-guided-remediation.md)                                                                                                                                                                                                                                                                                                                                                                   | [`epic-5: done`](_bmad-output/implementation-artifacts/sprint-status.yaml:74)                                                                                              |
+| Epic 6 — Runtime Fixes & Polish             | Runtime crash hardening, degraded readiness mode, library polish, documentation refresh, BMAD completion reporting | [`6-1-debug-and-fix-conversion-pipeline-runtime-failure.md`](_bmad-output/implementation-artifacts/6-1-debug-and-fix-conversion-pipeline-runtime-failure.md), [`6-2-implement-degraded-readiness-mode.md`](_bmad-output/implementation-artifacts/6-2-implement-degraded-readiness-mode.md), [`6-3-complete-library-view-with-select-and-delete-actions.md`](_bmad-output/implementation-artifacts/6-3-complete-library-view-with-select-and-delete-actions.md), [`6-4-update-project-documentation-for-current-stack.md`](_bmad-output/implementation-artifacts/6-4-update-project-documentation-for-current-stack.md), [`6-5-produce-bmad-completion-report-covering-all-epics.md`](_bmad-output/implementation-artifacts/6-5-produce-bmad-completion-report-covering-all-epics.md)                                                                                                                                                                                                                                                                                                                       | [`epic-6: in-progress`](_bmad-output/implementation-artifacts/sprint-status.yaml:81), [`6-5 … : in-progress`](_bmad-output/implementation-artifacts/sprint-status.yaml:86) |
 
-Status at BMAD closure: all epic/story items and retrospectives marked done ([`sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml:43), [`sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml:79)).
+### Scope boundaries kept explicit
 
-## 2) Architecture
+- MVP FR coverage maps to Epics 1–5 plus hardening Epic 6 ([`epics.md`](_bmad-output/planning-artifacts/epics.md:129), [`epics.md`](_bmad-output/planning-artifacts/epics.md:156)).
+- Out-of-scope post-MVP items remain separated (FR31–FR35) ([`epics.md`](_bmad-output/planning-artifacts/epics.md:127)).
 
-### Architectural style
+## 3) Architecture Decisions and Justifications
 
-The implementation follows hexagonal / ports-and-adapters boundaries:
+### A. Layered boundaries (UI / app / domain / adapters / infrastructure)
 
-- Domain ports define contracts (for example [`TtsProvider`](src/domain/ports/tts_provider.py:43))
-- Adapters implement infrastructure/provider details (for example [`ChatterboxProvider`](src/adapters/tts/chatterbox_provider.py:22), [`KokoroProvider`](src/adapters/tts/kokoro_provider.py:34))
-- App layer wires dependencies centrally ([`build_container()`](src/app/dependency_container.py:146))
-- UI layer consumes services/presenters/workers ([`ConversionView`](src/ui/views/conversion_view.py:38), [`MainWindow`](src/ui/main_window.py:15))
+**Decision:** Keep strict separation to preserve maintainability and reduce coupling.
 
-This matches both architecture planning and repository-level summary ([`architecture.md`](_bmad-output/planning-artifacts/architecture.md:313), [`README.md`](/README.md:36)).
+**Justification:** Architecture requires explicit boundaries and maps FRs to module layers ([`architecture.md`](_bmad-output/planning-artifacts/architecture.md:313), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:426)).
 
-### Result monad contract
+**Implementation evidence:** top-level layer folders and container wiring are present ([`src/`](src), [`build_container()`](src/app/dependency_container.py:178), [`README.md`](README.md:42)).
 
-Service and adapter flows use a normalized `Result` envelope `{ok, data, error}` ([`Result`](src/contracts/result.py:14), [`failure()`](src/contracts/result.py:33)).
+### B. SQLite as local source of truth + migration discipline
 
-This contract is used to avoid uncontrolled exception-driven propagation and to keep deterministic error payloads (`code`, `message`, `details`, `retryable`) through layers ([`errors.py`](src/contracts/errors.py), [`epics.md`](_bmad-output/planning-artifacts/epics.md:87)).
+**Decision:** Persist jobs/chunks/library/diagnostics in local SQLite, with incremental SQL migrations.
 
-### Layer diagram (logical)
+**Justification:** This supports offline-first reliability and deterministic recovery semantics ([`epics.md`](_bmad-output/planning-artifacts/epics.md:81), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:141)).
 
-```text
-UI (views/widgets/presenters/workers)
-  ↓
-Application wiring (dependency_container)
-  ↓
-Domain services + domain ports
-  ↓
-Adapters (tts/extraction/audio/playback/persistence)
-  ↓
-Infrastructure (logging) + SQLite + runtime artifacts
-```
+**Implementation evidence:** migration scripts and SQLite repositories exist ([`0001_initial_schema.sql`](migrations/0001_initial_schema.sql), [`0002_add_source_format_to_documents.sql`](migrations/0002_add_source_format_to_documents.sql), [`0003_extend_library_items_metadata.sql`](migrations/0003_extend_library_items_metadata.sql), [`migration_runner.py`](src/adapters/persistence/sqlite/migration_runner.py), [`repositories/`](src/adapters/persistence/sqlite/repositories)).
 
-Mapped structure references: [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:344), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:424).
+### C. Deterministic orchestration and fallback policy ownership
 
-## 3) Epics & Stories (5 epics / 23 stories)
+**Decision:** Keep fallback policy in orchestration service, not providers.
 
-| Epic                                             | Stories | Sprint status | Retrospective |
-| ------------------------------------------------ | ------: | ------------- | ------------- |
-| Epic 1 — Local Setup and Offline Readiness       |       3 | done          | done          |
-| Epic 2 — Multi-Format Import and Text Extraction |       5 | done          | done          |
-| Epic 3 — Resilient Conversion to Audio           |       6 | done          | done          |
-| Epic 4 — Local Library and Integrated Playback   |       5 | done          | done          |
-| Epic 5 — Diagnostics and Failure Transparency    |       4 | done          | done          |
-| **Total**                                        |  **23** | **done**      | **done**      |
+**Justification:** This was explicitly defined to ensure deterministic behavior and traceability for failures/resume ([`epics.md`](_bmad-output/planning-artifacts/epics.md:84), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:127)).
 
-Sources: epic/story definitions ([`epics.md`](_bmad-output/planning-artifacts/epics.md:136), [`epics.md`](_bmad-output/planning-artifacts/epics.md:715)) and sprint completion states ([`sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml:42), [`sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml:79)).
+**Implementation evidence:** orchestration service is composed with primary+fallback providers in app wiring ([`TtsOrchestrationService`](src/domain/services/tts_orchestration_service.py), [`build_container()`](src/app/dependency_container.py:214), [`ChatterboxProvider`](src/adapters/tts/chatterbox_provider.py:13), [`KokoroProvider`](src/adapters/tts/kokoro_provider.py:14)).
 
-## 4) Test Coverage
+### D. Local JSONL observability with correlation
 
-- BMAD/Passe-2 milestone reported: **270 passed** ([`PASSE_2_RAPPORT.md`](/PASSE_2_RAPPORT.md:66), [`PASSE_2_RAPPORT.md`](/PASSE_2_RAPPORT.md:70)).
-- Current repository test organization remains split between unit and integration suites ([`tests/unit`](tests/unit), [`tests/integration`](tests/integration), [`pyproject.toml`](/pyproject.toml:28)).
-- Current local collection snapshot (2026-02-17) indicates **274 collected**: **237 unit** + **37 integration** (command evidence captured during completion run).
+**Decision:** use structured JSONL events with correlation metadata.
 
-Interpretation: 270 corresponds to the documented Passe-2 checkpoint; the repository currently includes additional tests beyond that checkpoint.
+**Justification:** observability and diagnostics are explicit MVP requirements (FR29/FR30 + NFR observability) ([`epics.md`](_bmad-output/planning-artifacts/epics.md:124), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:174)).
 
-## 5) Architecture Decisions (key choices and rationale)
+**Implementation evidence:** event schema and logger implementation are present ([`event_schema.py`](src/infrastructure/logging/event_schema.py), [`jsonl_logger.py`](src/infrastructure/logging/jsonl_logger.py), [`5-1-define-correlated-jsonl-event-schema-and-logging-contract.md`](_bmad-output/implementation-artifacts/5-1-define-correlated-jsonl-event-schema-and-logging-contract.md)).
 
-### Chatterbox + Kokoro (why two engines)
+## 4) Quality & Test Coverage Summary
 
-The architecture explicitly targets a GPU-first engine with CPU fallback for resilience/offline operation ([`project-brief.md`](_bmad-output/project-brief.md:93), [`epics.md`](_bmad-output/planning-artifacts/epics.md:71)).
+### Test structure evidence
 
-Implementation evidence:
+- Test framework is configured through pytest in project metadata ([`tool.pytest.ini_options`](pyproject.toml:28)).
+- Test suite is split into unit and integration directories ([`tests/unit`](tests/unit), [`tests/integration`](tests/integration)).
 
-- Chatterbox adapter ([`chatterbox_provider.py`](src/adapters/tts/chatterbox_provider.py:22))
-- Kokoro adapter ([`kokoro_provider.py`](src/adapters/tts/kokoro_provider.py:34))
-- Deterministic fallback owned by orchestration requirements ([`epics.md`](_bmad-output/planning-artifacts/epics.md:84), [`epics.md`](_bmad-output/planning-artifacts/epics.md:472)).
+### Current repository inventory (traceable)
 
-### Result pattern vs exceptions
+- Unit test modules detected: **32**
+- Integration test modules detected: **12**
+- Total `test_*.py` modules detected: **44**
 
-The project standardizes result/error envelopes for deterministic cross-layer behavior ([`result.py`](src/contracts/result.py:14), [`result.py`](src/contracts/result.py:33), [`epics.md`](_bmad-output/planning-artifacts/epics.md:87)).
+These counts were produced from repository state inspection of [`tests/unit`](tests/unit) and [`tests/integration`](tests/integration).
 
-### Structured JSONL logging
+### Execution posture
 
-Observability contract requires correlated JSONL events with fixed required fields ([`event_schema.py`](src/infrastructure/logging/event_schema.py:10), [`jsonl_logger.py`](src/infrastructure/logging/jsonl_logger.py:38), [`epics.md`](_bmad-output/planning-artifacts/epics.md:88)).
+- In this environment, executing pytest is blocked because pytest is not installed (`No module named pytest`) while Python 3.12 runtime is present.
+- Therefore, this report distinguishes:
+  - **verified structure evidence** (files/configuration present), and
+  - **non-verified runtime execution in this session**.
 
-### SQLite for local persistence
+This is consistent with documentation that defines pytest as a dev dependency path ([`pyproject.toml`](pyproject.toml:20), [`README.md`](README.md:34), [`INSTALLATION.md`](INSTALLATION.md:70)).
 
-SQLite is defined as single source of truth for jobs/chunks/library/diagnostics in architecture and requirements ([`epics.md`](_bmad-output/planning-artifacts/epics.md:81), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:141), [`connection.py`](src/adapters/persistence/sqlite/connection.py)).
+## 5) Known Issues, Constraints, and Future Work
 
-## 6) Post-BMAD Integration (Passes 1–3)
+### Known constraints (current)
 
-### Pass 1 — Stabilization baseline
+1. **Environment-specific test execution dependency**
+   - Project expects pytest via dev setup; without it, live test execution cannot be completed in-session ([`pyproject.toml`](pyproject.toml:20), [`README.md`](README.md:37)).
 
-Post-BMAD baseline remained aligned with BMAD architecture constraints and startup/readiness mechanics, with dependency wiring and service boundaries preserved ([`dependency_container.py`](src/app/dependency_container.py:146), [`startup_readiness_service.py`](src/domain/services/startup_readiness_service.py), [`conversion_worker.py`](src/ui/workers/conversion_worker.py)).
+2. **MVP platform boundary remains Linux Mint-focused**
+   - Cross-platform desktop support is intentionally post-MVP ([`README.md`](README.md:16), [`epics.md`](_bmad-output/planning-artifacts/epics.md:127)).
 
-### Pass 2 — Documented TTS installation/validation checkpoint
+3. **No cloud runtime dependency by design**
+   - This remains a deliberate constraint, not a defect ([`README.md`](README.md:12), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:152)).
 
-Pass-2 report documents engine installation effort, pipeline validation, and the 270-test checkpoint ([`PASSE_2_RAPPORT.md`](/PASSE_2_RAPPORT.md:1), [`PASSE_2_RAPPORT.md`](/PASSE_2_RAPPORT.md:66)).
+### Future work (post-MVP backlog)
 
-### Pass 3 — Real engine integration in codebase
+The following remain explicitly out of MVP scope and should be treated as future increments:
 
-Current source shows concrete real-engine bindings rather than placeholders:
+- Batch conversion jobs (FR31)
+- Advanced library search and filters (FR32)
+- Advanced expressivity controls (FR33)
+- Voice cloning (FR34)
+- Additional OS targets (FR35)
 
-- Chatterbox via `chatterbox.tts_turbo` + `torchaudio` ([`chatterbox_provider.py`](src/adapters/tts/chatterbox_provider.py:11), [`chatterbox_provider.py`](src/adapters/tts/chatterbox_provider.py:46))
-- Kokoro via `kokoro_onnx` ([`kokoro_provider.py`](src/adapters/tts/kokoro_provider.py:10), [`kokoro_provider.py`](src/adapters/tts/kokoro_provider.py:68))
-- Model manifest with concrete hashes/sizes/paths ([`model_manifest.yaml`](config/model_manifest.yaml:1), [`model_manifest.yaml`](config/model_manifest.yaml:7)).
+Source of truth: [`epics.md`](_bmad-output/planning-artifacts/epics.md:127).
 
-## 7) Known Gaps
+## 6) Final Closure Statement
 
-1. **UI Import/Conversion only partially surfaced in top-level shell**
-   - Main window still contains placeholder for library tab and fallback “unavailable” labels in some paths ([`main_window.py`](src/ui/main_window.py:62), [`main_window.py`](src/ui/main_window.py:67)).
+This completion artifact now provides a single auditable narrative across Epics 1–6 with explicit references to planning artifacts, implementation stories, architecture constraints, repository structure, and quality posture.
 
-2. **`model_manifest` contains absolute local path for Chatterbox artifact**
-   - This reduces portability across machines ([`model_manifest.yaml`](config/model_manifest.yaml:7)).
+Primary closure references:
 
-3. **PDF stack currently based on `PyPDF2`; migration to `pypdf` should be planned**
-   - Current dependency and import points: [`pyproject.toml`](/pyproject.toml:14), [`pdf_extractor.py`](src/adapters/extraction/pdf_extractor.py:15).
-
-## 8) Maintenance Guide (practical extension paths)
-
-### Add a new TTS engine
-
-1. Implement a new adapter conforming to [`TtsProvider`](src/domain/ports/tts_provider.py:43).
-2. Register it in [`build_container()`](src/app/dependency_container.py:146).
-3. Keep fallback policy only in orchestration service (not in adapter) per architecture rule ([`epics.md`](_bmad-output/planning-artifacts/epics.md:84)).
-4. Add/extend tests in [`tests/unit`](tests/unit) and [`tests/integration`](tests/integration).
-
-### Add a new extraction format
-
-1. Add an extraction adapter in [`src/adapters/extraction`](src/adapters/extraction).
-2. Wire routing through [`ImportService`](src/domain/services/import_service.py) / extraction orchestration path.
-3. Extend supported extension constraints in [`import_constants.py`](src/contracts/import_constants.py).
-4. Add failure normalization and diagnostics parity with existing extractors ([`result.py`](src/contracts/result.py:14), [`event_schema.py`](src/infrastructure/logging/event_schema.py:45)).
-
-### Evolve observability safely
-
-1. Preserve required event fields and `domain.action` naming ([`event_schema.py`](src/infrastructure/logging/event_schema.py:10), [`event_schema.py`](src/infrastructure/logging/event_schema.py:25)).
-2. Emit only through [`JsonlLogger.emit()`](src/infrastructure/logging/jsonl_logger.py:38).
-3. Keep logging failures local and non-fatal for UI threads ([`jsonl_logger.py`](src/infrastructure/logging/jsonl_logger.py:78), [`conversion_view.py`](src/ui/views/conversion_view.py:324)).
-
-### Preserve persistence integrity
-
-1. Add schema changes via incremental SQL migrations under [`migrations`](migrations).
-2. Keep repositories as the only DB access boundary ([`dependency_container.py`](src/app/dependency_container.py:148), [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:429)).
-3. Keep service-level state transition validation for conversion jobs ([`job_state_validator.py`](src/domain/services/job_state_validator.py), [`epics.md`](_bmad-output/planning-artifacts/epics.md:86)).
+- Scope and epic intent: [`epics.md`](_bmad-output/planning-artifacts/epics.md:129)
+- Architecture constraints and justifications: [`architecture.md`](_bmad-output/planning-artifacts/architecture.md:111)
+- Story-by-story delivery status: [`sprint-status.yaml`](_bmad-output/implementation-artifacts/sprint-status.yaml:42)
+- Current stack baseline docs: [`README.md`](README.md:3), [`INSTALLATION.md`](INSTALLATION.md:1), [`pyproject.toml`](pyproject.toml:5)
