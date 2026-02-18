@@ -78,10 +78,10 @@ development_status:
   5-4-provide-local-support-workflow-for-error-review-and-guided-remediation: done
   epic-5-retrospective: done
 
-  epic-6: in-progress
+  epic-6: done
   6-1-debug-and-fix-conversion-pipeline-runtime-failure: done
   6-2-implement-degraded-readiness-mode: done
   6-3-complete-library-view-with-select-and-delete-actions: done
   6-4-update-project-documentation-for-current-stack: done
   6-5-produce-bmad-completion-report-covering-all-epics: done
-  epic-6-retrospective: optional
+  epic-6-retrospective: done
