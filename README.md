@@ -24,7 +24,7 @@ Desktop Python application (PyQt5) that converts documents into audiobooks, full
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -U pip
+python -m pip install --upgrade pip setuptools wheel
 pip install -e .
 python -m src.app.main
 ```
@@ -41,6 +41,18 @@ The codebase follows a **hexagonal architecture (ports and adapters)**:
 - **UI** (`src/ui`): PyQt5 presenters, views, workers
 
 Core flow: input import → normalized text extraction → chunking/orchestration → TTS provider → audio assembly → library persistence.
+
+## Repository structure
+
+Contributor-facing structure aligned with the current implementation:
+
+- `config/`: local YAML configuration (including model manifest)
+- `migrations/`: SQLite schema migration scripts
+- `runtime/`: local runtime artifacts (for example local source builds)
+- `src/`: application source code (`app`, `domain`, `adapters`, `infrastructure`, `ui`)
+- `tests/`: unit and integration test suites
+
+The application is offline-first and local-only by design: no cloud service is required for normal execution.
 
 ## License
 

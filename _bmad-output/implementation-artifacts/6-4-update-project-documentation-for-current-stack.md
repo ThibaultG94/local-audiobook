@@ -1,6 +1,6 @@
 # Story 6.4: Update Project Documentation for Current Stack
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -24,19 +24,19 @@ so that I can install and run the application reliably.
 
 ## Tasks / Subtasks
 
-- [ ] Audit current contributor-facing documentation for outdated stack references (AC: 1)
-  - [ ] Verify version references and commands in `README.md` and `INSTALLATION.md`.
-  - [ ] Identify and remove stale technology mentions (Python 3.11 / ROCm 6.1 / Coqui TTS).
-- [ ] Update setup documentation to match current runtime and installation flow (AC: 1)
-  - [ ] Ensure Python 3.12 + venv setup is copy-pastable and internally consistent.
-  - [ ] Ensure ROCm 7.2 guidance and CPU fallback path are explicit.
-  - [ ] Keep commands aligned with existing package/project entrypoints.
-- [ ] Refresh architecture summary and project structure guidance for contributors (AC: 2)
-  - [ ] Add/validate concise architecture overview in `README.md`.
-  - [ ] Align directory structure statements with the implemented boundaries in `src/`, `config/`, `migrations/`, `runtime/`, `tests/`.
-- [ ] Add regression checks for documentation accuracy and consistency (AC: 1, 2)
-  - [ ] Perform command-level sanity review for onboarding steps.
-  - [ ] Ensure docs match current code structure and do not reference non-existent modules.
+- [x] Audit current contributor-facing documentation for outdated stack references (AC: 1)
+  - [x] Verify version references and commands in `README.md` and `INSTALLATION.md`.
+  - [x] Identify and remove stale technology mentions (Python 3.11 / ROCm 6.1 / Coqui TTS).
+- [x] Update setup documentation to match current runtime and installation flow (AC: 1)
+  - [x] Ensure Python 3.12 + venv setup is copy-pastable and internally consistent.
+  - [x] Ensure ROCm 7.2 guidance and CPU fallback path are explicit.
+  - [x] Keep commands aligned with existing package/project entrypoints.
+- [x] Refresh architecture summary and project structure guidance for contributors (AC: 2)
+  - [x] Add/validate concise architecture overview in `README.md`.
+  - [x] Align directory structure statements with the implemented boundaries in `src/`, `config/`, `migrations/`, `runtime/`, `tests/`.
+- [x] Add regression checks for documentation accuracy and consistency (AC: 1, 2)
+  - [x] Perform command-level sanity review for onboarding steps.
+  - [x] Ensure docs match current code structure and do not reference non-existent modules.
 
 ## Dev Notes
 
@@ -162,20 +162,37 @@ gpt-5.3-codex
 
 - `git log --oneline -n 5`
 - `docs audit`: `README.md` and `INSTALLATION.md` cross-check against architecture and repository structure
+- `search_files`: stale stack reference audit on `README.md` and `INSTALLATION.md` (Python 3.11 / ROCm 6.1 / Coqui)
+- `.venv/bin/python -m pytest tests/ -q` → `294 passed, 1 warning`
+
+### Implementation Plan
+
+- Audit existing contributor docs for version references, command ordering, and stale technology mentions.
+- Update `README.md` quick-start consistency and architecture/project structure guidance for contributors.
+- Update `INSTALLATION.md` wording for ROCm 7.2 clarity and explicit application launch step.
+- Run documentation QA checks plus full regression suite in project virtual environment.
 
 ### Completion Notes List
 
-- Story context generated for documentation refresh of `README.md` and `INSTALLATION.md` against current stack.
-- Acceptance criteria converted into explicit implementation tasks for version alignment, command validity, and architecture-summary consistency.
-- Boundaries and references captured to prevent contributor-facing drift and outdated setup instructions.
+- Updated `README.md` quick start to use consistent pip/build-tooling upgrade command and added contributor-facing repository structure section aligned with current boundaries.
+- Updated `INSTALLATION.md` wording to ROCm 7.2-specific guidance and added explicit run command via `python -m src.app.main`.
+- Verified no stale references remain in scoped docs (`README.md`, `INSTALLATION.md`) for Python 3.11 / ROCm 6.1 / Coqui.
+- Executed regression suite in project venv: `.venv/bin/python -m pytest tests/ -q` with `294 passed, 1 warning`.
 
 ### File List
 
+- README.md
+- INSTALLATION.md
 - \_bmad-output/implementation-artifacts/6-4-update-project-documentation-for-current-stack.md
+- \_bmad-output/implementation-artifacts/sprint-status.yaml
+
+## Change Log
+
+- 2026-02-18: Refreshed contributor documentation for current stack (Python 3.12, ROCm 7.2, venv flow), aligned architecture + repository structure guidance, and validated via full regression test run.
 
 ## Story Completion Status
 
 - Story ID: `6.4`
 - Story Key: `6-4-update-project-documentation-for-current-stack`
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Documentation updated and validated against current stack and implementation boundaries.

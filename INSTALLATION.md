@@ -23,7 +23,7 @@ pip install -e .
 
 ## 3) Install PyTorch 2.9.1 ROCm wheels (Radeon repo)
 
-Use Radeon ROCm wheels (not `pytorch.org/whl/rocm6.1`):
+Use Radeon ROCm wheels for ROCm 7.2:
 
 ```bash
 pip uninstall -y torch torchvision torchaudio triton pytorch-triton-rocm
@@ -96,3 +96,9 @@ PY
 
 - If you run CPU-only, skip ROCm/PyTorch GPU validation and keep Kokoro ONNX active.
 - `config/model_manifest.yaml` must point to real local model files (path/hash/size) for startup readiness to be `ready`.
+
+## 9) Run the application
+
+```bash
+python -m src.app.main
+```
