@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import io
-import struct
-import wave
 from typing import Any
 
 try:
@@ -69,18 +67,6 @@ class ChatterboxProvider(BaseTtsProvider):
         sample_rate = self._get_sample_rate()
         buf = io.BytesIO()
         ta.save(buf, wav_tensor, sample_rate, format="wav")
-        return buf.getvalue()
-
-    def _generate_silence(self, text_length: int) -> bytes:
-        """Generate silent WAV as fallback when engine is unavailable."""
-        sr = self._get_sample_rate()
-        num_samples = sr * max(1, text_length // 100)
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sr)
-            wf.writeframes(struct.pack("<" + "h" * num_samples, *([0] * num_samples)))
         return buf.getvalue()
 
     def _build_voice_list(self) -> list[TtsVoice]:

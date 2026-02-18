@@ -438,7 +438,8 @@ class ConversionWorker:
                 }
             )
             return orchestration_result
-        except Exception as exc:  # pragma: no cover - guarded by tests via normalized payload assertions
+        except Exception as exc:
+            # Capture full execution context for root cause analysis
             normalized = failure(
                 code="worker_execution.unhandled_exception",
                 message="Conversion worker execution failed unexpectedly",
@@ -446,6 +447,10 @@ class ConversionWorker:
                     "exception": str(exc),
                     "exception_type": type(exc).__name__,
                     "traceback": traceback.format_exc(),
+                    "job_id": job_id,
+                    "correlation_id": normalized_correlation_id,
+                    "document_id": document_id,
+                    "conversion_config": dict(conversion_config),
                 },
                 retryable=True,
             )
@@ -568,5 +573,15 @@ class ConversionWorker:
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 extra=extra,
             )
-        except Exception:
-            return
+        except Exception as exc:
+            # Fallback: attempt to log the logging failure itself to stderr
+            # This prevents silent loss of critical diagnostic events
+            import sys
+            try:
+                print(
+                    f"[WORKER_EVENT_EMISSION_FAILED] event={event}, error={exc!r}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            except Exception:
+                pass  # Ultimate fallback: nothing we can do if stderr fails

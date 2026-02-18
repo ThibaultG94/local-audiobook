@@ -77,18 +77,6 @@ class KokoroProvider(BaseTtsProvider):
             wf.writeframes(pcm.tobytes())
         return buf.getvalue()
 
-    def _generate_silence(self, text_length: int) -> bytes:
-        import struct
-        sr = self._get_sample_rate()
-        n = sr * max(1, text_length // 100)
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sr)
-            wf.writeframes(struct.pack("<" + "h" * n, *([0] * n)))
-        return buf.getvalue()
-
     def _build_voice_list(self) -> list[TtsVoice]:
         if not self._kokoro:
             return [{"id": "default", "name": "Default (Kokoro unavailable)", "engine": self.engine_name, "language": "en", "supports_streaming": False}]

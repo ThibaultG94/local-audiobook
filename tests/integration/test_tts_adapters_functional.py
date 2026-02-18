@@ -1,7 +1,30 @@
 """Integration test for TTS adapters with real synthesis."""
 
+import io
+import wave
+
 from src.adapters.tts.kokoro_provider import KokoroProvider
 from src.adapters.tts.chatterbox_provider import ChatterboxProvider
+
+
+def _validate_wav_format(audio_bytes: bytes, expected_sample_rate: int) -> dict:
+    """Validate WAV format and extract audio properties.
+    
+    Returns:
+        dict with keys: valid, channels, sample_width, framerate, num_frames
+    """
+    try:
+        buf = io.BytesIO(audio_bytes)
+        with wave.open(buf, "rb") as wf:
+            return {
+                "valid": True,
+                "channels": wf.getnchannels(),
+                "sample_width": wf.getsampwidth(),
+                "framerate": wf.getframerate(),
+                "num_frames": wf.getnframes(),
+            }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
 
 
 def test_kokoro_provider_health_check():
@@ -39,6 +62,14 @@ def test_kokoro_provider_synthesize():
     assert result.data["metadata"]["engine"] == "kokoro_cpu"
     assert result.data["metadata"]["content_type"] == "audio/wav"
     assert result.data["metadata"]["sample_rate_hz"] == 24000
+    
+    # Validate WAV format
+    wav_info = _validate_wav_format(result.data["audio_bytes"], 24000)
+    assert wav_info["valid"], f"Invalid WAV format: {wav_info.get('error')}"
+    assert wav_info["channels"] == 1, "Expected mono audio"
+    assert wav_info["sample_width"] == 2, "Expected 16-bit audio"
+    assert wav_info["framerate"] == 24000, "Sample rate mismatch"
+    assert wav_info["num_frames"] > 0, "Audio contains no frames"
 
 
 def test_chatterbox_provider_health_check():
@@ -76,6 +107,14 @@ def test_chatterbox_provider_synthesize():
     assert result.data["metadata"]["engine"] == "chatterbox_gpu"
     assert result.data["metadata"]["content_type"] == "audio/wav"
     assert result.data["metadata"]["sample_rate_hz"] == 24000
+    
+    # Validate WAV format
+    wav_info = _validate_wav_format(result.data["audio_bytes"], 24000)
+    assert wav_info["valid"], f"Invalid WAV format: {wav_info.get('error')}"
+    assert wav_info["channels"] == 1, "Expected mono audio"
+    assert wav_info["sample_width"] == 2, "Expected 16-bit audio"
+    assert wav_info["framerate"] == 24000, "Sample rate mismatch"
+    assert wav_info["num_frames"] > 0, "Audio contains no frames"
 
 
 def test_kokoro_synthesize_validates_empty_text():

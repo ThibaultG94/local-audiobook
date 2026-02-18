@@ -342,3 +342,35 @@ class BaseTtsProvider(TtsProvider):
         Returns:
             List of TtsVoice dictionaries with id, name, engine, language, supports_streaming
         """
+
+    def _generate_silence(self, text_length: int) -> bytes:
+        """Generate silent WAV audio as fallback when engine is unavailable.
+        
+        Creates a silent audio buffer with duration proportional to text length.
+        Used when the TTS engine is not loaded or fails initialization.
+        
+        Args:
+            text_length: Length of text in characters (used to estimate duration)
+            
+        Returns:
+            WAV-formatted audio bytes containing silence
+            
+        Note:
+            Duration heuristic: 1 second per 100 characters of text
+        """
+        import io
+        import wave
+        
+        sr = self._get_sample_rate()
+        num_samples = sr * max(1, text_length // 100)
+        
+        # Generate silence efficiently using zero bytes
+        silence_pcm = bytes(num_samples * 2)  # 2 bytes per 16-bit sample
+        
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sr)
+            wf.writeframes(silence_pcm)
+        return buf.getvalue()
