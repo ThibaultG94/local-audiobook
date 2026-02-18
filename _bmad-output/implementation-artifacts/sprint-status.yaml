@@ -83,5 +83,5 @@ development_status:
   6-2-implement-degraded-readiness-mode: done
   6-3-complete-library-view-with-select-and-delete-actions: done
   6-4-update-project-documentation-for-current-stack: done
-  6-5-produce-bmad-completion-report-covering-all-epics: review
+  6-5-produce-bmad-completion-report-covering-all-epics: done
   epic-6-retrospective: optional
