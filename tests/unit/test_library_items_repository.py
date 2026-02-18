@@ -313,3 +313,63 @@ class TestLibraryItemsRepository(unittest.TestCase):
             self.assertEqual(len(items), 1)
             self.assertEqual(items[0]["id"], "lib-tx")
             connection.close()
+
+    def test_delete_item_by_id_removes_row_and_returns_deleted_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "runtime" / "local_audiobook.db"
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+            repository = LibraryItemsRepository(connection)
+
+            connection.execute(
+                """
+                INSERT INTO documents(id, source_path, title, source_format, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "doc-delete-1",
+                    "/tmp/delete.epub",
+                    "Delete",
+                    "epub",
+                    "2026-02-14T00:00:00+00:00",
+                    "2026-02-14T00:00:00+00:00",
+                ),
+            )
+            connection.commit()
+
+            repository.create_item(
+                {
+                    "id": "lib-delete-1",
+                    "job_id": "job-delete-1",
+                    "document_id": "doc-delete-1",
+                    "title": "Delete",
+                    "source_path": "/tmp/delete.epub",
+                    "audio_path": "runtime/library/audio/job-delete-1.mp3",
+                    "format": "mp3",
+                    "source_format": "epub",
+                    "engine": "chatterbox_gpu",
+                    "voice": "default",
+                    "language": "fr",
+                    "duration_seconds": 2.0,
+                    "byte_size": 222,
+                    "created_at": "2026-02-14T00:00:00+00:00",
+                }
+            )
+
+            deleted = repository.delete_item_by_id("lib-delete-1")
+
+            self.assertIsNotNone(deleted)
+            assert deleted is not None
+            self.assertEqual(deleted["id"], "lib-delete-1")
+            self.assertIsNone(repository.get_item_by_id("lib-delete-1"))
+            connection.close()
+
+    def test_delete_item_by_id_returns_none_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "runtime" / "local_audiobook.db"
+            connection = create_connection(db_path)
+            apply_migrations(connection, "migrations")
+            repository = LibraryItemsRepository(connection)
+
+            self.assertIsNone(repository.delete_item_by_id("missing-lib-id"))
+            connection.close()

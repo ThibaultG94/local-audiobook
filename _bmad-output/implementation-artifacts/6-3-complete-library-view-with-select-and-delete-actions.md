@@ -1,6 +1,6 @@
 # Story 6.3: Complete Library View with Select and Delete Actions
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -29,22 +29,22 @@ so that I can control which documents are converted and retained.
 
 ## Tasks / Subtasks
 
-- [ ] Add deterministic library list state with all required display fields (AC: 1)
-  - [ ] Extend presenter/view state contract to expose title, format, byte size, import date, and conversion status.
-  - [ ] Keep refresh ordering deterministic (newest-first fallback to stable id order).
-  - [ ] Ensure library loading remains service-driven and resilient to empty-state conditions.
-- [ ] Implement explicit item selection workflow for library actions (AC: 2)
-  - [ ] Track selected item id in view state and expose it to convert/open actions.
-  - [ ] Route selection + action through `LibraryView` → `LibraryPresenter` → `LibraryService` boundaries only.
-  - [ ] Enforce no direct repository access from UI modules.
-- [ ] Implement safe delete flow for library items and linked local references (AC: 3)
-  - [ ] Add domain service delete operation with normalized `{ok, data, error}` responses.
-  - [ ] Delete metadata row and local artifact references atomically where possible.
-  - [ ] Surface actionable remediation when delete cannot complete.
-- [ ] Add/extend tests for list, selection, and deletion behavior (AC: 1, 2, 3)
-  - [ ] Unit tests for presenter/view mapping and selection state transitions.
-  - [ ] Unit tests for service/repository delete success/failure paths.
-  - [ ] Integration tests validating deterministic refresh and safe delete behavior.
+- [x] Add deterministic library list state with all required display fields (AC: 1)
+  - [x] Extend presenter/view state contract to expose title, format, byte size, import date, and conversion status.
+  - [x] Keep refresh ordering deterministic (newest-first fallback to stable id order).
+  - [x] Ensure library loading remains service-driven and resilient to empty-state conditions.
+- [x] Implement explicit item selection workflow for library actions (AC: 2)
+  - [x] Track selected item id in view state and expose it to convert/open actions.
+  - [x] Route selection + action through `LibraryView` → `LibraryPresenter` → `LibraryService` boundaries only.
+  - [x] Enforce no direct repository access from UI modules.
+- [x] Implement safe delete flow for library items and linked local references (AC: 3)
+  - [x] Add domain service delete operation with normalized `{ok, data, error}` responses.
+  - [x] Delete metadata row and local artifact references atomically where possible.
+  - [x] Surface actionable remediation when delete cannot complete.
+- [x] Add/extend tests for list, selection, and deletion behavior (AC: 1, 2, 3)
+  - [x] Unit tests for presenter/view mapping and selection state transitions.
+  - [x] Unit tests for service/repository delete success/failure paths.
+  - [x] Integration tests validating deterministic refresh and safe delete behavior.
 
 ## Dev Notes
 
@@ -206,20 +206,36 @@ gpt-5.3-codex
 - `git log --oneline -n 5`
 - `python3 -m unittest -q tests.integration.test_library_browse_reopen_integration tests.integration.test_library_playback_integration`
 - `python3 -m unittest -q tests.unit.test_library_service tests.unit.test_library_items_repository`
+- `python3 -m unittest -q tests.unit.test_library_service tests.unit.test_library_items_repository tests.unit.test_library_presenter tests.unit.test_library_view tests.integration.test_library_browse_reopen_integration tests.integration.test_library_playback_integration`
 
 ### Completion Notes List
 
-- Story context generated for Epic 6 / Story 6.3 with explicit AC mapping and implementation guardrails.
-- Deterministic browse/selection/delete architecture constraints documented for presenter/service/repository boundaries.
-- Regression-aware testing targets defined for list determinism, selection continuity, and safe delete behavior.
+- Extended browse payload mapping with deterministic UI fields (`byte_size`, `created_date`, `conversion_status`) while preserving stable ordering from repository (`created_at DESC, id DESC`).
+- Implemented explicit selection workflow through `LibraryView` → `LibraryPresenter` → `LibraryService`, including conversion preparation payloads without repository access from UI layers.
+- Added safe library delete flow with normalized errors (`invalid_item_id`, `item_not_found`, `delete_failed`, `artifact_cleanup_failed`) and bounded artifact cleanup under `runtime/library/audio`.
+- Added delete lifecycle and conversion-preparation observability events at stage `library_management` (`library.item_prepared_for_convert`, `library.item_deleted`, `library.item_delete_failed`, `library.item_artifact_deleted`).
+- Added/extended unit and integration tests for deterministic browse fields, selection state transitions, repository delete behavior, safe artifact cleanup, and browse-select-delete integration.
 
 ### File List
 
 - \_bmad-output/implementation-artifacts/6-3-complete-library-view-with-select-and-delete-actions.md
+- src/adapters/persistence/sqlite/repositories/library_items_repository.py
+- src/domain/services/library_service.py
+- src/ui/presenters/library_presenter.py
+- src/ui/views/library_view.py
+- tests/integration/test_library_browse_reopen_integration.py
+- tests/unit/test_library_items_repository.py
+- tests/unit/test_library_presenter.py
+- tests/unit/test_library_service.py
+- tests/unit/test_library_view.py
+
+## Change Log
+
+- 2026-02-18: Implemented Story 6.3 library management completion (deterministic fields, selection-to-conversion flow, safe delete lifecycle, and regression coverage).
 
 ## Story Completion Status
 
 - Story ID: `6.3`
 - Story Key: `6-3-complete-library-view-with-select-and-delete-actions`
-- Status set to: `ready-for-dev`
-- Completion note: Ultimate context engine analysis completed - comprehensive developer guide created.
+- Status set to: `review`
+- Completion note: Story implementation complete with deterministic browse fields, selection/convert routing, safe delete flow, and passing targeted regression suite.

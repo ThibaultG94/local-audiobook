@@ -13,6 +13,10 @@ class LibraryServicePort(Protocol):
 
     def reopen_library_item(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]: ...
 
+    def prepare_item_for_conversion(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]: ...
+
+    def delete_library_item(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]: ...
+
 
 @runtime_checkable
 class PlayerServicePort(Protocol):
@@ -44,6 +48,7 @@ class LibraryPresenter:
             "status": "idle",
             "items": [],
             "selected_item_id": "",
+            "conversion_context": None,
             "playback_context": None,
             "playback_state": "idle",
             "playback_position_seconds": 0.0,
@@ -68,6 +73,7 @@ class LibraryPresenter:
             **self.state,
             "status": "ready",
             "items": items,
+            "conversion_context": None,
             "error": None,
         }
         return self.state
@@ -107,8 +113,72 @@ class LibraryPresenter:
             **self.state,
             "status": "opened",
             "selected_item_id": str(item_id or ""),
+            "conversion_context": None,
             "playback_context": playback_context,
             "playback_state": playback_state,
+            "playback_position_seconds": 0.0,
+            "playback_duration_seconds": 0.0,
+            "playback_progress": 0.0,
+            "error": None,
+        }
+        return self.state
+
+    def select_item(self, *, item_id: str) -> dict[str, Any]:
+        normalized_item_id = str(item_id or "")
+        self.state = {
+            **self.state,
+            "selected_item_id": normalized_item_id,
+            "error": None,
+        }
+        return self.state
+
+    def convert_selected(self, *, correlation_id: str) -> dict[str, Any]:
+        selected_item_id = str(self.state.get("selected_item_id") or "")
+        result = self._library_service.prepare_item_for_conversion(
+            correlation_id=correlation_id,
+            item_id=selected_item_id,
+        )
+        if not result.ok or result.data is None:
+            self.state = {
+                **self.state,
+                "status": "error",
+                "error": self._map_error(result.error.to_dict() if result.error else {}),
+            }
+            return self.state
+
+        self.state = {
+            **self.state,
+            "status": "ready",
+            "conversion_context": dict(result.data.get("conversion_context") or {}),
+            "error": None,
+        }
+        return self.state
+
+    def delete_selected(self, *, correlation_id: str) -> dict[str, Any]:
+        selected_item_id = str(self.state.get("selected_item_id") or "")
+        result = self._library_service.delete_library_item(
+            correlation_id=correlation_id,
+            item_id=selected_item_id,
+        )
+        if not result.ok:
+            self.state = {
+                **self.state,
+                "status": "error",
+                "error": self._map_error(result.error.to_dict() if result.error else {}),
+            }
+            return self.state
+
+        deleted_item_id = str((result.data or {}).get("deleted_item_id") or selected_item_id)
+        remaining_items = [
+            item for item in list(self.state.get("items") or []) if str(item.get("id") or "") != deleted_item_id
+        ]
+        self.state = {
+            **self.state,
+            "status": "ready",
+            "items": remaining_items,
+            "selected_item_id": "",
+            "playback_context": None,
+            "playback_state": "idle",
             "playback_position_seconds": 0.0,
             "playback_duration_seconds": 0.0,
             "playback_progress": 0.0,

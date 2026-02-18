@@ -12,6 +12,7 @@ class _FakeLibraryPresenter:
             "status": "ready",
             "items": [{"id": "lib-1", "title": "Book"}],
             "selected_item_id": "",
+            "conversion_context": None,
             "playback_context": None,
             "playback_state": "idle",
             "playback_position_seconds": 0.0,
@@ -25,8 +26,51 @@ class _FakeLibraryPresenter:
             "status": "opened",
             "items": [{"id": item_id, "title": "Book"}],
             "selected_item_id": item_id,
+            "conversion_context": None,
             "playback_context": {"library_item_id": item_id, "audio_path": "runtime/library/audio/.gitkeep"},
             "playback_state": "stopped",
+            "playback_position_seconds": 0.0,
+            "playback_duration_seconds": 0.0,
+            "playback_progress": 0.0,
+            "error": None,
+        }
+
+    def select_item(self, *, item_id: str):
+        return {
+            "status": "ready",
+            "items": [{"id": item_id, "title": "Book"}],
+            "selected_item_id": item_id,
+            "conversion_context": None,
+            "playback_context": None,
+            "playback_state": "idle",
+            "playback_position_seconds": 0.0,
+            "playback_duration_seconds": 0.0,
+            "playback_progress": 0.0,
+            "error": None,
+        }
+
+    def convert_selected(self, *, correlation_id: str):
+        return {
+            "status": "ready",
+            "items": [{"id": "lib-1", "title": "Book"}],
+            "selected_item_id": "lib-1",
+            "conversion_context": {"library_item_id": "lib-1", "document_id": "doc-1"},
+            "playback_context": None,
+            "playback_state": "idle",
+            "playback_position_seconds": 0.0,
+            "playback_duration_seconds": 0.0,
+            "playback_progress": 0.0,
+            "error": None,
+        }
+
+    def delete_selected(self, *, correlation_id: str):
+        return {
+            "status": "ready",
+            "items": [],
+            "selected_item_id": "",
+            "conversion_context": None,
+            "playback_context": None,
+            "playback_state": "idle",
             "playback_position_seconds": 0.0,
             "playback_duration_seconds": 0.0,
             "playback_progress": 0.0,
@@ -38,6 +82,7 @@ class _FakeLibraryPresenter:
             "status": "opened",
             "items": [{"id": "lib-1", "title": "Book"}],
             "selected_item_id": "lib-1",
+            "conversion_context": None,
             "playback_context": {"library_item_id": "lib-1", "audio_path": "runtime/library/audio/.gitkeep"},
             "playback_state": "playing",
             "playback_position_seconds": 0.0,
@@ -51,6 +96,7 @@ class _FakeLibraryPresenter:
             "status": "opened",
             "items": [{"id": "lib-1", "title": "Book"}],
             "selected_item_id": "lib-1",
+            "conversion_context": None,
             "playback_context": {"library_item_id": "lib-1", "audio_path": "runtime/library/audio/.gitkeep"},
             "playback_state": "paused",
             "playback_position_seconds": 5.0,
@@ -64,6 +110,7 @@ class _FakeLibraryPresenter:
             "status": "opened",
             "items": [{"id": "lib-1", "title": "Book"}],
             "selected_item_id": "lib-1",
+            "conversion_context": None,
             "playback_context": {"library_item_id": "lib-1", "audio_path": "runtime/library/audio/.gitkeep"},
             "playback_state": "paused",
             "playback_position_seconds": float(position_seconds),
@@ -77,6 +124,7 @@ class _FakeLibraryPresenter:
             "status": "opened",
             "items": [{"id": "lib-1", "title": "Book"}],
             "selected_item_id": "lib-1",
+            "conversion_context": None,
             "playback_context": {"library_item_id": "lib-1", "audio_path": "runtime/library/audio/.gitkeep"},
             "playback_state": "paused",
             "playback_position_seconds": 10.0,
@@ -144,3 +192,16 @@ class TestLibraryView(unittest.TestCase):
 
         self.assertGreaterEqual(calls_after_pause, 1)
         self.assertEqual(calls_after_pause, presenter.refresh_calls)
+
+    def test_select_convert_delete_actions_route_through_presenter(self) -> None:
+        view = LibraryView(presenter=_FakeLibraryPresenter())
+
+        selected = view.select_item(item_id="lib-1")
+        self.assertEqual(selected["selected_item_id"], "lib-1")
+
+        converted = view.convert_selected(correlation_id="corr-view-convert")
+        self.assertEqual(converted["conversion_context"]["library_item_id"], "lib-1")
+
+        deleted = view.delete_selected(correlation_id="corr-view-delete")
+        self.assertEqual(deleted["selected_item_id"], "")
+        self.assertEqual(len(deleted["items"]), 0)

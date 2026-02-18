@@ -192,6 +192,48 @@ class LibraryItemsRepository(BaseRepository):
 
         return self._row_to_dict(row)
 
+    def delete_item_by_id(self, item_id: str) -> dict[str, Any] | None:
+        """Delete one library item by id and return deleted row when present."""
+        normalized_item_id = str(item_id or "")
+        cursor = self._connection.cursor()
+        try:
+            cursor.execute("BEGIN")
+            row = cursor.execute(
+                """
+                SELECT
+                    id,
+                    document_id,
+                    job_id,
+                    audio_path,
+                    title,
+                    source_path,
+                    source_format,
+                    format,
+                    engine,
+                    voice,
+                    language,
+                    duration_seconds,
+                    byte_size,
+                    created_at
+                FROM library_items
+                WHERE id = ?
+                """,
+                (normalized_item_id,),
+            ).fetchone()
+
+            if row is None:
+                self._connection.commit()
+                return None
+
+            cursor.execute("DELETE FROM library_items WHERE id = ?", (normalized_item_id,))
+            self._connection.commit()
+            return self._row_to_dict(row)
+        except sqlite3.Error:
+            self._connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
     @staticmethod
     def _validate_audio_path(audio_path: str) -> None:
         """Validate audio path is under runtime/library/audio to prevent path traversal.

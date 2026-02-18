@@ -12,6 +12,12 @@ class LibraryPresenterPort(Protocol):
 
     def open_item(self, *, correlation_id: str, item_id: str) -> dict[str, Any]: ...
 
+    def select_item(self, *, item_id: str) -> dict[str, Any]: ...
+
+    def convert_selected(self, *, correlation_id: str) -> dict[str, Any]: ...
+
+    def delete_selected(self, *, correlation_id: str) -> dict[str, Any]: ...
+
     def play(self, *, correlation_id: str) -> dict[str, Any]: ...
 
     def pause(self, *, correlation_id: str) -> dict[str, Any]: ...
@@ -34,6 +40,7 @@ class LibraryView:
             "status": "idle",
             "items": [],
             "selected_item_id": "",
+            "conversion_context": None,
             "playback_context": None,
             "playback_state": "idle",
             "playback_position_seconds": 0.0,
@@ -49,6 +56,21 @@ class LibraryView:
 
     def open_selected(self, *, correlation_id: str, item_id: str) -> dict[str, Any]:
         state = self._presenter.open_item(correlation_id=correlation_id, item_id=item_id)
+        self.current_state = dict(state)
+        return self.current_state
+
+    def select_item(self, *, item_id: str) -> dict[str, Any]:
+        state = self._presenter.select_item(item_id=item_id)
+        self.current_state = dict(state)
+        return self.current_state
+
+    def convert_selected(self, *, correlation_id: str) -> dict[str, Any]:
+        state = self._presenter.convert_selected(correlation_id=correlation_id)
+        self.current_state = dict(state)
+        return self.current_state
+
+    def delete_selected(self, *, correlation_id: str) -> dict[str, Any]:
+        state = self._presenter.delete_selected(correlation_id=correlation_id)
         self.current_state = dict(state)
         return self.current_state
 

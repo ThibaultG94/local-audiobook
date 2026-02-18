@@ -20,6 +20,9 @@ class LibraryItemsRepositoryPort(Protocol):
     def get_item_by_id(self, item_id: str) -> dict[str, object] | None:
         ...
 
+    def delete_item_by_id(self, item_id: str) -> dict[str, object] | None:
+        ...
+
 
 @runtime_checkable
 class EventLoggerPort(Protocol):
@@ -175,6 +178,201 @@ class LibraryService:
             extra={"library_item_id": str(record.get("id") or "")},
         )
         return success(payload)
+
+    def prepare_item_for_conversion(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]:
+        """Resolve a selected library item into conversion context payload."""
+        normalized_item_id = str(item_id or "").strip()
+        if not normalized_item_id:
+            error = failure(
+                code="library_management.invalid_item_id",
+                message="A library item must be selected before conversion.",
+                details={
+                    "category": "input",
+                    "item_id": normalized_item_id,
+                    "remediation": "Select an item from the library and retry conversion.",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="library.item_prepare_convert_failed",
+                stage="library_management",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id="",
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        record = self._library_items_repository.get_item_by_id(normalized_item_id)
+        if record is None:
+            error = failure(
+                code="library_management.item_not_found",
+                message="Selected library item was not found for conversion.",
+                details={
+                    "category": "not_found",
+                    "item_id": normalized_item_id,
+                    "remediation": "Refresh the library list and select an existing item.",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="library.item_prepare_convert_failed",
+                stage="library_management",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id="",
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        conversion_context = {
+            "library_item_id": str(record.get("id") or ""),
+            "document_id": str(record.get("document_id") or ""),
+            "source_path": str(record.get("source_path") or ""),
+            "source_format": str(record.get("source_format") or ""),
+            "title": str(record.get("title") or ""),
+            "language": str(record.get("language") or ""),
+        }
+        payload = {
+            "library_item": self._to_browse_item(record),
+            "conversion_context": conversion_context,
+        }
+        self._emit(
+            event="library.item_prepared_for_convert",
+            stage="library_management",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=str(record.get("job_id") or ""),
+            extra={"library_item_id": str(record.get("id") or "")},
+        )
+        return success(payload)
+
+    def delete_library_item(self, *, correlation_id: str, item_id: str) -> Result[dict[str, object]]:
+        """Delete one library item and cleanup local artifact references safely."""
+        normalized_item_id = str(item_id or "").strip()
+        if not normalized_item_id:
+            error = failure(
+                code="library_management.invalid_item_id",
+                message="A library item must be selected before deletion.",
+                details={
+                    "category": "input",
+                    "item_id": normalized_item_id,
+                    "remediation": "Select an item from the library and retry deletion.",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="library.item_delete_failed",
+                stage="library_management",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id="",
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        record = self._library_items_repository.get_item_by_id(normalized_item_id)
+        if record is None:
+            error = failure(
+                code="library_management.item_not_found",
+                message="Selected library item was not found.",
+                details={
+                    "category": "not_found",
+                    "item_id": normalized_item_id,
+                    "remediation": "Refresh the local library and retry deletion.",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="library.item_delete_failed",
+                stage="library_management",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id="",
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        artifact_cleanup = self._cleanup_artifact_for_delete(
+            audio_path=str(record.get("audio_path") or ""),
+            correlation_id=correlation_id,
+            job_id=str(record.get("job_id") or ""),
+        )
+        if not artifact_cleanup.ok:
+            self._emit(
+                event="library.item_delete_failed",
+                stage="library_management",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=str(record.get("job_id") or ""),
+                extra={"error": artifact_cleanup.error.to_dict() if artifact_cleanup.error else {}},
+            )
+            return artifact_cleanup
+
+        try:
+            deleted = self._library_items_repository.delete_item_by_id(normalized_item_id)
+        except Exception as exc:
+            error = failure(
+                code="library_management.delete_failed",
+                message="Unable to remove local library metadata.",
+                details={
+                    "category": "persistence",
+                    "item_id": normalized_item_id,
+                    "exception": str(exc),
+                    "exception_type": type(exc).__name__,
+                    "remediation": "Retry deletion. If this persists, verify local SQLite database integrity.",
+                },
+                retryable=True,
+            )
+            self._emit(
+                event="library.item_delete_failed",
+                stage="library_management",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=str(record.get("job_id") or ""),
+                extra={
+                    "error": error.error.to_dict() if error.error else {},
+                    "exception_type": type(exc).__name__,
+                },
+            )
+            return error
+
+        if deleted is None:
+            error = failure(
+                code="library_management.item_not_found",
+                message="Selected library item disappeared before deletion completed.",
+                details={
+                    "category": "not_found",
+                    "item_id": normalized_item_id,
+                    "remediation": "Refresh the library list and retry if needed.",
+                },
+                retryable=False,
+            )
+            self._emit(
+                event="library.item_delete_failed",
+                stage="library_management",
+                severity="ERROR",
+                correlation_id=correlation_id,
+                job_id=str(record.get("job_id") or ""),
+                extra={"error": error.error.to_dict() if error.error else {}},
+            )
+            return error
+
+        self._emit(
+            event="library.item_deleted",
+            stage="library_management",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=str(record.get("job_id") or ""),
+            extra={"library_item_id": normalized_item_id},
+        )
+        return success(
+            {
+                "deleted_item_id": normalized_item_id,
+                "deleted_item": self._to_browse_item(deleted),
+                "artifact_deleted": bool((artifact_cleanup.data or {}).get("artifact_deleted", False)),
+            }
+        )
 
     def persist_final_artifact(
         self,
@@ -404,11 +602,84 @@ class LibraryService:
             "source": str(item.get("source_path") or ""),
             "language": str(item.get("language") or ""),
             "format": str(item.get("format") or ""),
+            "byte_size": int(item.get("byte_size") or 0),
             "created_date": str(item.get("created_at") or ""),
+            "conversion_status": "ready",
             "audio_path": str(item.get("audio_path") or ""),
             "job_id": str(item.get("job_id") or ""),
             "source_format": str(item.get("source_format") or ""),
         }
+
+    def _cleanup_artifact_for_delete(
+        self,
+        *,
+        audio_path: str,
+        correlation_id: str,
+        job_id: str,
+    ) -> Result[dict[str, object]]:
+        normalized_audio_path = str(audio_path or "").strip()
+        if not normalized_audio_path:
+            return success({"artifact_deleted": False, "reason": "missing_path"})
+
+        input_path = Path(normalized_audio_path)
+        expected_base = Path("runtime/library/audio").resolve()
+        try:
+            resolved_path = input_path.resolve()
+        except OSError as exc:
+            return failure(
+                code="library_management.artifact_cleanup_failed",
+                message="Audio artifact path is malformed and cannot be cleaned up.",
+                details={
+                    "category": "artifact",
+                    "audio_path": normalized_audio_path,
+                    "exception": str(exc),
+                    "remediation": "Verify artifact path under runtime/library/audio and retry deletion.",
+                },
+                retryable=False,
+            )
+
+        if not str(resolved_path).startswith(str(expected_base)):
+            return failure(
+                code="library_management.artifact_cleanup_failed",
+                message="Refusing to delete artifact outside runtime/library/audio bounds.",
+                details={
+                    "category": "artifact",
+                    "audio_path": normalized_audio_path,
+                    "resolved_path": str(resolved_path),
+                    "expected_base": str(expected_base),
+                    "remediation": "Move the artifact under runtime/library/audio or correct the metadata path before retrying.",
+                },
+                retryable=False,
+            )
+
+        if not resolved_path.exists():
+            return success({"artifact_deleted": False, "reason": "already_missing"})
+
+        try:
+            resolved_path.unlink()
+        except OSError as exc:
+            return failure(
+                code="library_management.artifact_cleanup_failed",
+                message="Unable to remove local audio artifact during deletion.",
+                details={
+                    "category": "artifact",
+                    "audio_path": normalized_audio_path,
+                    "resolved_path": str(resolved_path),
+                    "exception": str(exc),
+                    "remediation": "Close any process using the file and retry deletion.",
+                },
+                retryable=True,
+            )
+
+        self._emit(
+            event="library.item_artifact_deleted",
+            stage="library_management",
+            severity="INFO",
+            correlation_id=correlation_id,
+            job_id=job_id,
+            extra={"audio_path": str(resolved_path)},
+        )
+        return success({"artifact_deleted": True, "audio_path": str(resolved_path)})
 
     def _validate_reopen_path(
         self,

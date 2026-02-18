@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from src.domain.services.library_service import LibraryService
 
@@ -26,6 +27,14 @@ class _InMemoryLibraryItemsRepository:
                 return dict(item)
         return None
 
+    def delete_item_by_id(self, item_id: str) -> dict[str, object] | None:
+        for idx, item in enumerate(self.items):
+            if str(item.get("id") or "") == str(item_id):
+                deleted = dict(item)
+                del self.items[idx]
+                return deleted
+        return None
+
 
 class _FailingLibraryItemsRepository:
     def create_item(self, record: dict[str, object]) -> dict[str, object]:
@@ -36,6 +45,14 @@ class _FailingLibraryItemsRepository:
 
     def get_item_by_id(self, item_id: str) -> dict[str, object] | None:
         return None
+
+    def delete_item_by_id(self, item_id: str) -> dict[str, object] | None:
+        raise RuntimeError("db down")
+
+
+class _FailingDeleteLibraryItemsRepository(_InMemoryLibraryItemsRepository):
+    def delete_item_by_id(self, item_id: str) -> dict[str, object] | None:
+        raise RuntimeError("db down")
 
 
 class _CapturingLogger:
@@ -106,11 +123,17 @@ class TestLibraryService(unittest.TestCase):
         self.assertEqual(result.data["count"], 1)
         self.assertEqual(result.data["items"][0]["id"], "lib-2")
         self.assertEqual(result.data["items"][0]["created_date"], "2026-02-14T10:00:00+00:00")
+        self.assertEqual(result.data["items"][0]["byte_size"], 0)
+        self.assertEqual(result.data["items"][0]["conversion_status"], "ready")
         loaded_events = [event for event in logger.events if event.get("event") == "library.list_loaded"]
         self.assertEqual(len(loaded_events), 1)
         self.assertEqual(loaded_events[0].get("stage"), "library_browse")
 
     def test_reopen_library_item_success_prepares_playback_context(self) -> None:
+        audio_path = Path("runtime/library/audio/test-reopen-library-item-success.mp3")
+        audio_path.parent.mkdir(parents=True, exist_ok=True)
+        audio_path.write_bytes(b"ok")
+
         repository = _InMemoryLibraryItemsRepository()
         repository.items = [
             {
@@ -120,7 +143,7 @@ class TestLibraryService(unittest.TestCase):
                 "language": "fr",
                 "format": "mp3",
                 "created_at": "2026-02-14T10:00:00+00:00",
-                "audio_path": "runtime/library/audio/.gitkeep",
+                "audio_path": str(audio_path),
                 "job_id": "job-ok",
                 "source_format": "epub",
             }
@@ -133,7 +156,7 @@ class TestLibraryService(unittest.TestCase):
         self.assertTrue(result.ok)
         assert result.data is not None
         self.assertEqual(result.data["library_item"]["id"], "lib-ok")
-        self.assertIn("runtime/library/audio/.gitkeep", result.data["playback_context"]["audio_path"])
+        self.assertIn("runtime/library/audio/test-reopen-library-item-success.mp3", result.data["playback_context"]["audio_path"])
         opened_events = [event for event in logger.events if event.get("event") == "library.item_opened"]
         self.assertEqual(len(opened_events), 1)
         self.assertEqual(opened_events[0].get("stage"), "library_browse")
@@ -207,6 +230,10 @@ class TestLibraryService(unittest.TestCase):
         This test ensures that reopen_library_item only accesses the repository
         and does not call any extraction, chunking, or TTS services.
         """
+        audio_path = Path("runtime/library/audio/test-reopen-library-no-reconvert.mp3")
+        audio_path.parent.mkdir(parents=True, exist_ok=True)
+        audio_path.write_bytes(b"ok")
+
         repository = _InMemoryLibraryItemsRepository()
         repository.items = [
             {
@@ -216,7 +243,7 @@ class TestLibraryService(unittest.TestCase):
                 "language": "fr",
                 "format": "mp3",
                 "created_at": "2026-02-14T10:00:00+00:00",
-                "audio_path": "runtime/library/audio/.gitkeep",
+                "audio_path": str(audio_path),
                 "job_id": "job-no-reconvert",
                 "source_format": "epub",
             }
@@ -305,3 +332,135 @@ class TestLibraryService(unittest.TestCase):
         failed_events = [event for event in logger.events if event.get("event") == "library.item_create_failed"]
         self.assertEqual(len(failed_events), 1)
         self.assertEqual(failed_events[0].get("stage"), "library_persistence")
+
+    def test_prepare_item_for_conversion_returns_selected_document_context(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        repository.items = [
+            {
+                "id": "lib-convert",
+                "document_id": "doc-convert",
+                "title": "Convert Me",
+                "source_path": "/tmp/convert.epub",
+                "source_format": "epub",
+                "language": "fr",
+                "format": "mp3",
+                "audio_path": "runtime/library/audio/.gitkeep",
+                "created_at": "2026-02-14T10:00:00+00:00",
+            }
+        ]
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.prepare_item_for_conversion(correlation_id="corr-prepare", item_id="lib-convert")
+
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        conversion_context = result.data["conversion_context"]
+        self.assertEqual(conversion_context["library_item_id"], "lib-convert")
+        self.assertEqual(conversion_context["document_id"], "doc-convert")
+        self.assertEqual(conversion_context["source_path"], "/tmp/convert.epub")
+
+    def test_delete_library_item_success_removes_metadata_and_local_artifact(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        repository.items = [
+            {
+                "id": "lib-delete-ok",
+                "document_id": "doc-delete-ok",
+                "title": "Delete Me",
+                "source_path": "/tmp/delete.epub",
+                "source_format": "epub",
+                "language": "fr",
+                "format": "mp3",
+                "byte_size": 512,
+                "audio_path": "runtime/library/audio/test-delete-library-item.mp3",
+                "created_at": "2026-02-14T10:00:00+00:00",
+            }
+        ]
+        audio_path = Path("runtime/library/audio/test-delete-library-item.mp3")
+        audio_path.parent.mkdir(parents=True, exist_ok=True)
+        audio_path.write_bytes(b"dummy")
+
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.delete_library_item(correlation_id="corr-delete-ok", item_id="lib-delete-ok")
+
+        self.assertTrue(result.ok)
+        assert result.data is not None
+        self.assertEqual(result.data["deleted_item_id"], "lib-delete-ok")
+        self.assertFalse(audio_path.exists())
+        self.assertIsNone(repository.get_item_by_id("lib-delete-ok"))
+        delete_events = [event for event in logger.events if event.get("event") == "library.item_deleted"]
+        self.assertEqual(len(delete_events), 1)
+        self.assertEqual(delete_events[0].get("stage"), "library_management")
+
+    def test_delete_library_item_rejects_invalid_item_id(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.delete_library_item(correlation_id="corr-delete-invalid", item_id="")
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "library_management.invalid_item_id")
+
+    def test_delete_library_item_returns_not_found_for_missing_item(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.delete_library_item(correlation_id="corr-delete-missing", item_id="does-not-exist")
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "library_management.item_not_found")
+
+    def test_delete_library_item_rejects_path_outside_runtime_bounds(self) -> None:
+        repository = _InMemoryLibraryItemsRepository()
+        repository.items = [
+            {
+                "id": "lib-delete-unsafe",
+                "document_id": "doc-delete-unsafe",
+                "title": "Unsafe",
+                "source_path": "/tmp/unsafe.epub",
+                "source_format": "epub",
+                "language": "fr",
+                "format": "mp3",
+                "audio_path": "../../../etc/passwd",
+                "created_at": "2026-02-14T10:00:00+00:00",
+            }
+        ]
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.delete_library_item(correlation_id="corr-delete-unsafe", item_id="lib-delete-unsafe")
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "library_management.artifact_cleanup_failed")
+        self.assertIn("runtime/library/audio", str(result.error.details.get("remediation", "")))
+
+    def test_delete_library_item_maps_repository_failure(self) -> None:
+        repository = _FailingDeleteLibraryItemsRepository()
+        repository.items = [
+            {
+                "id": "lib-any",
+                "document_id": "doc-any",
+                "title": "Any",
+                "source_path": "/tmp/any.epub",
+                "source_format": "epub",
+                "language": "fr",
+                "format": "mp3",
+                "audio_path": "runtime/library/audio/file-does-not-exist-any.mp3",
+                "created_at": "2026-02-14T10:00:00+00:00",
+            }
+        ]
+        logger = _CapturingLogger()
+        service = LibraryService(library_items_repository=repository, logger=logger)
+
+        result = service.delete_library_item(correlation_id="corr-delete-db-fail", item_id="lib-any")
+
+        self.assertFalse(result.ok)
+        assert result.error is not None
+        self.assertEqual(result.error.code, "library_management.delete_failed")
