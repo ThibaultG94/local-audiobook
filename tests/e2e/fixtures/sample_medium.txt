@@ -1,0 +1,25 @@
+Chapter One: The Beginning
+
+Once upon a time, in a land far away, there lived a young programmer who dreamed of building great software.
+Every day, she would sit at her desk and write code, testing each function carefully.
+She believed that good tests were the foundation of reliable software.
+
+Chapter Two: The Challenge
+
+One day, a great challenge appeared before her. The audio conversion pipeline was broken.
+Users could not convert their documents to audiobooks. The error messages were cryptic.
+She decided to investigate the root cause systematically.
+
+Chapter Three: The Solution
+
+After careful analysis, she discovered that the database constraints were being violated.
+The chunks were being inserted before the parent job record existed.
+By reordering the operations, she fixed the foreign key constraint violation.
+The pipeline worked correctly once more, and users could convert their documents.
+
+Chapter Four: The Tests
+
+To prevent future regressions, she wrote comprehensive end-to-end tests.
+These tests used real files and exercised the complete pipeline.
+They caught bugs that unit tests could never find.
+The software became more reliable with each passing day.

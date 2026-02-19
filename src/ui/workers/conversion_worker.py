@@ -370,44 +370,9 @@ class ConversionWorker:
             self._dispatch_progress(normalized)
 
         try:
-            # ── Step 0: resolve document record ──────────────────────────────
-            extract_result = self._extract_and_chunk(
-                document_id=document_id,
-                job_id=job_id,
-                correlation_id=normalized_correlation_id,
-                language=str(conversion_config.get("language", "") or ""),
-            )
-            if not extract_result.ok:
-                failed_payload = extract_result.error.to_dict() if extract_result.error else {}
-                self._emit_worker_event(
-                    event="worker_execution.failed",
-                    severity="ERROR",
-                    correlation_id=normalized_correlation_id,
-                    job_id=job_id,
-                    engine=str(conversion_config.get("engine", "")),
-                    chunk_index=-1,
-                    extra={"error": failed_payload, "status": "failed", "stage": "extraction"},
-                )
-                self._dispatch_state(
-                    {
-                        "job_id": job_id,
-                        "correlation_id": normalized_correlation_id,
-                        "status": "failed",
-                        "progress_percent": 0,
-                        "chunk_index": -1,
-                    }
-                )
-                self._dispatch_error(
-                    {
-                        "job_id": job_id,
-                        "correlation_id": normalized_correlation_id,
-                        "error": failed_payload,
-                        "status": "failed",
-                    }
-                )
-                return extract_result
-
-            # ── Step 1: create job record + validate config ───────────────────
+            # ── Step 0: create job record + validate config ───────────────────
+            # IMPORTANT: job must be created BEFORE chunks due to FK constraint
+            # chunks.job_id REFERENCES conversion_jobs(id)
             prepared = self._prepare_conversion_launch(
                 document_id=document_id,
                 job_id=job_id,
@@ -443,6 +408,44 @@ class ConversionWorker:
                     }
                 )
                 return prepared
+
+            # ── Step 1: extract text + chunk + persist chunks ─────────────────
+            # MUST run AFTER job creation: chunks FK references conversion_jobs(id)
+            extract_result = self._extract_and_chunk(
+                document_id=document_id,
+                job_id=job_id,
+                correlation_id=normalized_correlation_id,
+                language=str(conversion_config.get("language", "") or ""),
+            )
+            if not extract_result.ok:
+                failed_payload = extract_result.error.to_dict() if extract_result.error else {}
+                self._emit_worker_event(
+                    event="worker_execution.failed",
+                    severity="ERROR",
+                    correlation_id=normalized_correlation_id,
+                    job_id=job_id,
+                    engine=str(conversion_config.get("engine", "")),
+                    chunk_index=-1,
+                    extra={"error": failed_payload, "status": "failed", "stage": "extraction"},
+                )
+                self._dispatch_state(
+                    {
+                        "job_id": job_id,
+                        "correlation_id": normalized_correlation_id,
+                        "status": "failed",
+                        "progress_percent": 0,
+                        "chunk_index": -1,
+                    }
+                )
+                self._dispatch_error(
+                    {
+                        "job_id": job_id,
+                        "correlation_id": normalized_correlation_id,
+                        "error": failed_payload,
+                        "status": "failed",
+                    }
+                )
+                return extract_result
 
             orchestration_result = self._invoke_launcher(
                 job_id=job_id,

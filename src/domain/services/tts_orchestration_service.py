@@ -137,6 +137,7 @@ class TtsOrchestrationService:
             job_id=job_id,
             correlation_id=correlation_id,
             voice=str(conversion_config.get("voice_id") or "default"),
+            engine=str(conversion_config.get("engine") or ""),
             current_job_state="running",
             force_reprocess=bool(conversion_config.get("force_reprocess", False)),
             progress_callback=progress_callback,
@@ -257,6 +258,7 @@ class TtsOrchestrationService:
         job_id: str,
         correlation_id: str,
         voice: str | None = None,
+        engine: str = "",
         current_job_state: str = "running",
         force_reprocess: bool = False,
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
@@ -270,6 +272,9 @@ class TtsOrchestrationService:
             job_id: Job identifier
             correlation_id: Request correlation ID
             voice: Voice ID (provider-specific)
+            engine: Engine name requested by the user (e.g. "kokoro_cpu", "chatterbox_gpu").
+                    When provided, the matching provider is used directly without going
+                    through the primary→fallback chain.
             current_job_state: Current job state (default: "running")
             force_reprocess: If True, reprocess all chunks regardless of status (default: False)
             
@@ -364,13 +369,14 @@ class TtsOrchestrationService:
                 correlation_id=correlation_id,
                 job_id=job_id,
                 chunk_index=chunk_index,
-                engine=started_engine,
+                engine=engine or started_engine,
                 extra={},
             )
 
             synthesis_result, attempt_trace = self._synthesize_with_policy(
                 text_content,
                 voice,
+                engine=engine,
                 correlation_id=correlation_id,
                 job_id=job_id,
                 chunk_index=chunk_index,
@@ -713,16 +719,42 @@ class TtsOrchestrationService:
         )
         return success({"current_state": current_state, "next_state": next_state, "no_op": False})
 
+    def _resolve_provider_for_engine(self, engine: str) -> "TtsProvider | None":
+        """Resolve the provider that matches the requested engine name.
+
+        Priority:
+        1. If engine matches primary provider → return primary
+        2. If engine matches fallback provider → return fallback
+        3. If engine is empty/unknown → return None (caller uses default policy)
+        """
+        if not engine:
+            return None
+        if self._primary_provider is not None and self._primary_provider.engine_name == engine:
+            return self._primary_provider
+        if self._fallback_provider is not None and self._fallback_provider.engine_name == engine:
+            return self._fallback_provider
+        return None
+
     def _synthesize_with_policy(
         self,
         text: str,
         voice: str | None,
         *,
+        engine: str = "",
         correlation_id: str,
         job_id: str,
         chunk_index: int,
     ) -> tuple[Result[TtsSynthesisData], dict[str, object]]:
-        """Apply deterministic provider policy and return synthesis + attempt trace."""
+        """Apply deterministic provider policy and return synthesis + attempt trace.
+
+        When ``engine`` is specified and matches a known provider, that provider
+        is used directly (no primary→fallback chain). This ensures that when the
+        user selects "kokoro_cpu", Kokoro is used even if Chatterbox is the
+        configured primary provider.
+
+        When ``engine`` is empty or unknown, the classic primary→fallback chain
+        is applied.
+        """
         trace: dict[str, object] = {
             "attempted_engines": [],
             "fallback_applied": False,
@@ -744,6 +776,27 @@ class TtsOrchestrationService:
                 trace,
             )
 
+        # ── Engine-specific routing ───────────────────────────────────────────
+        # When the user explicitly selects an engine, use that provider directly.
+        # This avoids the primary→fallback chain which would try Chatterbox first
+        # even when the user selected Kokoro.
+        requested_provider = self._resolve_provider_for_engine(engine)
+        if requested_provider is not None:
+            trace["attempted_engines"] = [requested_provider.engine_name]
+            result = requested_provider.synthesize_chunk(
+                text,
+                voice,
+                correlation_id=correlation_id,
+                job_id=job_id,
+                chunk_index=chunk_index,
+            )
+            trace["selected_engine"] = requested_provider.engine_name
+            if result.ok:
+                return result, trace
+            trace["primary_error"] = result.error.to_dict() if result.error else {}
+            return result, trace
+
+        # ── Default primary→fallback chain ────────────────────────────────────
         # Try primary provider first
         if self._primary_provider is not None:
             trace["attempted_engines"] = [self._primary_provider.engine_name]
