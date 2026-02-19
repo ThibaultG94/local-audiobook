@@ -279,6 +279,23 @@ classification:
 - FR34: User can use voice cloning from a reference sample
 - FR35: User can run the application on additional desktop operating systems
 
+### Chapter-Aware Conversion and UX Improvements (Epic 7)
+
+- NR1: System can detect native chapters from imported EPUB files using TOC/spine structure
+- NR2: System can propose page-based segmentation for PDF files and word-count-based segmentation for TXT/MD files when no chapter structure is detected
+- NR3: System can convert selected chapters or sections sequentially, producing one audio file per chapter in the output folder
+- NR4: Conversion view displays the imported filename and file size after successful import
+- NR5: User can select a custom output destination folder for converted audio files
+- NR6: User can set a custom base name for output audio files (pre-filled from source filename)
+- NR7: User can view and select individual chapters/sections to convert, with all chapters selected by default
+- NR8: Speech rate slider defaults to 1.0 (normal speed) on first launch and when no persisted value exists
+- NR9: Import functionality is integrated directly into the Conversion tab; the Import tab is removed
+- NR10: Library tab displays converted audio files from a configurable output folder
+- NR11: Library tab displays metadata per item: title, format, file size, conversion date, source filename
+- NR12: Library tab includes an integrated audio player with Play/Pause, seek bar, elapsed time, and total duration
+- NR13: User can configure the Library folder via a folder selection dialog; selection is persisted across sessions
+- NR14: User can preview the selected TTS voice with a short editable French text sample directly in the Conversion view, without saving to library
+
 ## Non-Functional Requirements
 
 ### Performance

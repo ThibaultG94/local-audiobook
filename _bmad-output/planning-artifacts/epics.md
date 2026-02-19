@@ -4,9 +4,11 @@ stepsCompleted:
   - step-02-design-epics
   - step-03-create-stories
   - step-04-final-validation
+  - step-epic7-chapter-ux-library
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
+lastUpdated: "2026-02-19T17:20:00.000Z"
 ---
 
 # local-audiobook - Epic Breakdown
@@ -123,6 +125,20 @@ FR27: Epic 1 - Operate fully offline after model bootstrap
 FR28: Epic 1 - Inform user of missing local model assets
 FR29: Epic 5 - Record local diagnostic logs across pipeline
 FR30: Epic 5 - Expose diagnostics for failed conversions
+NR1: Epic 7 - Detect chapters automatically in EPUB/PDF/TXT
+NR2: Epic 7 - Propose alternative segmentation when no chapters detected
+NR3: Epic 7 - Convert chapters/sections sequentially into separate audio files
+NR4: Epic 7 - Display imported filename in Conversion view
+NR5: Epic 7 - Allow user to choose output destination folder
+NR6: Epic 7 - Allow user to set output filename
+NR7: Epic 7 - Display and select chapters to convert (all selected by default)
+NR8: Epic 7 - Speech rate defaults to 1.0 (normal speed)
+NR9: Epic 7 - Merge Import tab into Conversion tab (remove Import tab)
+NR10: Epic 7 - Display converted audio files in Library with configurable output folder
+NR11: Epic 7 - Display metadata in Library (title, duration, date, source)
+NR12: Epic 7 - Integrated audio player in Library
+NR13: Epic 7 - Configurable Library output folder
+NR14: Epic 7 - Voice preview with pre-filled French text in Conversion view
 
 Out of scope for MVP mapping: FR31, FR32, FR33, FR34, FR35.
 
@@ -157,6 +173,11 @@ Enable users/operators to understand and troubleshoot failures through structure
 
 Stabilize runtime behavior after integration by fixing conversion crashes, introducing degraded readiness behavior, completing Library UI functionality, and finalizing documentation and completion reporting.
 **FRs covered:** Hardening epic (cross-cutting, no new PRD FR IDs)
+
+### Epic 7: Chapter-Aware Conversion, Unified UX, and Functional Library
+
+Enable users to import large documents with automatic chapter detection, select which chapters to convert, control output destination and naming, and browse/play results in a fully functional Library with integrated audio player and voice preview.
+**NRs covered:** NR1, NR2, NR3, NR4, NR5, NR6, NR7, NR8, NR9, NR10, NR11, NR12, NR13, NR14
 
 ## Epic 1: Local Setup and Offline Readiness
 
@@ -551,3 +572,223 @@ So that project status and future work are explicit and auditable.
 **When** report is generated
 **Then** test coverage summary and known issues/future work are included
 **And** statements are traceable to source files and current project state.
+
+## Epic 7: Chapter-Aware Conversion, Unified UX, and Functional Library
+
+Enable users to import large documents with automatic chapter detection, select which chapters to convert, control output destination and naming, and browse/play results in a fully functional Library with integrated audio player and voice preview.
+
+### Story 7.1: Detect and Segment Chapters or Sections from Imported Documents
+
+As a user importing a large document,
+I want the application to automatically detect chapters or propose a segmentation strategy,
+So that I can convert each part separately without memory crashes.
+
+**Acceptance Criteria:**
+
+**Given** an EPUB file is imported
+**When** extraction executes via the EPUB adapter
+**Then** native EPUB chapters are detected from the TOC/spine structure and listed with title and index
+**And** each chapter is stored as an independent extractable unit in the document record.
+
+**Given** a PDF file is imported
+**When** extraction executes via the PDF adapter
+**Then** the system proposes page-based segmentation as sections
+**And** each section is labeled with its page range (e.g. "Pages 1-20").
+
+**Given** a TXT or MD file is imported without detectable chapter markers
+**When** extraction executes via the text extractor
+**Then** the system proposes segmentation by estimated audio duration (blocks of approximately 1500 words per segment)
+**And** each segment is labeled with its estimated duration (e.g. "Segment 1 - ~10 min").
+
+**Given** chapters or sections are detected
+**When** the conversion pipeline runs
+**Then** each chapter/section produces a separate audio file in the output folder
+**And** files are named deterministically as `[source_name]_chapter_01.mp3`, `[source_name]_chapter_02.mp3`, etc.
+
+**Given** a document with no detectable structure
+**When** segmentation analysis completes
+**Then** a single "Full document" entry is returned
+**And** conversion behavior remains identical to the existing single-file pipeline.
+
+### Story 7.2: Merge Import Flow into Conversion Tab
+
+As a user,
+I want to select and import my document directly from the Conversion tab,
+So that I can start conversion without navigating between multiple tabs.
+
+**Acceptance Criteria:**
+
+**Given** the Conversion tab is open
+**When** the user clicks "Select file"
+**Then** a file dialog opens filtered to supported formats (EPUB, PDF, TXT, MD)
+**And** the selected filename and file size are displayed at the top of the Conversion view.
+
+**Given** a file is selected in the Conversion tab
+**When** import validation and extraction complete successfully
+**Then** the detected chapters/sections list is displayed immediately below the file info
+**And** the Convert button becomes available.
+
+**Given** import fails (unsupported format or unreadable file)
+**When** the error is returned
+**Then** a normalized actionable error message is displayed inline in the Conversion tab
+**And** the user can select a different file without leaving the tab.
+
+**Given** the Import tab previously existed as a separate tab
+**When** this story is implemented
+**Then** the Import tab is removed from the tab bar
+**And** no regression occurs on the underlying import service and document persistence logic.
+
+### Story 7.3: Display and Select Chapters to Convert
+
+As a user with a detected chapter list,
+I want to see all chapters and choose which ones to convert,
+So that I can convert only the parts I need without processing the entire document.
+
+**Acceptance Criteria:**
+
+**Given** chapters or sections are detected after import
+**When** the chapter list is rendered in the Conversion view
+**Then** all chapters are checked by default
+**And** each entry shows its title (or label), index, and estimated word count or duration.
+
+**Given** the chapter list is displayed
+**When** the user interacts with the list
+**Then** individual chapters can be checked or unchecked
+**And** "Select all" and "Deselect all" actions are available.
+
+**Given** a subset of chapters is selected
+**When** conversion starts
+**Then** only the selected chapters are processed by the TTS orchestration service
+**And** progress displays "Chapter X of Y selected" during conversion.
+
+**Given** a single-section document (no chapter structure)
+**When** the chapter list renders
+**Then** a single "Full document" entry is shown and checked
+**And** conversion behavior is identical to the existing pipeline.
+
+### Story 7.4: Configure Output Destination Folder and Output Filename
+
+As a user launching conversion,
+I want to choose where my audio files are saved and what they are named,
+So that I can organize my audiobooks in my own file system.
+
+**Acceptance Criteria:**
+
+**Given** the Conversion view is open
+**When** the user clicks "Choose output folder"
+**Then** a folder selection dialog opens
+**And** the selected path is displayed in the Conversion view.
+
+**Given** an output folder is selected
+**When** conversion completes
+**Then** all audio files are written to the selected folder
+**And** the selected path is persisted in app configuration for the next session.
+
+**Given** a document is imported
+**When** the output filename field is rendered
+**Then** it is pre-filled with the source filename without extension
+**And** the user can freely edit the base name before launching conversion.
+
+**Given** no output folder has been configured
+**When** conversion is launched
+**Then** the default folder `runtime/library/audio/` is used
+**And** an informational message displays the path being used.
+
+**Given** the output folder or filename is invalid (e.g. read-only path)
+**When** conversion is launched
+**Then** a normalized error is displayed before conversion starts
+**And** the user can correct the path without losing other configuration.
+
+### Story 7.5: Set Speech Rate Default to 1.0
+
+As a user opening the Conversion view,
+I want the speech rate slider to default to 1.0 (normal speed),
+So that I do not need to adjust it manually on every session.
+
+**Acceptance Criteria:**
+
+**Given** the application starts for the first time or with no persisted speech rate
+**When** the Conversion view renders
+**Then** the speech rate slider is positioned at 1.0
+**And** the displayed value label reads "1.00".
+
+**Given** the speech rate range is [0.5, 2.0] with step 0.05
+**When** the default value is computed
+**Then** the slider position corresponds to value 1.0 (step index 10 from minimum)
+**And** the `ConversionView` state initializes `speech_rate.default` to 1.0.
+
+**Given** the user modifies the speech rate during a session
+**When** the next session starts
+**Then** the last used value is restored from persisted configuration
+**And** the displayed label reflects the restored value.
+
+### Story 7.6: Functional Library with Audio Player and Configurable Output Folder
+
+As a user who has converted audiobooks,
+I want to browse my converted audio files with metadata and play them directly in the Library tab,
+So that I can access and listen to my audiobooks without leaving the application.
+
+**Acceptance Criteria:**
+
+**Given** audio files have been produced by conversion
+**When** the Library tab opens
+**Then** the list displays title, format, file size, conversion date, and source filename for each item
+**And** items are sorted by conversion date descending.
+
+**Given** the Library tab is open
+**When** the user clicks "Configure Library folder"
+**Then** a folder selection dialog opens
+**And** the Library refreshes to display audio files found in the newly selected folder.
+
+**Given** a library item is selected
+**When** the user clicks "Play"
+**Then** an audio player panel appears at the bottom of the Library view with Play/Pause, seek bar, elapsed time, and total duration
+**And** playback starts immediately.
+
+**Given** the audio player is active
+**When** the user selects a different item in the list
+**Then** the currently playing item remains highlighted in the list
+**And** the player continues playback until explicitly paused or a new item is opened.
+
+**Given** a selected audio file is missing or unreadable
+**When** the user attempts to play it
+**Then** a normalized error message is displayed inline
+**And** the player does not crash or enter an inconsistent state.
+
+**Given** the Library folder is not yet configured
+**When** the Library tab opens
+**Then** the default folder `runtime/library/audio/` is scanned
+**And** an informational message indicates the folder being used with an option to change it.
+
+### Story 7.7: Voice Preview with Editable French Sample Text
+
+As a user selecting a TTS voice,
+I want to preview the selected voice with a short editable text before launching a full conversion,
+So that I can choose the voice that suits me without waiting for a complete conversion.
+
+**Acceptance Criteria:**
+
+**Given** the Conversion view is open with a voice selected
+**When** the user clicks "Preview voice"
+**Then** a text area appears below the voice selector pre-filled with: "Bonjour, ceci est un test de la voix sélectionnée. Bonne écoute !"
+**And** the text is fully editable by the user.
+
+**Given** the preview text is ready
+**When** the user clicks "Play preview"
+**Then** TTS synthesis is triggered on the preview text only using the currently selected engine and voice
+**And** the resulting audio plays directly in the application without being saved to the library.
+
+**Given** a voice preview synthesis is in progress
+**When** the user changes the voice selection
+**Then** any in-progress preview is cancelled
+**And** the preview text area remains visible with the current text.
+
+**Given** voice preview synthesis fails
+**When** the error is returned
+**Then** a normalized error message is displayed below the preview area
+**And** the user can modify the text and retry without restarting the application.
+
+**Given** the preview audio plays successfully
+**When** playback completes
+**Then** the preview player resets to its initial state
+**And** no library entry is created for the preview audio.
