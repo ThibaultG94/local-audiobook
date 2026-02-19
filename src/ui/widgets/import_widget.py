@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -18,7 +20,15 @@ from ui.views.import_view import ImportView
 
 
 class ImportWidget(QWidget):
-    """UI adapter for selecting and submitting a document to ImportView."""
+    """UI adapter for selecting and submitting a document to ImportView.
+
+    Emits ``document_imported(document_id: str)`` after a successful import so
+    that other widgets (e.g. ``ConversionWidget``) can receive the real
+    ``document_id`` without tight coupling.
+    """
+
+    #: Emitted with the persisted document_id after a successful import.
+    document_imported = pyqtSignal(str)
 
     def __init__(self, *, import_view: ImportView) -> None:
         super().__init__()
@@ -78,6 +88,8 @@ class ImportWidget(QWidget):
             document_id = str(data.get("id", ""))
             if document_id:
                 self.result_label.setText(f"Import succeeded. document_id={document_id}")
+                # Notify other widgets (e.g. ConversionWidget) of the real document_id
+                self.document_imported.emit(document_id)
             else:
                 self.result_label.setText("Import succeeded.")
             return

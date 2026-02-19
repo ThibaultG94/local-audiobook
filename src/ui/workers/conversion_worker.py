@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from inspect import Signature, signature
 from types import MappingProxyType
-from typing import Any, Callable
+from typing import Any, Callable, Protocol, runtime_checkable
 from uuid import uuid4
 
 from src.contracts.result import Result, failure, success
@@ -49,6 +49,45 @@ class ConversionLauncherPort:
     ) -> Result[dict[str, Any]]: ...
 
 
+@runtime_checkable
+class DocumentsRepositoryPort(Protocol):
+    """Port for fetching document records by id."""
+
+    def get_document_by_id(self, *, document_id: str) -> dict[str, Any] | None: ...
+
+
+@runtime_checkable
+class ImportServicePort(Protocol):
+    """Port for extracting text from a persisted document."""
+
+    def extract_document(
+        self,
+        *,
+        document: dict[str, str],
+        correlation_id: str,
+        job_id: str,
+    ) -> Result[dict[str, Any]]: ...
+
+
+@runtime_checkable
+class TtsOrchestrationPort(Protocol):
+    """Port for chunking text and persisting chunks for a job."""
+
+    def chunk_text_for_job(
+        self,
+        *,
+        text: str,
+        job_id: str,
+        correlation_id: str,
+        max_chars: int,
+        language_hint: str | None = None,
+    ) -> Result[dict[str, Any]]: ...
+
+
+# Default max characters per TTS chunk (≈ 500 words at ~5 chars/word)
+_DEFAULT_MAX_CHARS_PER_CHUNK: int = 2500
+
+
 @dataclass(slots=True)
 class ConversionWorker:
     """Background worker to refresh readiness without blocking the UI thread.
@@ -80,6 +119,9 @@ class ConversionWorker:
     logger: Any
     conversion_jobs_repository: ConversionJobsRepositoryPort | None = None
     conversion_launcher: ConversionLauncherPort | None = None
+    documents_repository: DocumentsRepositoryPort | None = None
+    import_service: ImportServicePort | None = None
+    tts_orchestration: TtsOrchestrationPort | None = None
     dispatch_to_main: Callable[[Callable[[], None]], None] | None = None
     max_workers: int = 1
     _listeners: list[Callback] = field(default_factory=list)
@@ -328,6 +370,44 @@ class ConversionWorker:
             self._dispatch_progress(normalized)
 
         try:
+            # ── Step 0: resolve document record ──────────────────────────────
+            extract_result = self._extract_and_chunk(
+                document_id=document_id,
+                job_id=job_id,
+                correlation_id=normalized_correlation_id,
+                language=str(conversion_config.get("language", "") or ""),
+            )
+            if not extract_result.ok:
+                failed_payload = extract_result.error.to_dict() if extract_result.error else {}
+                self._emit_worker_event(
+                    event="worker_execution.failed",
+                    severity="ERROR",
+                    correlation_id=normalized_correlation_id,
+                    job_id=job_id,
+                    engine=str(conversion_config.get("engine", "")),
+                    chunk_index=-1,
+                    extra={"error": failed_payload, "status": "failed", "stage": "extraction"},
+                )
+                self._dispatch_state(
+                    {
+                        "job_id": job_id,
+                        "correlation_id": normalized_correlation_id,
+                        "status": "failed",
+                        "progress_percent": 0,
+                        "chunk_index": -1,
+                    }
+                )
+                self._dispatch_error(
+                    {
+                        "job_id": job_id,
+                        "correlation_id": normalized_correlation_id,
+                        "error": failed_payload,
+                        "status": "failed",
+                    }
+                )
+                return extract_result
+
+            # ── Step 1: create job record + validate config ───────────────────
             prepared = self._prepare_conversion_launch(
                 document_id=document_id,
                 job_id=job_id,
@@ -549,6 +629,98 @@ class ConversionWorker:
                     "progress_percent": percent,
                 }
             )
+
+    def _extract_and_chunk(
+        self,
+        *,
+        document_id: str,
+        job_id: str,
+        correlation_id: str,
+        language: str,
+    ) -> Result[dict[str, Any]]:
+        """Fetch document, extract text, and persist chunks for the job.
+
+        This step must run **before** ``_prepare_conversion_launch`` so that
+        chunks exist in the DB when ``synthesize_persisted_chunks_for_job``
+        is called by the TTS orchestration service.
+
+        When ``documents_repository``, ``import_service``, or
+        ``tts_orchestration`` are *None* the step is skipped and a success is
+        returned so that legacy / test configurations that pre-populate chunks
+        directly still work.
+
+        Returns:
+            Success with ``{"chunk_count": int}`` or a structured failure.
+        """
+        # If the extraction pipeline is not wired up, skip gracefully.
+        # This preserves backward-compatibility for tests that inject chunks
+        # directly into the DB without going through the import flow.
+        if self.documents_repository is None or self.import_service is None or self.tts_orchestration is None:
+            return success({"chunk_count": 0, "skipped": True})
+
+        # 1. Resolve document record
+        if not document_id:
+            return failure(
+                code="worker_execution.document_id_missing",
+                message="No document selected. Import a document first before starting conversion.",
+                details={"document_id": document_id},
+                retryable=False,
+            )
+
+        document = self.documents_repository.get_document_by_id(document_id=document_id)
+        if document is None:
+            return failure(
+                code="worker_execution.document_not_found",
+                message=f"Document '{document_id}' not found in the database. "
+                        "Import a document first before starting conversion.",
+                details={"document_id": document_id},
+                retryable=False,
+            )
+
+        # 2. Extract text
+        if self.import_service is None:
+            return failure(
+                code="worker_execution.import_service_unavailable",
+                message="Import service is not configured — cannot extract document text",
+                details={"document_id": document_id},
+                retryable=False,
+            )
+
+        extraction_result = self.import_service.extract_document(
+            document={k: str(v) for k, v in document.items()},
+            correlation_id=correlation_id,
+            job_id=job_id,
+        )
+        if not extraction_result.ok:
+            return extraction_result
+
+        extracted_text = str((extraction_result.data or {}).get("text", "")).strip()
+        if not extracted_text:
+            return failure(
+                code="worker_execution.empty_extraction",
+                message="Document text extraction returned empty content",
+                details={"document_id": document_id, "job_id": job_id},
+                retryable=False,
+            )
+
+        # 3. Chunk text and persist chunks
+        if self.tts_orchestration is None:
+            return failure(
+                code="worker_execution.tts_orchestration_unavailable",
+                message="TTS orchestration service is not configured — cannot chunk text",
+                details={"document_id": document_id},
+                retryable=False,
+            )
+
+        language_hint = language.upper() if language else None
+        chunk_result = self.tts_orchestration.chunk_text_for_job(
+            text=extracted_text,
+            job_id=job_id,
+            correlation_id=correlation_id,
+            max_chars=_DEFAULT_MAX_CHARS_PER_CHUNK,
+            language_hint=language_hint,
+        )
+        return chunk_result
 
     def _emit_worker_event(
         self,

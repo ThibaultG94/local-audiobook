@@ -50,7 +50,7 @@ class ConversionWidget(QWidget):
 
         self._active_job_id: str = ""
         self._active_correlation_id: str = ""
-        self._document_id: str = "ui_document"
+        self._document_id: str = ""  # set via set_document_id() after import
 
         self._bridge = _WorkerSignalBridge(self)
         self._worker.on_readiness_refreshed(self._bridge.readiness_refreshed.emit)
@@ -333,7 +333,18 @@ class ConversionWidget(QWidget):
     def _get_selected_speech_rate(self, *, min_rate: float, step: float) -> float:
         return min_rate + (float(self.speech_rate_slider.value()) * step)
 
+    def set_document_id(self, document_id: str) -> None:
+        """Receive the real document_id after a successful import."""
+        self._document_id = document_id
+        # Re-enable the convert button if readiness allows it
+        state = dict(self._view.current_state)
+        self.convert_button.setEnabled(bool(state.get("start_enabled", False)) and bool(document_id))
+
     def _on_convert_clicked(self) -> None:
+        if not self._document_id:
+            self.progress_label.setText("failed — no document imported yet")
+            return
+
         options = dict(self._view.current_state.get("configuration_options", {}))
         voices = list(options.get("voices", []))
         self._active_job_id = str(uuid4())

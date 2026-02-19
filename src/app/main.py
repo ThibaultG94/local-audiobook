@@ -155,7 +155,11 @@ def main() -> int:
     import_view = ImportView(import_service=import_service)
 
     conversion_presenter = build_conversion_presenter(logger=container.logger)
-    conversion_worker = build_conversion_worker(container, "config/model_manifest.yaml")
+    conversion_worker = build_conversion_worker(
+        container,
+        "config/model_manifest.yaml",
+        import_service=import_service,
+    )
     conversion_view = ConversionView(
         presenter=conversion_presenter,
         worker=conversion_worker,

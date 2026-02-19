@@ -16,9 +16,14 @@ def ensure_database_file(database_path: str | Path) -> Path:
 
 
 def create_connection(database_path: str | Path) -> sqlite3.Connection:
-    """Create a SQLite connection to a local database file."""
+    """Create a SQLite connection to a local database file.
+
+    ``check_same_thread=False`` is required because the connection is created
+    on the main thread but used by background ``ThreadPoolExecutor`` workers
+    during TTS conversion.  SQLite WAL mode makes concurrent reads safe.
+    """
     db_path = ensure_database_file(database_path)
-    connection = sqlite3.connect(db_path)
+    connection = sqlite3.connect(str(db_path), check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA foreign_keys=ON")

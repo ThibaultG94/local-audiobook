@@ -48,20 +48,25 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
 
-        # Add tabs for the main views
+        # Build conversion tab first so we can connect the import signal to it
+        self._conversion_widget: ConversionWidget | None = None
         if conversion_view is not None and conversion_worker is not None and conversion_presenter is not None:
-            self.tabs.addTab(
-                ConversionWidget(
-                    conversion_view=conversion_view,
-                    conversion_worker=conversion_worker,
-                    conversion_presenter=conversion_presenter,
-                ),
-                "Conversion",
+            self._conversion_widget = ConversionWidget(
+                conversion_view=conversion_view,
+                conversion_worker=conversion_worker,
+                conversion_presenter=conversion_presenter,
             )
+            self.tabs.addTab(self._conversion_widget, "Conversion")
         else:
             self.tabs.addTab(QLabel("Conversion view unavailable"), "Conversion")
+
+        # Build import tab and wire document_imported → ConversionWidget.set_document_id
         if import_view is not None:
-            self.tabs.addTab(ImportWidget(import_view=import_view), "Import")
+            import_widget = ImportWidget(import_view=import_view)
+            if self._conversion_widget is not None:
+                import_widget.document_imported.connect(self._conversion_widget.set_document_id)
+            self.tabs.addTab(import_widget, "Import")
         else:
             self.tabs.addTab(QLabel("Import view unavailable"), "Import")
+
         self.tabs.addTab(QLabel("Library view - to be implemented"), "Library")

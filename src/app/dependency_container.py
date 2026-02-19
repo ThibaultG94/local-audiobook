@@ -163,8 +163,20 @@ def build_library_view(container: AppContainer) -> Any:
     return LibraryView(presenter=presenter)
 
 
-def build_conversion_worker(container: AppContainer, model_manifest_path: str) -> Any:
-    """Build conversion worker with recheck entrypoint through service boundaries."""
+def build_conversion_worker(
+    container: AppContainer,
+    model_manifest_path: str,
+    import_service: Any | None = None,
+) -> Any:
+    """Build conversion worker with recheck entrypoint through service boundaries.
+
+    Args:
+        container: Application dependency container.
+        model_manifest_path: Path to the model manifest YAML.
+        import_service: Optional ImportService used for text extraction.
+            When provided the worker will extract + chunk the document text
+            before launching TTS synthesis.
+    """
     from src.ui.workers.conversion_worker import ConversionWorker
 
     return ConversionWorker(
@@ -172,6 +184,9 @@ def build_conversion_worker(container: AppContainer, model_manifest_path: str) -
         logger=container.logger,
         conversion_jobs_repository=container.repositories.conversion_jobs,
         conversion_launcher=container.services.tts_orchestration,
+        documents_repository=container.repositories.documents,
+        import_service=import_service,
+        tts_orchestration=container.services.tts_orchestration,
     )
 
 
